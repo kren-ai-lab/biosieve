@@ -47,3 +47,11 @@ biosieve reduce \
   --strategy descriptor_euclidean \
   --map map_deuc.csv \
   --report reduction_deuc.json
+
+# structural distances
+biosieve reduce \
+  --in biosieve_example_dataset_1000.csv \
+  --out data_nr_struct.csv \
+  --strategy structural_distance \
+  --map map_struct.csv \
+  --report reduction_struct.json

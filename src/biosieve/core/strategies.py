@@ -3,7 +3,8 @@ from __future__ import annotations
 from biosieve.core.registry import StrategyRegistry
 from biosieve.splitting import RandomSplit, StratifiedSplit, SplitFractions
 from biosieve.reduction import (ExactDedupReducer, IdentityGreedyReducer, KmerJaccardReducer,
-                                MMseqs2Reducer, EmbeddingCosineReducer, DescriptorEuclideanReducer)
+                                MMseqs2Reducer, EmbeddingCosineReducer, DescriptorEuclideanReducer,
+                                StructuralDistanceReducer)
 
 def build_registry() -> StrategyRegistry:
     reducers = {
@@ -26,6 +27,14 @@ def build_registry() -> StrategyRegistry:
             descriptor_cols=None,       
             standardize=True,
             n_jobs=8,
+        ),
+        "structural_distance": StructuralDistanceReducer(
+            edges_path="struct_edges.csv",
+            mode="distance",
+            threshold=0.5,
+            id1_col="id1",
+            id2_col="id2",
+            value_col="distance",
         ),
     }
     splitters = {

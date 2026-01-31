@@ -5,6 +5,7 @@ from .kmer_jaccard import KmerJaccardReducer
 from .mmseqs2 import MMseqs2Reducer
 from .embedding_cosine import EmbeddingCosineReducer
 from .descriptor_euclidean import DescriptorEuclideanReducer
+from .structural_distance import StructuralDistanceReducer
 
 __all__ = [
     "Reducer",
@@ -15,4 +16,5 @@ __all__ = [
     "MMseqs2Reducer",
     "EmbeddingCosineReducer",
     "DescriptorEuclideanReducer",
+    "StructuralDistanceReducer",
 ]
