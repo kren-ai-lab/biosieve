@@ -1,0 +1,16 @@
+{
+  "strategy": "stratified",
+  "n_total": 766,
+  "n_train": 612,
+  "n_val": 77,
+  "n_test": 77,
+  "params": {
+    "fractions": {
+      "train": 0.8,
+      "val": 0.1,
+      "test": 0.1
+    },
+    "label_col": "label"
+  },
+  "seed": 13
+}
