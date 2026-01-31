@@ -27,7 +27,7 @@ minhash = ["datasketch>=1.6"]
 faiss = ["faiss-cpu>=1.7.4; platform_system != 'Darwin'"]
 
 [project.scripts]
-biosieve = "biosieve.cli:main"
+biosieve = "biosieve.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
