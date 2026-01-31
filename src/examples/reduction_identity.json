@@ -1,0 +1,14 @@
+{
+  "strategy": "identity_greedy",
+  "n_input": 1000,
+  "n_output": 325,
+  "n_removed": 675,
+  "params": {
+    "threshold": 0.9,
+    "k": 5,
+    "jaccard_prefilter": 0.2,
+    "length_tolerance": 0.15,
+    "max_candidates": 50
+  },
+  "seed": 13
+}

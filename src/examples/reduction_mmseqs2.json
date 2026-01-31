@@ -1,0 +1,15 @@
+{
+  "strategy": "mmseqs2",
+  "n_input": 1000,
+  "n_output": 229,
+  "n_removed": 771,
+  "params": {
+    "min_seq_id": 0.9,
+    "coverage": 0.8,
+    "cov_mode": 0,
+    "cluster_mode": 0,
+    "threads": 8,
+    "keep_tmp": false
+  },
+  "seed": 13
+}
