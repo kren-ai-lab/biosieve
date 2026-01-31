@@ -31,3 +31,11 @@ biosieve reduce \
   --strategy mmseqs2 \
   --map map_mmseqs2.csv \
   --report reduction_mmseqs2.json
+
+# embedding cosine-distance
+biosieve reduce \
+  --in biosieve_example_dataset_1000.csv \
+  --out data_nr_embcos.csv \
+  --strategy embedding_cosine \
+  --map map_embcos.csv \
+  --report reduction_embcos.json

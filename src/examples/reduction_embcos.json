@@ -1,0 +1,17 @@
+{
+  "strategy": "embedding_cosine",
+  "n_input": 1000,
+  "n_output": 12,
+  "n_removed": 988,
+  "params": {
+    "embeddings_path": "embeddings.npy",
+    "ids_path": "embedding_ids.csv",
+    "ids_col": "id",
+    "threshold": 0.95,
+    "use_faiss": true,
+    "n_jobs": 8,
+    "dtype": "float32",
+    "note_missing_policy": "ids without embeddings are kept as standalone representatives"
+  },
+  "seed": 13
+}
