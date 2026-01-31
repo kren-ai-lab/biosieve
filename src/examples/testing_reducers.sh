@@ -39,3 +39,11 @@ biosieve reduce \
   --strategy embedding_cosine \
   --map map_embcos.csv \
   --report reduction_embcos.json
+
+# descriptors euclidean distance
+biosieve reduce \
+  --in biosieve_example_dataset_1000_desc.csv \
+  --out data_nr_deuc.csv \
+  --strategy descriptor_euclidean \
+  --map map_deuc.csv \
+  --report reduction_deuc.json

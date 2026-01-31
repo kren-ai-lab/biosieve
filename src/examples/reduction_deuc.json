@@ -1,0 +1,32 @@
+{
+  "strategy": "descriptor_euclidean",
+  "n_input": 1000,
+  "n_output": 1000,
+  "n_removed": 0,
+  "params": {
+    "threshold": 1.0,
+    "descriptor_prefix": "desc_",
+    "descriptor_cols": null,
+    "standardize": true,
+    "metric": "euclidean",
+    "n_jobs": 8,
+    "dtype": "float32",
+    "n_descriptors": 32,
+    "descriptor_cols_used": [
+      "desc_000",
+      "desc_001",
+      "desc_002",
+      "desc_003",
+      "desc_004",
+      "desc_005",
+      "desc_006",
+      "desc_007",
+      "desc_008",
+      "desc_009",
+      "..."
+    ],
+    "zscore_mean_saved": true,
+    "zscore_std_saved": true
+  },
+  "seed": 13
+}

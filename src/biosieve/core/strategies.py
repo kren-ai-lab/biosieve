@@ -3,7 +3,7 @@ from __future__ import annotations
 from biosieve.core.registry import StrategyRegistry
 from biosieve.splitting import RandomSplit, StratifiedSplit, SplitFractions
 from biosieve.reduction import (ExactDedupReducer, IdentityGreedyReducer, KmerJaccardReducer,
-                                MMseqs2Reducer, EmbeddingCosineReducer)
+                                MMseqs2Reducer, EmbeddingCosineReducer, DescriptorEuclideanReducer)
 
 def build_registry() -> StrategyRegistry:
     reducers = {
@@ -19,6 +19,13 @@ def build_registry() -> StrategyRegistry:
             use_faiss=True,
             n_jobs=8,
             dtype="float32",
+        ),
+        "descriptor_euclidean": DescriptorEuclideanReducer(
+            threshold=1.0,              
+            descriptor_prefix="desc_",
+            descriptor_cols=None,       
+            standardize=True,
+            n_jobs=8,
         ),
     }
     splitters = {

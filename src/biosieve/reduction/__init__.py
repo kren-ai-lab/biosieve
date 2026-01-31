@@ -4,6 +4,7 @@ from .identity_greedy import IdentityGreedyReducer
 from .kmer_jaccard import KmerJaccardReducer
 from .mmseqs2 import MMseqs2Reducer
 from .embedding_cosine import EmbeddingCosineReducer
+from .descriptor_euclidean import DescriptorEuclideanReducer
 
 __all__ = [
     "Reducer",
@@ -13,4 +14,5 @@ __all__ = [
     "KmerJaccardReducer",
     "MMseqs2Reducer",
     "EmbeddingCosineReducer",
+    "DescriptorEuclideanReducer",
 ]
