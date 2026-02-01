@@ -70,3 +70,10 @@ biosieve split \
   --outdir runs/split_clusteraware \
   --strategy cluster_aware \
   --params ../../configs/params_split_cluster_aware_with_mapping.yaml
+
+# Stratified-numerical
+biosieve split \
+  --in biosieve_example_dataset_1000_desc.csv \
+  --outdir runs/split_stratnum \
+  --strategy stratified_numeric \
+  --params ../../configs/params_split_stratified_numerical.yaml

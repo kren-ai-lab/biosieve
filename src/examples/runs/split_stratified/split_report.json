@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-01T21:19:51.775966Z",
+  "timestamp": "2026-02-01T21:34:08.063702Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_stratified",
   "strategy": "stratified",

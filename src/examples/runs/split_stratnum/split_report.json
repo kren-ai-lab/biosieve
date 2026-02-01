@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-02-01T21:34:16.602157Z",
+  "in_path": "biosieve_example_dataset_1000_desc.csv",
+  "outdir": "runs/split_stratnum",
+  "strategy": "stratified_numeric",
+  "strategy_params": {
+    "label_col": "desc_001",
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "n_bins": 10,
+    "binning": "quantile",
+    "duplicates": "drop",
+    "dropna": true
+  },
+  "split_params": {
+    "label_col": "desc_001",
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "n_bins": 10,
+    "binning": "quantile",
+    "duplicates": "drop",
+    "dropna": true
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_used": 1000,
+    "n_dropped_nan": 0,
+    "n_train": 700,
+    "n_test": 200,
+    "n_val": 100,
+    "label_col": "desc_001",
+    "binning": "quantile",
+    "n_bins_requested": 10,
+    "n_bins_effective": 10,
+    "train_bin_counts": {
+      "0": 70,
+      "1": 70,
+      "2": 70,
+      "3": 70,
+      "4": 70,
+      "5": 70,
+      "6": 70,
+      "7": 70,
+      "8": 70,
+      "9": 70
+    },
+    "test_bin_counts": {
+      "0": 20,
+      "1": 20,
+      "2": 20,
+      "3": 20,
+      "4": 20,
+      "5": 20,
+      "6": 20,
+      "7": 20,
+      "8": 20,
+      "9": 20
+    },
+    "val_bin_counts": {
+      "0": 10,
+      "1": 10,
+      "2": 10,
+      "3": 10,
+      "4": 10,
+      "5": 10,
+      "6": 10,
+      "7": 10,
+      "8": 10,
+      "9": 10
+    }
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}

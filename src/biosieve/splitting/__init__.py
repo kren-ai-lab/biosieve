@@ -6,7 +6,17 @@ from .time_based import TimeSplitter
 from .distance_aware import DistanceAwareSplitter
 from .homology_aware import HomologyAwareSplitter
 from .cluster import ClusterAwareSplitter
+from .stratified_numeric import StratifiedNumericSplitter
 
-__all__ = ["SplitResult", "Splitter", "RandomSplitter", "StratifiedSplitter",
-           "GroupSplitter", "TimeSplitter", "DistanceAwareSplitter",
-           "HomologyAwareSplitter", "ClusterAwareSplitter"]
+__all__ = [
+    "SplitResult", 
+    "Splitter", 
+    "RandomSplitter", 
+    "StratifiedSplitter",
+    "GroupSplitter", 
+    "TimeSplitter", 
+    "DistanceAwareSplitter",
+    "HomologyAwareSplitter", 
+    "ClusterAwareSplitter", 
+    "StratifiedNumericSplitter",]
+

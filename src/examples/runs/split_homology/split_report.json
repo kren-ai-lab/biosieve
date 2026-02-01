@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-01T21:19:57.697629Z",
+  "timestamp": "2026-02-01T21:34:13.336507Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_homology",
   "strategy": "homology_aware",
