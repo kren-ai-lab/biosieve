@@ -8,34 +8,13 @@ from biosieve.reduction import (ExactDedupReducer, IdentityGreedyReducer, KmerJa
 
 def build_registry() -> StrategyRegistry:
     reducers = {
-        "exact": ExactDedupReducer(),
-        "identity_greedy": IdentityGreedyReducer(threshold=0.9, k=5, jaccard_prefilter=0.2),
-        "kmer_jaccard": KmerJaccardReducer(threshold=0.7, k=5),
-        "mmseqs2": MMseqs2Reducer(min_seq_id=0.9, coverage=0.8, threads=8, keep_tmp=False),
-        "embedding_cosine": EmbeddingCosineReducer(
-            embeddings_path="embeddings.npy",
-            ids_path="embedding_ids.csv",
-            ids_col="id",
-            threshold=0.95,
-            use_faiss=True,
-            n_jobs=8,
-            dtype="float32",
-        ),
-        "descriptor_euclidean": DescriptorEuclideanReducer(
-            threshold=1.0,              
-            descriptor_prefix="desc_",
-            descriptor_cols=None,       
-            standardize=True,
-            n_jobs=8,
-        ),
-        "structural_distance": StructuralDistanceReducer(
-            edges_path="struct_edges.csv",
-            mode="distance",
-            threshold=0.5,
-            id1_col="id1",
-            id2_col="id2",
-            value_col="distance",
-        ),
+        "exact": ExactDedupReducer,
+        "identity_greedy": IdentityGreedyReducer,
+        "kmer_jaccard": KmerJaccardReducer,
+        "mmseqs2": MMseqs2Reducer,
+        "embedding_cosine": EmbeddingCosineReducer,
+        "descriptor_euclidean": DescriptorEuclideanReducer,
+        "structural_distance": StructuralDistanceReducer,
     }
     splitters = {
         "random": RandomSplit(SplitFractions()),

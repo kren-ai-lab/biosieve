@@ -1,0 +1,6 @@
+embedding_cosine:
+  embeddings_path: "/home/david/Desktop/tools/krenai_libs/biosieve/src/examples/embeddings.npy"
+  ids_path: "/home/david/Desktop/tools/krenai_libs/biosieve/src/examples/embedding_ids.csv"
+  threshold: 0.95
+  use_faiss: false
+  n_jobs: 8

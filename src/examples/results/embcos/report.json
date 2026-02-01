@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-02-01T00:04:09.979563Z",
+  "in_path": "biosieve_example_dataset_1000.csv",
+  "out_path": "results/embcos/data_nr.csv",
+  "map_path": "results/embcos/map.csv",
+  "strategy": "embedding_cosine",
+  "strategy_params": {
+    "embeddings_path": "/home/david/Desktop/tools/krenai_libs/biosieve/src/examples/embeddings.npy",
+    "ids_path": "/home/david/Desktop/tools/krenai_libs/biosieve/src/examples/embedding_ids.csv",
+    "threshold": 0.95,
+    "use_faiss": false,
+    "n_jobs": 8
+  },
+  "reducer_params": {
+    "embeddings_path": "/home/david/Desktop/tools/krenai_libs/biosieve/src/examples/embeddings.npy",
+    "ids_path": "/home/david/Desktop/tools/krenai_libs/biosieve/src/examples/embedding_ids.csv",
+    "ids_col": "id",
+    "threshold": 0.95,
+    "use_faiss": false,
+    "n_jobs": 8,
+    "dtype": "float32",
+    "note_missing_policy": "ids without embeddings are kept as standalone representatives"
+  },
+  "stats": {
+    "n_in": 1000,
+    "n_out": 12,
+    "n_removed": 988,
+    "fraction_removed": 0.988,
+    "n_mapped_removed": 988
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence",
+    "label_col": "label",
+    "group_col": null,
+    "cluster_col": null,
+    "date_col": null
+  }
+}
