@@ -1,0 +1,5 @@
+cluster_aware:
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
+  cluster_col: "cluster_id"

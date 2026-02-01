@@ -1,0 +1,8 @@
+cluster_aware:
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
+  cluster_map_path: "cluster_map.csv"
+  map_id_col: "id"
+  map_cluster_col: "cluster_id"
+  assign_singletons_for_missing: true

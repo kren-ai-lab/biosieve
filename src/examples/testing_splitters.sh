@@ -56,3 +56,17 @@ biosieve split \
   --outdir runs/split_homology \
   --strategy homology_aware \
   --params ../../configs/params_split_homology_aware_precomputed.yaml
+
+# Cluster-aware simple
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_clusteraware \
+  --strategy cluster_aware \
+  --params ../../configs/params_split_cluster_aware.yaml
+
+# Cluster-aware with file for mapping clusters
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_clusteraware \
+  --strategy cluster_aware \
+  --params ../../configs/params_split_cluster_aware_with_mapping.yaml

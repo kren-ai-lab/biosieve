@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-02-01T21:20:00.111982Z",
+  "in_path": "biosieve_example_dataset_1000.csv",
+  "outdir": "runs/split_clusteraware",
+  "strategy": "cluster_aware",
+  "strategy_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "cluster_map_path": "cluster_map.csv",
+    "map_id_col": "id",
+    "map_cluster_col": "cluster_id",
+    "assign_singletons_for_missing": true
+  },
+  "split_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "cluster_col": "cluster_id",
+    "cluster_map_path": "cluster_map.csv",
+    "map_id_col": "id",
+    "map_cluster_col": "cluster_id",
+    "assign_singletons_for_missing": true
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_train": 690,
+    "n_test": 202,
+    "n_val": 108,
+    "cluster_col": "cluster_id",
+    "n_clusters_total": 80,
+    "leak_clusters_train_test": 0,
+    "leak_clusters_train_val": 0,
+    "leak_clusters_val_test": 0,
+    "note": "cluster-aware split uses group-based splitting to prevent cluster leakage across splits."
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}
