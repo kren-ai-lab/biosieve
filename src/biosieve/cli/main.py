@@ -8,6 +8,7 @@ from biosieve.core.strategies import build_registry
 
 # Subcommands
 from biosieve.cli.reduce import add_reduce_subcommand
+from biosieve.cli.split import add_split_subcommand
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -31,7 +32,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Register subcommands
     add_reduce_subcommand(subparsers)
-
+    add_split_subcommand(subparsers)
+    
     return parser
 
 

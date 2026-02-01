@@ -1,6 +1,5 @@
-from .base import Splitter, SplitResult
-from .config import SplitFractions
-from .random import RandomSplit
-from .stratified import StratifiedSplit
+from .base import SplitResult, Splitter
+from .random import RandomSplitter
+from .stratified import StratifiedSplitter
 
-__all__ = ["Splitter", "SplitResult", "SplitFractions", "RandomSplit", "StratifiedSplit"]
+__all__ = ["SplitResult", "Splitter", "RandomSplitter", "StratifiedSplitter"]

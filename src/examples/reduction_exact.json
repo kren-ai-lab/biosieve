@@ -1,8 +1,0 @@
-{
-  "strategy": "exact",
-  "n_input": 1000,
-  "n_output": 766,
-  "n_removed": 234,
-  "params": {},
-  "seed": 13
-}

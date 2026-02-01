@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-02-01T11:56:02.279917Z",
+  "in_path": "biosieve_example_dataset_1000.csv",
+  "outdir": "runs/split_random",
+  "strategy": "random",
+  "strategy_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13
+  },
+  "split_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_train": 700,
+    "n_test": 200,
+    "n_val": 100
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}

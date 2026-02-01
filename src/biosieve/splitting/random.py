@@ -1,50 +1,79 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 
-from biosieve.splitting.base import SplitResult
-from biosieve.splitting.config import SplitFractions
 from biosieve.types import Columns
+from biosieve.splitting.base import SplitResult
+
+
+def _validate_sizes(test_size: float, val_size: float) -> None:
+    if not (0.0 < test_size < 1.0):
+        raise ValueError("test_size must be in (0, 1)")
+    if not (0.0 <= val_size < 1.0):
+        raise ValueError("val_size must be in [0, 1)")
+    if test_size + val_size >= 1.0:
+        raise ValueError("test_size + val_size must be < 1.0")
+
+
+def _index_split(n: int, test_size: float, val_size: float, seed: int) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    rng = np.random.default_rng(seed)
+    idx = np.arange(n)
+    rng.shuffle(idx)
+
+    n_test = int(round(n * test_size))
+    n_val = int(round(n * val_size)) if val_size > 0 else 0
+    n_train = n - n_test - n_val
+    if n_train <= 0:
+        raise ValueError("Split sizes leave no training samples. Reduce test_size/val_size.")
+
+    train_idx = idx[:n_train]
+    val_idx = idx[n_train:n_train + n_val] if n_val > 0 else None
+    test_idx = idx[n_train + n_val:]
+
+    return train_idx, test_idx, val_idx
+
 
 @dataclass(frozen=True)
-class RandomSplit:
-    fractions: SplitFractions
+class RandomSplitter:
+    """
+    Random train/test(/val) split.
+    Deterministic via seed.
+    """
+    test_size: float = 0.2
+    val_size: float = 0.0
+    seed: int = 13
 
-    strategy: str = "random"
+    @property
+    def strategy(self) -> str:
+        return "random"
 
-    def run(self, df: pd.DataFrame, cols: Columns, seed: int) -> SplitResult:
-        self.fractions.validate()
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+        _validate_sizes(self.test_size, self.val_size)
 
+        work = df.copy().reset_index(drop=True)
         n = len(work)
-        rng = np.random.default_rng(seed)
-        perm = rng.permutation(n)
-
-        n_train = int(round(self.fractions.train * n))
-        n_val = int(round(self.fractions.val * n))
-
-        train_idx = perm[:n_train]
-        val_idx = perm[n_train:n_train + n_val]
-        test_idx = perm[n_train + n_val:]
+        train_idx, test_idx, val_idx = _index_split(n, self.test_size, self.val_size, self.seed)
 
         train = work.iloc[train_idx].reset_index(drop=True)
-        val = work.iloc[val_idx].reset_index(drop=True)
         test = work.iloc[test_idx].reset_index(drop=True)
+        val = work.iloc[val_idx].reset_index(drop=True) if val_idx is not None else None
 
-        assignments = pd.DataFrame(
-            {
-                cols.id_col: pd.concat([train[cols.id_col], val[cols.id_col], test[cols.id_col]]).astype(str),
-                "split": (["train"] * len(train)) + (["val"] * len(val)) + (["test"] * len(test)),
-                "strategy": self.strategy,
-                "seed": seed,
-            }
-        ).reset_index(drop=True)
+        stats: Dict[str, Any] = {
+            "n_total": int(n),
+            "n_train": int(len(train)),
+            "n_test": int(len(test)),
+            "n_val": int(len(val)) if val is not None else 0,
+        }
 
         return SplitResult(
-            train=train, val=val, test=test,
-            assignments=assignments,
+            train=train,
+            test=test,
+            val=val,
             strategy=self.strategy,
-            params={"fractions": {"train": self.fractions.train, "val": self.fractions.val, "test": self.fractions.test}},
-            seed=seed,
+            params={"test_size": self.test_size, "val_size": self.val_size, "seed": self.seed},
+            stats=stats,
         )
