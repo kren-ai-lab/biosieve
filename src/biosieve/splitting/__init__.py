@@ -3,6 +3,7 @@ from .random import RandomSplitter
 from .stratified import StratifiedSplitter
 from .group import GroupSplitter
 from .time_based import TimeSplitter
+from .distance_aware import DistanceAwareSplitter
 
 __all__ = ["SplitResult", "Splitter", "RandomSplitter", "StratifiedSplitter",
-           "GroupSplitter", "TimeSplitter",]
+           "GroupSplitter", "TimeSplitter", "DistanceAwareSplitter",]

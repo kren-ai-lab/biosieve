@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-02-01T18:20:22.692287Z",
+  "in_path": "biosieve_example_dataset_1000.csv",
+  "outdir": "runs/split_distance_emb",
+  "strategy": "distance_aware",
+  "strategy_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "feature_mode": "embeddings",
+    "metric": "cosine",
+    "embeddings_path": "embeddings.npy",
+    "ids_path": "embedding_ids.csv",
+    "ids_col": "id",
+    "val_method": "random"
+  },
+  "split_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "feature_mode": "embeddings",
+    "metric": "cosine",
+    "embeddings_path": "embeddings.npy",
+    "ids_path": "embedding_ids.csv",
+    "ids_col": "id",
+    "descriptor_prefix": "desc_",
+    "descriptor_cols": null,
+    "standardize": true,
+    "test_method": "farthest",
+    "val_method": "random",
+    "dtype": "float32",
+    "zscore_used": false
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_train": 700,
+    "n_test": 200,
+    "n_val": 100,
+    "feature_meta": {
+      "feature_mode": "embeddings",
+      "n_total": 1000,
+      "n_with_features": 1000,
+      "n_missing_features": 0,
+      "coverage": 1.0,
+      "embeddings_path": "embeddings.npy",
+      "ids_path": "embedding_ids.csv",
+      "ids_col": "id"
+    },
+    "metric": "cosine",
+    "test_method": "farthest",
+    "val_method": "random",
+    "note": "test is selected as farthest-from-centroid in feature space (distance-aware v0.1)."
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}

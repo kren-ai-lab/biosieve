@@ -1,0 +1,13 @@
+distance_aware:
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
+
+  feature_mode: "embeddings"
+  metric: "cosine"
+
+  embeddings_path: "embeddings.npy"
+  ids_path: "embedding_ids.csv"
+  ids_col: "id"
+
+  val_method: "random"        # or "farthest_next"

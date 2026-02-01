@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-02-01T18:20:23.087258Z",
+  "in_path": "biosieve_example_dataset_1000_desc.csv",
+  "outdir": "runs/split_distance_desc",
+  "strategy": "distance_aware",
+  "strategy_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "feature_mode": "descriptors",
+    "metric": "euclidean",
+    "descriptor_prefix": "desc_",
+    "standardize": true,
+    "val_method": "farthest_next"
+  },
+  "split_params": {
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13,
+    "feature_mode": "descriptors",
+    "metric": "euclidean",
+    "embeddings_path": "embeddings.npy",
+    "ids_path": "embedding_ids.csv",
+    "ids_col": "id",
+    "descriptor_prefix": "desc_",
+    "descriptor_cols": null,
+    "standardize": true,
+    "test_method": "farthest",
+    "val_method": "farthest_next",
+    "dtype": "float32",
+    "zscore_used": true
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_train": 700,
+    "n_test": 200,
+    "n_val": 100,
+    "feature_meta": {
+      "feature_mode": "descriptors",
+      "n_total": 1000,
+      "n_with_features": 1000,
+      "n_missing_features": 0,
+      "coverage": 1.0,
+      "descriptor_prefix": "desc_",
+      "descriptor_cols_used": [
+        "desc_000",
+        "desc_001",
+        "desc_002",
+        "desc_003",
+        "desc_004",
+        "desc_005",
+        "desc_006",
+        "desc_007",
+        "desc_008",
+        "desc_009",
+        "..."
+      ],
+      "n_descriptors": 32,
+      "standardize": true
+    },
+    "metric": "euclidean",
+    "test_method": "farthest",
+    "val_method": "farthest_next",
+    "note": "test is selected as farthest-from-centroid in feature space (distance-aware v0.1)."
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}

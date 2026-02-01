@@ -1,0 +1,11 @@
+distance_aware:
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
+
+  feature_mode: "descriptors"
+  metric: "euclidean"
+
+  descriptor_prefix: "desc_"
+  standardize: true
+  val_method: "farthest_next"
