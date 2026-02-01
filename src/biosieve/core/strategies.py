@@ -6,7 +6,8 @@ from biosieve.reduction import (ExactDedupReducer, IdentityGreedyReducer, KmerJa
                                 StructuralDistanceReducer)
 
 from biosieve.splitting import (RandomSplitter, StratifiedSplitter, 
-                                GroupSplitter, TimeSplitter, DistanceAwareSplitter)
+                                GroupSplitter, TimeSplitter, DistanceAwareSplitter,
+                                HomologyAwareSplitter)
 
 def build_registry() -> StrategyRegistry:
     reducers = {
@@ -24,6 +25,7 @@ def build_registry() -> StrategyRegistry:
         "group": GroupSplitter,
         "time": TimeSplitter,
         "distance_aware": DistanceAwareSplitter,
+        "homology_aware" : HomologyAwareSplitter,
     }
     
     return StrategyRegistry(reducers=reducers, splitters=splitters)

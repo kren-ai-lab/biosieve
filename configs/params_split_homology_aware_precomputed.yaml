@@ -1,0 +1,8 @@
+homology_aware:
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
+
+  mode: "precomputed"
+  clusters_path: "runs/mmseqs2_clusters/clusters_cluster.tsv"
+  clusters_format: "mmseqs_tsv"

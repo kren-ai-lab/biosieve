@@ -42,3 +42,17 @@ biosieve split \
   --outdir runs/split_distance_desc \
   --strategy distance_aware \
   --params ../../configs/params_split_distance_aware_descriptors.yaml
+
+# Homology aware (without previous results)
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_homology \
+  --strategy homology_aware \
+  --params ../../configs/params_split_homology_aware.yaml
+
+# Homology aware (precomputed data)
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_homology \
+  --strategy homology_aware \
+  --params ../../configs/params_split_homology_aware_precomputed.yaml

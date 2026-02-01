@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-01T18:20:23.087258Z",
+  "timestamp": "2026-02-01T18:36:15.349473Z",
   "in_path": "biosieve_example_dataset_1000_desc.csv",
   "outdir": "runs/split_distance_desc",
   "strategy": "distance_aware",

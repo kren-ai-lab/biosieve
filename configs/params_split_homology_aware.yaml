@@ -1,0 +1,14 @@
+homology_aware:
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
+
+  mode: "mmseqs2"
+  mmseqs_bin: "mmseqs"
+  min_seq_id: 0.9
+  coverage: 0.8
+  cov_mode: 0
+  threads: 16
+
+  work_dir: "runs/mmseqs2_clusters"
+  keep_work: true
