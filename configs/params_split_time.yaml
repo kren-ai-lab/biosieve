@@ -1,0 +1,7 @@
+time:
+  time_col: "date"
+  parse_datetime: true
+  time_format: "%Y-%m-%d"   # optional
+  ascending: true
+  test_size: 0.2
+  val_size: 0.1

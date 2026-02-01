@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
+import pandas as pd
+
+from biosieve.types import Columns
+from biosieve.splitting.base import SplitResult
+
+
+def _try_import_gss():
+    try:
+        from sklearn.model_selection import GroupShuffleSplit  # type: ignore
+        return GroupShuffleSplit
+    except Exception:
+        return None
+
+
+def _validate_sizes(test_size: float, val_size: float) -> None:
+    if not (0.0 < test_size < 1.0):
+        raise ValueError("test_size must be in (0, 1)")
+    if not (0.0 <= val_size < 1.0):
+        raise ValueError("val_size must be in [0, 1)")
+    if test_size + val_size >= 1.0:
+        raise ValueError("test_size + val_size must be < 1.0")
+
+
+def _split_groups(
+    df: pd.DataFrame,
+    groups: pd.Series,
+    test_size: float,
+    seed: int,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    GroupShuffleSplit = _try_import_gss()
+    if GroupShuffleSplit is None:
+        raise ImportError(
+            "GroupSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
+        )
+
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
+    idx = df.index.to_numpy()
+
+    # gss.split yields indices relative to df
+    train_idx, test_idx = next(gss.split(idx, groups=groups))
+    train = df.iloc[train_idx].copy()
+    test = df.iloc[test_idx].copy()
+    return train, test
+
+
+@dataclass(frozen=True)
+class GroupSplitter:
+    """
+    Group-aware train/test(/val) split: no group appears in more than one split.
+
+    Two-stage procedure:
+      1) split off test by groups
+      2) optionally split validation from remaining train by groups
+
+    Params:
+      - group_col: column defining groups (e.g., taxid, cluster_id, family)
+      - test_size, val_size: fractions of total
+      - seed: deterministic
+    """
+
+    group_col: str = "group"
+    test_size: float = 0.2
+    val_size: float = 0.0
+    seed: int = 13
+
+    @property
+    def strategy(self) -> str:
+        return "group"
+
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+        _validate_sizes(self.test_size, self.val_size)
+
+        work = df.copy().reset_index(drop=True)
+        if self.group_col not in work.columns:
+            raise ValueError(f"Missing group column '{self.group_col}'. Columns: {work.columns.tolist()}")
+
+        groups = work[self.group_col].astype(str)
+        n_groups = groups.nunique(dropna=False)
+        if n_groups < 2:
+            raise ValueError(f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'.")
+
+        # 1) test split
+        trainval, test = _split_groups(work, groups, test_size=self.test_size, seed=self.seed)
+
+        val = None
+        train = trainval
+
+        # 2) optional val split from trainval
+        if self.val_size and self.val_size > 0:
+            frac = self.val_size / (1.0 - self.test_size)
+            if frac <= 0 or frac >= 1:
+                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+
+            tv_groups = trainval[self.group_col].astype(str)
+            tv_n_groups = tv_groups.nunique(dropna=False)
+            if tv_n_groups < 2:
+                raise ValueError(
+                    f"Not enough groups left after test split to create validation. "
+                    f"Groups in trainval: {tv_n_groups}. Reduce test_size/val_size."
+                )
+
+            train, val = _split_groups(trainval, tv_groups, test_size=frac, seed=self.seed)
+
+        # reset indices
+        train = train.reset_index(drop=True)
+        test = test.reset_index(drop=True)
+        if val is not None:
+            val = val.reset_index(drop=True)
+
+        # leakage checks
+        def _group_set(x: pd.DataFrame) -> set[str]:
+            return set(x[self.group_col].astype(str).tolist())
+
+        train_g = _group_set(train)
+        test_g = _group_set(test)
+        val_g = _group_set(val) if val is not None else set()
+
+        leak_tt = len(train_g & test_g)
+        leak_tv = len(train_g & val_g)
+        leak_vt = len(val_g & test_g)
+
+        stats: Dict[str, Any] = {
+            "n_total": int(len(work)),
+            "n_train": int(len(train)),
+            "n_test": int(len(test)),
+            "n_val": int(len(val)) if val is not None else 0,
+            "group_col": self.group_col,
+            "n_groups_total": int(n_groups),
+            "n_groups_train": int(len(train_g)),
+            "n_groups_test": int(len(test_g)),
+            "n_groups_val": int(len(val_g)) if val is not None else 0,
+            "leak_groups_train_test": int(leak_tt),
+            "leak_groups_train_val": int(leak_tv),
+            "leak_groups_val_test": int(leak_vt),
+        }
+
+        return SplitResult(
+            train=train,
+            test=test,
+            val=val,
+            strategy=self.strategy,
+            params={"group_col": self.group_col, "test_size": self.test_size, "val_size": self.val_size, "seed": self.seed},
+            stats=stats,
+        )

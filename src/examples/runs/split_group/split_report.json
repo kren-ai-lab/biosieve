@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-02-01T17:05:46.550057Z",
+  "in_path": "biosieve_example_dataset_1000.csv",
+  "outdir": "runs/split_group",
+  "strategy": "group",
+  "strategy_params": {
+    "group_col": "group",
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13
+  },
+  "split_params": {
+    "group_col": "group",
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "seed": 13
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_train": 682,
+    "n_test": 201,
+    "n_val": 117,
+    "group_col": "group",
+    "n_groups_total": 40,
+    "n_groups_train": 28,
+    "n_groups_test": 8,
+    "n_groups_val": 4,
+    "leak_groups_train_test": 0,
+    "leak_groups_train_val": 0,
+    "leak_groups_val_test": 0
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}

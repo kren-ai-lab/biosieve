@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-02-01T17:05:46.988073Z",
+  "in_path": "biosieve_example_dataset_1000.csv",
+  "outdir": "runs/split_time",
+  "strategy": "time",
+  "strategy_params": {
+    "time_col": "date",
+    "parse_datetime": true,
+    "time_format": "%Y-%m-%d",
+    "ascending": true,
+    "test_size": 0.2,
+    "val_size": 0.1
+  },
+  "split_params": {
+    "time_col": "date",
+    "test_size": 0.2,
+    "val_size": 0.1,
+    "parse_datetime": true,
+    "time_format": "%Y-%m-%d",
+    "ascending": true
+  },
+  "stats": {
+    "n_total": 1000,
+    "n_train": 700,
+    "n_test": 200,
+    "n_val": 100,
+    "time_col": "date",
+    "ascending": true,
+    "train_time_range": {
+      "min": "2018-01-03 00:00:00",
+      "max": "2023-08-23 00:00:00"
+    },
+    "test_time_range": {
+      "min": "2024-06-28 00:00:00",
+      "max": "2025-12-28 00:00:00"
+    },
+    "val_time_range": {
+      "min": "2023-08-23 00:00:00",
+      "max": "2024-06-25 00:00:00"
+    }
+  },
+  "columns": {
+    "id_col": "id",
+    "seq_col": "sequence"
+  }
+}

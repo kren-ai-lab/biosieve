@@ -5,7 +5,8 @@ from biosieve.reduction import (ExactDedupReducer, IdentityGreedyReducer, KmerJa
                                 MMseqs2Reducer, EmbeddingCosineReducer, DescriptorEuclideanReducer,
                                 StructuralDistanceReducer)
 
-from biosieve.splitting import RandomSplitter, StratifiedSplitter
+from biosieve.splitting import (RandomSplitter, StratifiedSplitter, 
+                                GroupSplitter, TimeSplitter)
 
 def build_registry() -> StrategyRegistry:
     reducers = {
@@ -20,6 +21,8 @@ def build_registry() -> StrategyRegistry:
     splitters = {
         "random": RandomSplitter,
         "stratified": StratifiedSplitter,
+        "group": GroupSplitter,
+        "time": TimeSplitter,
     }
     
     return StrategyRegistry(reducers=reducers, splitters=splitters)

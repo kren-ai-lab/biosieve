@@ -1,0 +1,5 @@
+group:
+  group_col: "group"
+  test_size: 0.2
+  val_size: 0.1
+  seed: 13
