@@ -1,0 +1,6 @@
+group_kfold:
+  group_col: "group"   # o "cluster_id" o "taxid" etc.
+  n_splits: 5
+  val_size: 0.1
+  seed: 13
+  dropna: true

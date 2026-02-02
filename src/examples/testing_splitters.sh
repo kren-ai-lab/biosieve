@@ -91,3 +91,10 @@ biosieve split \
   --outdir runs/split_stratified_kfold \
   --strategy stratified_kfold \
   --params ../../configs/params_split_stratified_kfold.yaml
+
+# Group K-Fold
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_group_kfold \
+  --strategy group_kfold \
+  --params ../../configs/params_split_group_kfold.yaml

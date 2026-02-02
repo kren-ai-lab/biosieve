@@ -136,12 +136,6 @@
 
 ### 2.2 Pendientes “core”
 
-* **`kfold`** (muy necesario para tus pipelines):
-
-  * `random_kfold`
-  * `stratified_kfold`
-  * `group_kfold`
-  * outputs: `fold_0/train.csv`, `fold_0/test.csv`, etc.
 * **`nested_cv`** (opcional, pero vendible):
 
   * outer split leakage-aware + inner CV
