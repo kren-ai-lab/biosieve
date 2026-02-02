@@ -7,6 +7,8 @@ from .distance_aware import DistanceAwareSplitter
 from .homology_aware import HomologyAwareSplitter
 from .cluster import ClusterAwareSplitter
 from .stratified_numeric import StratifiedNumericSplitter
+from .random_kfold import RandomKFoldSplitter
+from .stratified_kfold import StratifiedKFoldSplitter
 
 __all__ = [
     "SplitResult", 
@@ -18,5 +20,7 @@ __all__ = [
     "DistanceAwareSplitter",
     "HomologyAwareSplitter", 
     "ClusterAwareSplitter", 
-    "StratifiedNumericSplitter",]
+    "StratifiedNumericSplitter",
+    "RandomKFoldSplitter",
+    "StratifiedKFoldSplitter"]
 

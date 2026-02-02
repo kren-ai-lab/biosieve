@@ -1,0 +1,8 @@
+stratified_kfold:
+  label_col: "label"
+  n_splits: 5
+  shuffle: true
+  seed: 13
+  val_size: 0.1
+  dropna: true
+  cast_to_str: false

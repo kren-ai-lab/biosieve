@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-02T07:21:05.352283Z",
+  "timestamp": "2026-02-02T21:37:49.897245Z",
   "in_path": "biosieve_example_dataset_1000_desc.csv",
   "outdir": "runs/split_distance_desc",
   "strategy": "distance_aware",
@@ -13,6 +13,7 @@
     "standardize": true,
     "val_method": "farthest_next"
   },
+  "kfold": false,
   "split_params": {
     "test_size": 0.2,
     "val_size": 0.1,

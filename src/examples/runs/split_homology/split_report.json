@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-02T07:21:08.308330Z",
+  "timestamp": "2026-02-02T21:37:52.898555Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_homology",
   "strategy": "homology_aware",
@@ -11,6 +11,7 @@
     "clusters_path": "runs/mmseqs2_clusters/clusters_cluster.tsv",
     "clusters_format": "mmseqs_tsv"
   },
+  "kfold": false,
   "split_params": {
     "test_size": 0.2,
     "val_size": 0.1,

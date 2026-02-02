@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-02T07:21:10.498260Z",
+  "timestamp": "2026-02-02T21:37:55.056110Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_clusteraware",
   "strategy": "cluster_aware",
@@ -12,6 +12,7 @@
     "map_cluster_col": "cluster_id",
     "assign_singletons_for_missing": true
   },
+  "kfold": false,
   "split_params": {
     "test_size": 0.2,
     "val_size": 0.1,

@@ -1,0 +1,5 @@
+random_kfold:
+  n_splits: 5
+  shuffle: true
+  seed: 13
+  val_size: 0.1

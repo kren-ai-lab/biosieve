@@ -77,3 +77,17 @@ biosieve split \
   --outdir runs/split_stratnum \
   --strategy stratified_numeric \
   --params ../../configs/params_split_stratified_numerical.yaml
+
+# Random K-Fold
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_random_kfold \
+  --strategy random_kfold \
+  --params ../../configs/params_split_random_kfold.yaml
+
+# Stratified K-fold
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_stratified_kfold \
+  --strategy stratified_kfold \
+  --params ../../configs/params_split_stratified_kfold.yaml

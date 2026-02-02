@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-02T07:21:11.635072Z",
+  "timestamp": "2026-02-02T21:37:56.211544Z",
   "in_path": "biosieve_example_dataset_1000_desc.csv",
   "outdir": "runs/split_stratnum",
   "strategy": "stratified_numeric",
@@ -16,6 +16,7 @@
     "min_bin_count": 2,
     "report_bin_edges": true
   },
+  "kfold": false,
   "split_params": {
     "label_col": "desc_001",
     "test_size": 0.2,
