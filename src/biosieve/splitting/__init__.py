@@ -10,6 +10,9 @@ from .stratified_numeric import StratifiedNumericSplitter
 from .random_kfold import RandomKFoldSplitter
 from .stratified_kfold import StratifiedKFoldSplitter
 from .group_kfold import GroupKFoldSplitter
+from .stratified_numeric_kfold import StratifiedNumericKFoldSplitter
+from .distance_aware_kfold import DistanceAwareKFoldSplitter
+
 
 __all__ = [
     "SplitResult", 
@@ -24,5 +27,7 @@ __all__ = [
     "StratifiedNumericSplitter",
     "RandomKFoldSplitter",
     "StratifiedKFoldSplitter",
-    "GroupKFoldSplitter",]
+    "GroupKFoldSplitter",
+    "StratifiedNumericKFoldSplitter",
+    "DistanceAwareKFoldSplitter",]
 

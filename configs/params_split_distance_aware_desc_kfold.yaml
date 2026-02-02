@@ -1,0 +1,10 @@
+distance_aware_kfold:
+  feature_mode: "descriptors"
+  metric: "euclidean"
+  n_splits: 5
+  seed: 13
+  shuffle_ties: true
+  val_size: 0.1
+
+  descriptor_prefix: "desc_"
+  standardize_descriptors: true

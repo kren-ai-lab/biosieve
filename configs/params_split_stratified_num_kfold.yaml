@@ -1,0 +1,14 @@
+stratified_numeric_kfold:
+  label_col: "desc_001"
+  n_splits: 5
+  shuffle: true
+  seed: 13
+  val_size: 0.1
+
+  n_bins: 10
+  binning: "quantile"
+  duplicates: "drop"
+  auto_reduce_bins: true
+  min_bin_count: 2
+  report_bin_edges: true
+  dropna: true

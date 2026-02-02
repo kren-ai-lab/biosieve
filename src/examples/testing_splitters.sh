@@ -98,3 +98,17 @@ biosieve split \
   --outdir runs/split_group_kfold \
   --strategy group_kfold \
   --params ../../configs/params_split_group_kfold.yaml
+
+# Stratified numerical k-fold
+biosieve split \
+  --in biosieve_example_dataset_1000_desc.csv \
+  --outdir runs/split_stratnum_kfold \
+  --strategy stratified_numeric_kfold \
+  --params ../../configs/params_split_stratified_num_kfold.yaml
+
+# Distance aware embedding k-fold
+biosieve split \
+  --in biosieve_example_dataset_1000.csv \
+  --outdir runs/split_distanceaware_kfold \
+  --strategy distance_aware_kfold \
+  --params ../../configs/params_split_distance_aware_embedding_kfold.yaml

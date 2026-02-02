@@ -1,0 +1,10 @@
+distance_aware_kfold:
+  feature_mode: "embeddings"
+  metric: "cosine"
+  n_splits: 5
+  seed: 13
+  shuffle_ties: true
+  val_size: 0.1
+
+  embeddings_path: "embeddings.npy"
+  ids_path: "embedding_ids.csv"
