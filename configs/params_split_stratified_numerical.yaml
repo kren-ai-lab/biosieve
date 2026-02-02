@@ -7,3 +7,7 @@ stratified_numeric:
   binning: "quantile"
   duplicates: "drop"
   dropna: true
+
+  auto_reduce_bins: true
+  min_bin_count: 2
+  report_bin_edges: true

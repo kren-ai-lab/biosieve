@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -27,43 +27,149 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError("test_size + val_size must be < 1.0")
 
 
-def _make_bins(
+def _label_stats(y: pd.Series) -> Dict[str, Any]:
+    yy = pd.to_numeric(y, errors="coerce")
+    yy = yy.dropna()
+    if len(yy) == 0:
+        return {
+            "n": 0,
+            "min": None,
+            "max": None,
+            "mean": None,
+            "std": None,
+            "median": None,
+            "q25": None,
+            "q75": None,
+        }
+
+    return {
+        "n": int(len(yy)),
+        "min": float(yy.min()),
+        "max": float(yy.max()),
+        "mean": float(yy.mean()),
+        "std": float(yy.std(ddof=1)) if len(yy) > 1 else 0.0,
+        "median": float(yy.median()),
+        "q25": float(yy.quantile(0.25)),
+        "q75": float(yy.quantile(0.75)),
+    }
+
+
+def _bin_counts(bins: pd.Series) -> Dict[str, int]:
+    vc = bins.value_counts(dropna=False).sort_index()
+    return {str(k): int(v) for k, v in vc.to_dict().items()}
+
+
+def _make_bins_once(
     y: pd.Series,
     *,
     n_bins: int,
     binning: str,
     duplicates: str,
-) -> pd.Series:
+) -> Tuple[pd.Series, int, Optional[List[float]]]:
     """
-    Convert numeric labels to categorical bins for stratification.
-
-    binning:
-      - "quantile": pd.qcut
-      - "uniform": pd.cut
-
-    duplicates:
-      - passed to qcut (drop/raise) to handle repeated quantiles
+    Return:
+      bins: Int64 categorical bin ids (0..K-1)
+      n_bins_effective: number of unique bins actually produced
+      edges: list of bin edges if available (optional)
     """
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
 
+    yy = pd.to_numeric(y, errors="coerce")
+    if yy.isna().any():
+        # caller decides dropna/raise earlier; here we assume no NaN
+        raise ValueError("NaN values found in label series while binning.")
+
+    edges: Optional[List[float]] = None
+
     if binning == "quantile":
-        # qcut returns categories; labels=False returns integer bins
+        # qcut can return edges with retbins=True
         try:
-            bins = pd.qcut(y, q=n_bins, labels=False, duplicates=duplicates)
+            bins, bin_edges = pd.qcut(
+                yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True
+            )
         except ValueError as e:
-            # common case: too many duplicates -> fewer unique bin edges
             raise ValueError(
                 f"qcut failed for n_bins={n_bins}. "
                 f"Try fewer bins or duplicates='drop'. Original error: {e}"
             )
-        return bins.astype("Int64")
+        bins = pd.Series(bins, index=y.index).astype("Int64")
+        n_eff = int(pd.Series(bins).nunique(dropna=True))
+        edges = [float(x) for x in np.asarray(bin_edges).tolist()]
+        return bins, n_eff, edges
 
     if binning == "uniform":
-        bins = pd.cut(y, bins=n_bins, labels=False, include_lowest=True)
-        return bins.astype("Int64")
+        bins, bin_edges = pd.cut(
+            yy, bins=n_bins, labels=False, include_lowest=True, retbins=True
+        )
+        bins = pd.Series(bins, index=y.index).astype("Int64")
+        n_eff = int(pd.Series(bins).nunique(dropna=True))
+        edges = [float(x) for x in np.asarray(bin_edges).tolist()]
+        return bins, n_eff, edges
 
     raise ValueError("binning must be 'quantile' or 'uniform'")
+
+
+def _make_bins_safe(
+    y: pd.Series,
+    *,
+    n_bins: int,
+    binning: str,
+    duplicates: str,
+    min_bin_count: int,
+    auto_reduce_bins: bool,
+) -> Tuple[pd.Series, int, Optional[List[float]], List[int], bool]:
+    """
+    Try to create stratification bins that satisfy:
+      - at least 2 effective bins
+      - each bin count >= min_bin_count
+
+    If auto_reduce_bins=True, will decrement bins until success or reach 2.
+    Returns:
+      bins, n_bins_effective, edges, attempted_bins, auto_reduced
+    """
+    if min_bin_count < 1:
+        raise ValueError("min_bin_count must be >= 1")
+
+    attempted: List[int] = []
+    auto_reduced = False
+
+    candidates = list(range(n_bins, 1, -1)) if auto_reduce_bins else [n_bins]
+
+    last_error: Optional[Exception] = None
+
+    for b in candidates:
+        attempted.append(int(b))
+        try:
+            bins, n_eff, edges = _make_bins_once(y, n_bins=b, binning=binning, duplicates=duplicates)
+
+            if n_eff < 2:
+                raise ValueError(
+                    f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify."
+                )
+
+            counts = bins.value_counts(dropna=False)
+            if int(counts.min()) < min_bin_count:
+                raise ValueError(
+                    f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
+                )
+
+            if b != n_bins:
+                auto_reduced = True
+
+            return bins, n_eff, edges, attempted, auto_reduced
+
+        except Exception as e:
+            last_error = e
+            continue
+
+    # failed all attempts
+    if last_error is not None:
+        raise ValueError(
+            "Could not create valid stratification bins. "
+            f"Attempted bins={attempted}. Last error: {last_error}"
+        )
+    raise ValueError("Could not create valid stratification bins.")
 
 
 @dataclass(frozen=True)
@@ -71,21 +177,43 @@ class StratifiedNumericSplitter:
     """
     Stratified split for numeric labels via binning.
 
-    Steps:
-      1) bin numeric label y into categorical bins
-      2) stratify train/test(/val) using bins
+    Steps
+    -----
+    1) Convert numeric labels into categorical bins (quantile or uniform).
+    2) Use stratified train/test split over bins.
+    3) Optionally split validation from trainval (also stratified over bins).
 
     Parameters
     ----------
     label_col:
         Column containing numeric target values.
+    test_size, val_size:
+        Fractions for test and validation. Must satisfy test_size + val_size < 1.
+    seed:
+        Random seed for deterministic splits.
     n_bins:
-        Number of bins used to stratify.
+        Requested number of bins for stratification.
     binning:
         "quantile" (recommended) or "uniform".
     duplicates:
         For quantile binning only: "drop" or "raise".
         - "drop" reduces number of bins if quantiles are not unique.
+    dropna:
+        If True, rows with NaN label are dropped. If False, NaNs raise an error.
+    auto_reduce_bins:
+        If True, automatically decreases n_bins until stratification is feasible.
+    min_bin_count:
+        Minimum required count per bin to allow stratified splitting.
+    report_bin_edges:
+        If True, store bin edges used in the report.
+
+    Raises
+    ------
+    ValueError
+        If label column is missing, label cannot be parsed to numeric,
+        split sizes are invalid, or bins cannot be created for stratification.
+    ImportError
+        If scikit-learn is not installed.
     """
 
     label_col: str = "y"
@@ -94,10 +222,14 @@ class StratifiedNumericSplitter:
     seed: int = 13
 
     n_bins: int = 10
-    binning: str = "quantile"     # "quantile" | "uniform"
-    duplicates: str = "drop"      # "drop" | "raise"
+    binning: str = "quantile"      # "quantile" | "uniform"
+    duplicates: str = "drop"       # "drop" | "raise" (qcut only)
 
-    dropna: bool = True           # if True, rows with NaN label are removed
+    dropna: bool = True
+
+    auto_reduce_bins: bool = True
+    min_bin_count: int = 2
+
     report_bin_edges: bool = False
 
     @property
@@ -121,6 +253,7 @@ class StratifiedNumericSplitter:
 
         y_raw = pd.to_numeric(work[self.label_col], errors="coerce")
 
+        dropped = 0
         if self.dropna:
             keep = ~y_raw.isna()
             dropped = int((~keep).sum())
@@ -137,25 +270,15 @@ class StratifiedNumericSplitter:
         if len(work) < 3:
             raise ValueError("Not enough samples after dropping NaNs to split.")
 
-        # bins for stratification
-        bins = _make_bins(y_raw, n_bins=self.n_bins, binning=self.binning, duplicates=self.duplicates)
-
-        # If duplicates='drop', the actual number of bins can be smaller
-        n_bins_effective = int(pd.Series(bins).nunique(dropna=True))
-        if n_bins_effective < 2:
-            raise ValueError(
-                f"Effective number of bins is {n_bins_effective}. "
-                f"Cannot stratify. Try fewer bins or different binning."
-            )
-
-        # Some bins may have very low counts; sklearn will error if any bin has < 2 when splitting.
-        bin_counts = bins.value_counts(dropna=False)
-        min_count = int(bin_counts.min())
-        if min_count < 2:
-            raise ValueError(
-                "Some bins have <2 samples, which makes stratified splitting impossible. "
-                f"min bin count={min_count}. Try fewer bins (n_bins) or different binning."
-            )
+        # Build bins (safe, may auto-reduce bins)
+        bins, n_eff, edges, attempted_bins, auto_reduced = _make_bins_safe(
+            y_raw,
+            n_bins=self.n_bins,
+            binning=self.binning,
+            duplicates=self.duplicates,
+            min_bin_count=self.min_bin_count,
+            auto_reduce_bins=self.auto_reduce_bins,
+        )
 
         # split off test
         trainval, test = tts(
@@ -169,21 +292,27 @@ class StratifiedNumericSplitter:
         val = None
         train = trainval
 
+        # Optional val split from trainval
+        val_attempted_bins: Optional[List[int]] = None
+        val_auto_reduced: Optional[bool] = None
+        val_edges: Optional[List[float]] = None
+        val_n_eff: Optional[int] = None
+
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
                 raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
 
             y_tv = pd.to_numeric(trainval[self.label_col], errors="coerce")
-            bins_tv = _make_bins(y_tv, n_bins=self.n_bins, binning=self.binning, duplicates=self.duplicates)
 
-            # same min-count check
-            bc_tv = bins_tv.value_counts(dropna=False)
-            if int(bc_tv.min()) < 2:
-                raise ValueError(
-                    "After test split, some bins have <2 samples in trainval, cannot create validation. "
-                    "Reduce val_size/test_size or use fewer bins."
-                )
+            bins_tv, n_eff_tv, edges_tv, attempted_tv, auto_red_tv = _make_bins_safe(
+                y_tv,
+                n_bins=self.n_bins,
+                binning=self.binning,
+                duplicates=self.duplicates,
+                min_bin_count=self.min_bin_count,
+                auto_reduce_bins=self.auto_reduce_bins,
+            )
 
             train, val = tts(
                 trainval,
@@ -193,35 +322,74 @@ class StratifiedNumericSplitter:
                 stratify=bins_tv,
             )
 
+            val_attempted_bins = attempted_tv
+            val_auto_reduced = auto_red_tv
+            val_edges = edges_tv
+            val_n_eff = n_eff_tv
+
         # reset indices
         train = train.reset_index(drop=True)
         test = test.reset_index(drop=True)
         if val is not None:
             val = val.reset_index(drop=True)
 
-        # report bin distributions
-        def _bin_counts_for(split_df: pd.DataFrame) -> Dict[str, int]:
+        # helper to compute split bin counts using the same safe binning logic
+        def _split_bin_counts(split_df: pd.DataFrame) -> Dict[str, int]:
             yy = pd.to_numeric(split_df[self.label_col], errors="coerce")
-            bb = _make_bins(yy, n_bins=self.n_bins, binning=self.binning, duplicates=self.duplicates)
-            vc = bb.value_counts(dropna=False).sort_index()
-            return {str(k): int(v) for k, v in vc.to_dict().items()}
+            # split_df should not have NaNs if dropna=True, but keep safe anyway:
+            yy = yy.dropna()
+            bb, _, _, _, _ = _make_bins_safe(
+                yy,
+                n_bins=self.n_bins,
+                binning=self.binning,
+                duplicates=self.duplicates,
+                min_bin_count=1,               # just for reporting, allow small bins here
+                auto_reduce_bins=True,
+            )
+            return _bin_counts(bb)
 
         stats: Dict[str, Any] = {
             "n_total": int(len(df)),
             "n_used": int(len(work)),
             "n_dropped_nan": int(dropped),
+
             "n_train": int(len(train)),
             "n_test": int(len(test)),
             "n_val": int(len(val)) if val is not None else 0,
+
             "label_col": self.label_col,
             "binning": self.binning,
+            "duplicates": self.duplicates,
+
             "n_bins_requested": int(self.n_bins),
-            "n_bins_effective": int(n_bins_effective),
-            "train_bin_counts": _bin_counts_for(train),
-            "test_bin_counts": _bin_counts_for(test),
+            "n_bins_effective": int(n_eff),
+            "min_bin_count": int(self.min_bin_count),
+            "auto_reduce_bins": bool(self.auto_reduce_bins),
+            "attempted_bins": attempted_bins,
+            "auto_reduced": bool(auto_reduced),
+
+            "train_bin_counts": _split_bin_counts(train),
+            "test_bin_counts": _split_bin_counts(test),
+
+            "train_label_stats": _label_stats(train[self.label_col]),
+            "test_label_stats": _label_stats(test[self.label_col]),
         }
+
         if val is not None:
-            stats["val_bin_counts"] = _bin_counts_for(val)
+            stats["val_bin_counts"] = _split_bin_counts(val)
+            stats["val_label_stats"] = _label_stats(val[self.label_col])
+
+            # binning info for the val split stage
+            stats["val_stage"] = {
+                "n_bins_effective": int(val_n_eff) if val_n_eff is not None else None,
+                "attempted_bins": val_attempted_bins,
+                "auto_reduced": val_auto_reduced,
+            }
+
+        if self.report_bin_edges:
+            stats["bin_edges"] = edges
+            if val is not None:
+                stats["val_stage"]["bin_edges"] = val_edges
 
         return SplitResult(
             train=train,
@@ -237,6 +405,9 @@ class StratifiedNumericSplitter:
                 "binning": self.binning,
                 "duplicates": self.duplicates,
                 "dropna": self.dropna,
+                "auto_reduce_bins": self.auto_reduce_bins,
+                "min_bin_count": self.min_bin_count,
+                "report_bin_edges": self.report_bin_edges,
             },
             stats=stats,
         )
