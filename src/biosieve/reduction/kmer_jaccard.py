@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 
@@ -10,6 +10,26 @@ from biosieve.types import Columns
 
 
 def _kmer_set(seq: str, k: int) -> set[str]:
+    """
+    Convert a sequence into a set of k-mers.
+
+    Parameters
+    ----------
+    seq:
+        Input sequence string.
+    k:
+        K-mer size (>= 1).
+
+    Returns
+    -------
+    set[str]
+        Set of unique k-mer tokens. If len(seq) < k, returns {seq}.
+
+    Raises
+    ------
+    ValueError
+        If k < 1.
+    """
     if k <= 0:
         raise ValueError("k must be >= 1")
     if len(seq) < k:
@@ -18,6 +38,19 @@ def _kmer_set(seq: str, k: int) -> set[str]:
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
+    """
+    Jaccard similarity between two sets.
+
+    Parameters
+    ----------
+    a, b:
+        Input sets.
+
+    Returns
+    -------
+    float
+        Jaccard similarity in [0, 1]. If both empty, returns 1.0.
+    """
     if not a and not b:
         return 1.0
     inter = len(a & b)
@@ -28,11 +61,78 @@ def _jaccard(a: set[str], b: set[str]) -> float:
 @dataclass(frozen=True)
 class KmerJaccardReducer:
     """
-    Greedy redundancy reduction by Jaccard similarity of k-mer sets.
+    Greedy redundancy reduction using Jaccard similarity of k-mer sets.
 
-    Deterministic:
-    - stable sort by id
-    - first-accepted representative policy
+    This reducer approximates sequence redundancy without alignment by comparing
+    k-mer token sets. A sequence is considered redundant if its Jaccard similarity
+    with an existing representative is >= `threshold`.
+
+    Greedy policy
+    -------------
+    1) Sort dataset rows by `cols.id_col` (stable, deterministic).
+    2) Iterate sequences in that order.
+    3) First unseen sequence becomes a representative.
+    4) For each new sequence, retrieve candidate representatives using an inverted
+       index (kmer -> reps containing that kmer).
+    5) Compute Jaccard similarity against top candidates (capped by `max_candidates`).
+       If best >= threshold, mark as removed and map to representative; otherwise
+       accept as a new representative.
+
+    Candidate pruning
+    -----------------
+    The inverted index provides candidate reps ordered by the count of shared k-mers.
+    Only the top `max_candidates` are evaluated to cap runtime.
+
+    Parameters
+    ----------
+    threshold:
+        Jaccard similarity threshold in [0, 1]. If score >= threshold, the sequence
+        is removed as redundant.
+    k:
+        K-mer size (>= 1). Typical values: 3–7 for proteins (tradeoff speed/specificity).
+    max_candidates:
+        Maximum number of representative candidates to evaluate per sequence (>= 1).
+        Higher values are more accurate but slower.
+
+    Returns
+    -------
+    ReductionResult
+        - df:
+            Reduced dataframe containing only representatives. Adds a convenience
+            column `kmer_cluster_id` with `kmer:<rep_id>`.
+        - mapping:
+            DataFrame with columns:
+              * removed_id
+              * representative_id
+              * cluster_id (`kmer:<rep_id>`)
+              * score (Jaccard similarity; higher means more similar)
+        - strategy:
+            "kmer_jaccard"
+        - params:
+            Effective parameters plus `stats` (n_total/n_kept/n_removed/reduction_ratio).
+
+    Raises
+    ------
+    ValueError
+        If threshold is out of range, k < 1, max_candidates < 1, required columns are
+        missing, ids are duplicated, or sequences are empty/invalid.
+    Notes
+    -----
+    - This is a greedy algorithm: results depend on representative ordering
+      (here: sorted by id for determinism).
+    - Jaccard(k-mer) is an approximation. It does not guarantee homology clustering
+      and may behave differently from alignment-based tools (e.g., MMseqs2).
+    - Missing edges are not applicable here; similarity is computed on-the-fly from sequences.
+
+    Examples
+    --------
+    >>> biosieve reduce \\
+    ...   --in dataset.csv \\
+    ...   --out data_nr_kmer.csv \\
+    ...   --strategy kmer_jaccard \\
+    ...   --map map_kmer.csv \\
+    ...   --report report_kmer.json \\
+    ...   --params params.yaml
     """
 
     threshold: float = 0.7
@@ -46,16 +146,30 @@ class KmerJaccardReducer:
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         if not (0.0 <= self.threshold <= 1.0):
             raise ValueError("threshold must be in [0, 1]")
+        if self.k < 1:
+            raise ValueError("k must be >= 1")
         if self.max_candidates < 1:
             raise ValueError("max_candidates must be >= 1")
 
+        if cols.id_col not in df.columns:
+            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+        if cols.seq_col not in df.columns:
+            raise ValueError(f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}")
+
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 
+        ids = work[cols.id_col].astype(str).tolist()
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate ids detected. IDs must be unique for deterministic reduction mapping.")
+
+        # Representatives are tracked by work index
         reps_idx: List[int] = []
         reps_kmers: List[set[str]] = []
+
+        # removed: (removed_id, representative_id, score)
         removed_rows: List[Tuple[str, str, float]] = []
 
-        # Inverted index for kmer -> rep indices
+        # Inverted index for kmer -> rep positions
         kmer_to_rep: Dict[str, List[int]] = {}
 
         def add_rep(work_idx: int, seq: str) -> None:
@@ -66,15 +180,26 @@ class KmerJaccardReducer:
             for token in km:
                 kmer_to_rep.setdefault(token, []).append(rep_pos)
 
+        empty_seq = 0
+
         for i in range(len(work)):
             seq = str(work.at[i, cols.seq_col])
             cur_id = str(work.at[i, cols.id_col])
+
+            if not seq or seq.lower() == "nan":
+                empty_seq += 1
+                raise ValueError(
+                    f"Empty/invalid sequence for id={cur_id} in column '{cols.seq_col}'. "
+                    "Clean dataset before kmer_jaccard reduction."
+                )
 
             if not reps_idx:
                 add_rep(i, seq)
                 continue
 
             km_cur = _kmer_set(seq, self.k)
+
+            # Candidate rep scoring by shared k-mer counts
             cand_counts: Dict[int, int] = {}
             for token in km_cur:
                 for rep_pos in kmer_to_rep.get(token, []):
@@ -104,11 +229,37 @@ class KmerJaccardReducer:
                 add_rep(i, seq)
 
         kept = work.iloc[reps_idx].reset_index(drop=True)
-        mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "score"])
+
+        mapping = pd.DataFrame(
+            removed_rows,
+            columns=["removed_id", "representative_id", "score"],
+        )
+        if len(mapping) > 0:
+            mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"kmer:{x}")
+            mapping = mapping[["removed_id", "representative_id", "cluster_id", "score"]]
+        else:
+            mapping = pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
+
+        kept["kmer_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"kmer:{x}")
+
+        stats: Dict[str, Any] = {
+            "n_total": int(len(work)),
+            "n_kept": int(len(kept)),
+            "n_removed": int(len(mapping)),
+            "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
+            "k": int(self.k),
+            "threshold": float(self.threshold),
+            "max_candidates": int(self.max_candidates),
+        }
 
         return ReductionResult(
             df=kept,
             mapping=mapping,
             strategy=self.strategy,
-            params={"threshold": self.threshold, "k": self.k, "max_candidates": self.max_candidates},
+            params={
+                "threshold": self.threshold,
+                "k": self.k,
+                "max_candidates": self.max_candidates,
+                "stats": stats,
+            },
         )

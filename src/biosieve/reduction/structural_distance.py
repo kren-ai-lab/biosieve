@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 import pandas as pd
 
@@ -15,21 +15,108 @@ class StructuralDistanceReducer:
     """
     Greedy redundancy reduction using precomputed structural distances or similarities.
 
-    Input (v1):
-      - an edge list CSV with columns: id1, id2, distance (or similarity)
+    This reducer removes redundant samples based on *precomputed structural relationships*
+    between entities (e.g., protein structures, docking poses, folds). It consumes an
+    edge list describing pairwise structural distances or similarities and applies a
+    deterministic greedy selection of representatives.
 
-    Modes:
-      - mode="distance": consider redundant if value <= threshold
-      - mode="similarity": consider redundant if value >= threshold
+    Input format
+    ------------
+    A CSV edge list with at least three columns:
 
-    Deterministic:
-      - sort dataset by id
-      - greedy keep-first representative
-      - remove all neighbors of representative that satisfy criterion
+    - id1: first entity id
+    - id2: second entity id
+    - value: distance or similarity score between id1 and id2
+
+    Only edges where **both ids are present in the dataset** are considered.
+
+    Modes
+    -----
+    - mode="distance":
+        A neighbor is considered redundant if `value <= threshold`.
+        Typical examples: RMSD, TM-score distance, graph distance.
+    - mode="similarity":
+        A neighbor is considered redundant if `value >= threshold`.
+        Typical examples: TM-score similarity, contact overlap, docking similarity.
+
+    Greedy policy
+    -------------
+    1) Sort dataset rows by `cols.id_col` (stable, deterministic).
+    2) Iterate in that order.
+    3) First unseen id becomes a representative.
+    4) Remove all neighbors satisfying the redundancy criterion.
+
+    Parameters
+    ----------
+    edges_path:
+        Path to CSV file containing structural edges.
+    mode:
+        Redundancy mode:
+        - "distance": redundant if value <= threshold
+        - "similarity": redundant if value >= threshold
+    threshold:
+        Distance or similarity threshold defining redundancy.
+    id1_col:
+        Column name for first id in edge list.
+    id2_col:
+        Column name for second id in edge list.
+    value_col:
+        Column name for distance/similarity value in edge list.
+
+    Returns
+    -------
+    ReductionResult
+        - df:
+            Reduced dataframe containing only structural representatives.
+            Adds column `structural_cluster_id` with values `struct:<rep_id>`.
+        - mapping:
+            DataFrame with columns:
+              * removed_id
+              * representative_id
+              * cluster_id (`struct:<rep_id>`)
+              * score (raw distance or similarity value)
+        - strategy:
+            "structural_distance"
+        - params:
+            Effective parameters plus basic statistics.
+
+    Raises
+    ------
+    ValueError
+        If threshold is invalid for the selected mode, required columns are missing,
+        or mode is not supported.
+    FileNotFoundError
+        If `edges_path` does not exist (raised by backend).
+    RuntimeError
+        If edge list cannot be parsed correctly (raised by backend).
+
+    Notes
+    -----
+    - This reducer **assumes structural relationships are precomputed**.
+      It does not perform any structural alignment or docking itself.
+    - Missing edges are treated as "no redundancy" (i.e., conservative).
+    - Redundancy is **not transitive** beyond greedy propagation.
+      If A~B and B~C but A~C is missing, C may survive depending on order.
+    - This strategy is ideal for:
+        * pose clustering
+        * fold-level deduplication
+        * structure-aware dataset pruning
+    - For strict structural leakage control, consider combining this reducer
+      with `cluster_aware` or `homology_aware` splits.
+
+    Examples
+    --------
+    >>> biosieve reduce \\
+    ...   --in dataset.csv \\
+    ...   --out data_nr_struct.csv \\
+    ...   --strategy structural_distance \\
+    ...   --map map_struct.csv \\
+    ...   --report report_struct.json \\
+    ...   --params params.yaml
     """
 
     edges_path: str = "struct_edges.csv"
-    mode: str = "distance"         # "distance" or "similarity"
+    mode: str = "distance"         # "distance" | "similarity"
     threshold: float = 0.5
 
     id1_col: str = "id1"
@@ -48,9 +135,16 @@ class StructuralDistanceReducer:
         raise ValueError("mode must be 'distance' or 'similarity'")
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
-        if self.threshold < 0 and self.mode == "distance":
+        if self.mode not in {"distance", "similarity"}:
+            raise ValueError("mode must be 'distance' or 'similarity'")
+
+        if self.mode == "distance" and self.threshold < 0:
             raise ValueError("threshold must be >= 0 for distance mode")
 
+        if cols.id_col not in df.columns:
+            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+
+        # deterministic ordering
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
         ids = work[cols.id_col].astype(str).tolist()
         id_set = set(ids)
@@ -64,25 +158,24 @@ class StructuralDistanceReducer:
 
         removed: set[str] = set()
         rep_of: Dict[str, str] = {}
-        score_of: Dict[str, float] = {}   # store raw value (distance or similarity)
+        score_of: Dict[str, float] = {}
         cluster_of: Dict[str, str] = {}
 
-        # Greedy: for each id (in sorted order), if not removed => representative
+        # Greedy representative selection
         for rep_id in ids:
             if rep_id in removed:
                 continue
 
             rep_cluster = f"struct:{rep_id}"
 
-            # neighbors from precomputed graph
             for nbr_id, val in edges.adj.get(rep_id, []):
-                # only act on ids that are in the dataset
                 if nbr_id not in id_set:
                     continue
                 if nbr_id == rep_id:
                     continue
                 if nbr_id in removed:
                     continue
+
                 if self._is_redundant(float(val)):
                     removed.add(nbr_id)
                     rep_of[nbr_id] = rep_id
@@ -103,9 +196,23 @@ class StructuralDistanceReducer:
                     "score": score_of.get(rid, None),
                 }
             )
-        mapping = pd.DataFrame(rows, columns=["removed_id", "representative_id", "cluster_id", "score"])
+        mapping = pd.DataFrame(
+            rows,
+            columns=["removed_id", "representative_id", "cluster_id", "score"],
+        )
 
-        kept_df["structural_cluster_id"] = kept_df[cols.id_col].astype(str).apply(lambda x: f"struct:{x}")
+        kept_df["structural_cluster_id"] = kept_df[cols.id_col].astype(str).apply(
+            lambda x: f"struct:{x}"
+        )
+
+        stats: Dict[str, Any] = {
+            "n_total": int(len(work)),
+            "n_kept": int(len(kept_df)),
+            "n_removed": int(len(mapping)),
+            "n_edges_loaded": int(edges.n_edges),
+            "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
+            "mode": self.mode,
+        }
 
         return ReductionResult(
             df=kept_df,
@@ -118,7 +225,6 @@ class StructuralDistanceReducer:
                 "id1_col": self.id1_col,
                 "id2_col": self.id2_col,
                 "value_col": self.value_col,
-                "n_edges_loaded": edges.n_edges,
-                "note": "This reducer consumes precomputed structural distances/similarities (edge list).",
+                "stats": stats,
             },
         )
