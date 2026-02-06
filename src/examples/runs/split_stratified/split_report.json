@@ -1,5 +1,6 @@
 {
-  "timestamp": "2026-02-02T21:37:47.485861Z",
+  "schema_version": "0.1",
+  "timestamp": "2026-02-06T18:55:54.427267Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_stratified",
   "strategy": "stratified",
@@ -14,7 +15,8 @@
     "label_col": "label",
     "test_size": 0.2,
     "val_size": 0.1,
-    "seed": 13
+    "seed": 13,
+    "dropna": true
   },
   "stats": {
     "n_total": 1000,
@@ -22,6 +24,9 @@
     "n_test": 200,
     "n_val": 100,
     "label_col": "label",
+    "seed": 13,
+    "test_size": 0.2,
+    "val_size": 0.1,
     "train_label_counts": {
       "1": 352,
       "0": 348
@@ -37,6 +42,10 @@
   },
   "columns": {
     "id_col": "id",
-    "seq_col": "sequence"
+    "seq_col": "sequence",
+    "label_col": "label",
+    "group_col": null,
+    "cluster_col": null,
+    "date_col": null
   }
 }

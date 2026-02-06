@@ -30,12 +30,61 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 class StratifiedSplitter:
     """
     Stratified train/test(/val) split for classification.
-    Requires a label column (e.g., y).
+
+    This strategy preserves class proportions in the test set (and optionally the
+    validation set) using scikit-learn's `train_test_split(..., stratify=y)`.
+
+    Parameters
+    ----------
+    label_col:
+        Column containing class labels.
+    test_size:
+        Fraction of samples assigned to the test set.
+    val_size:
+        Fraction of samples assigned to the validation set (0 disables validation).
+        This fraction is relative to the full dataset and is internally converted
+        to a fraction of the remaining train+val set.
+    seed:
+        Random seed used by scikit-learn.
+    dropna:
+        If True, drop rows with NaN labels. If False, raise on NaNs.
+
+    Returns
+    -------
+    SplitResult
+        A container with:
+        - train/test/val DataFrames
+        - params: {"label_col","test_size","val_size","seed","dropna"}
+        - stats: counts and class distributions per split
+
+    Raises
+    ------
+    ImportError
+        If scikit-learn is not available.
+    ValueError
+        If label column is missing, sizes invalid, NaNs present (dropna=False),
+        or stratification cannot be performed (e.g., too few samples in a class).
+
+    Notes
+    -----
+    - Use this for classification tasks when you do not need group/leakage constraints.
+      If you have groups/clusters/homology, prefer `group`/`group_kfold` or hybrids.
+    - Stratification requires that each class has enough members to be split; otherwise
+      scikit-learn raises a ValueError.
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_stratified \\
+    ...   --strategy stratified \\
+    ...   --params params.yaml
     """
     label_col: str = "label"
     test_size: float = 0.2
     val_size: float = 0.0
     seed: int = 13
+    dropna: bool = True
 
     @property
     def strategy(self) -> str:
@@ -44,15 +93,29 @@ class StratifiedSplitter:
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
         tts = _try_import_train_test_split()
         if tts is None:
-            raise ImportError("StratifiedSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn")
+            raise ImportError(
+                "StratifiedSplitter requires scikit-learn. "
+                "Install: conda install -c conda-forge scikit-learn"
+            )
 
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
         if self.label_col not in work.columns:
-            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}")
+            raise ValueError(
+                f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}"
+            )
 
         y = work[self.label_col]
+        if y.isna().any():
+            if self.dropna:
+                keep = ~y.isna()
+                work = work.loc[keep].reset_index(drop=True)
+                y = work[self.label_col].reset_index(drop=True)
+            else:
+                raise ValueError(
+                    f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
+                )
 
         # 1) split off test
         trainval, test = tts(
@@ -68,10 +131,10 @@ class StratifiedSplitter:
 
         # 2) optional split train/val (stratified within trainval)
         if self.val_size and self.val_size > 0:
-            # val_size is fraction of TOTAL; convert to fraction of trainval
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
                 raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+
             y_tv = trainval[self.label_col]
             train, val = tts(
                 trainval,
@@ -92,11 +155,14 @@ class StratifiedSplitter:
             "n_test": int(len(test)),
             "n_val": int(len(val)) if val is not None else 0,
             "label_col": self.label_col,
-            "train_label_counts": train[self.label_col].value_counts(dropna=False).to_dict(),
-            "test_label_counts": test[self.label_col].value_counts(dropna=False).to_dict(),
+            "seed": int(self.seed),
+            "test_size": float(self.test_size),
+            "val_size": float(self.val_size),
+            "train_label_counts": train[self.label_col].astype(str).value_counts(dropna=False).to_dict(),
+            "test_label_counts": test[self.label_col].astype(str).value_counts(dropna=False).to_dict(),
         }
         if val is not None:
-            stats["val_label_counts"] = val[self.label_col].value_counts(dropna=False).to_dict()
+            stats["val_label_counts"] = val[self.label_col].astype(str).value_counts(dropna=False).to_dict()
 
         return SplitResult(
             train=train,
@@ -108,6 +174,7 @@ class StratifiedSplitter:
                 "test_size": self.test_size,
                 "val_size": self.val_size,
                 "seed": self.seed,
+                "dropna": self.dropna,
             },
             stats=stats,
         )

@@ -32,6 +32,30 @@ def _split_groups(
     test_size: float,
     seed: int,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Split a DataFrame into train/test using GroupShuffleSplit.
+
+    Parameters
+    ----------
+    df:
+        Input DataFrame.
+    groups:
+        Group labels aligned with `df` rows.
+    test_size:
+        Fraction of samples assigned to the test split (group-aware).
+    seed:
+        Random seed.
+
+    Returns
+    -------
+    train, test:
+        DataFrames with disjoint groups.
+
+    Raises
+    ------
+    ImportError
+        If scikit-learn is not installed.
+    """
     GroupShuffleSplit = _try_import_gss()
     if GroupShuffleSplit is None:
         raise ImportError(
@@ -41,7 +65,6 @@ def _split_groups(
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
     idx = df.index.to_numpy()
 
-    # gss.split yields indices relative to df
     train_idx, test_idx = next(gss.split(idx, groups=groups))
     train = df.iloc[train_idx].copy()
     test = df.iloc[test_idx].copy()
@@ -51,18 +74,61 @@ def _split_groups(
 @dataclass(frozen=True)
 class GroupSplitter:
     """
-    Group-aware train/test(/val) split: no group appears in more than one split.
+    Group-aware train/test(/val) split (leakage-aware by groups).
 
-    Two-stage procedure:
-      1) split off test by groups
-      2) optionally split validation from remaining train by groups
+    This splitter ensures that a group identifier never appears in more than one
+    of train/test/val. This is critical for biological datasets where samples
+    are not i.i.d. (e.g., multiple proteins from the same organism, homologous
+    clusters, subjects, families).
 
-    Params:
-      - group_col: column defining groups (e.g., taxid, cluster_id, family)
-      - test_size, val_size: fractions of total
-      - seed: deterministic
+    Procedure
+    ---------
+    1) Split off the test set by groups (GroupShuffleSplit).
+    2) Optionally split a validation set from the remaining trainval by groups.
+
+    Parameters
+    ----------
+    group_col:
+        Column defining group IDs (e.g., taxid, subject_id, cluster_id).
+    test_size:
+        Fraction of samples assigned to the test set (group-disjoint from train/val).
+    val_size:
+        Fraction of samples assigned to validation (0 disables validation).
+        Internally converted to a fraction of the remaining trainval split.
+    seed:
+        Random seed for deterministic splitting.
+
+    Returns
+    -------
+    SplitResult
+        Container with train/test/val DataFrames plus:
+        - params: effective parameters
+        - stats: counts, unique groups per split, and leakage checks
+
+    Raises
+    ------
+    ImportError
+        If scikit-learn is not installed.
+    ValueError
+        If group column is missing, if there are too few groups to split, or if
+        `test_size`/`val_size` are invalid.
+
+    Notes
+    -----
+    - Leakage contract:
+      `leak_groups_train_test == 0` and `leak_groups_val_test == 0` must hold.
+      Validation is split by groups too, so `leak_groups_train_val == 0` also holds.
+    - If your "group" is actually a homology cluster id, this is effectively
+      homology-aware splitting.
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_group \\
+    ...   --strategy group \\
+    ...   --params params.yaml
     """
-
     group_col: str = "group"
     test_size: float = 0.2
     val_size: float = 0.0
@@ -80,9 +146,14 @@ class GroupSplitter:
             raise ValueError(f"Missing group column '{self.group_col}'. Columns: {work.columns.tolist()}")
 
         groups = work[self.group_col].astype(str)
-        n_groups = groups.nunique(dropna=False)
+        if groups.isna().any():
+            raise ValueError(f"Found NaN group ids in '{self.group_col}'. Clean dataset before splitting.")
+
+        n_groups = int(groups.nunique(dropna=False))
         if n_groups < 2:
-            raise ValueError(f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'.")
+            raise ValueError(
+                f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'."
+            )
 
         # 1) test split
         trainval, test = _split_groups(work, groups, test_size=self.test_size, seed=self.seed)
@@ -97,7 +168,7 @@ class GroupSplitter:
                 raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
 
             tv_groups = trainval[self.group_col].astype(str)
-            tv_n_groups = tv_groups.nunique(dropna=False)
+            tv_n_groups = int(tv_groups.nunique(dropna=False))
             if tv_n_groups < 2:
                 raise ValueError(
                     f"Not enough groups left after test split to create validation. "
@@ -144,6 +215,11 @@ class GroupSplitter:
             test=test,
             val=val,
             strategy=self.strategy,
-            params={"group_col": self.group_col, "test_size": self.test_size, "val_size": self.val_size, "seed": self.seed},
+            params={
+                "group_col": self.group_col,
+                "test_size": self.test_size,
+                "val_size": self.val_size,
+                "seed": self.seed,
+            },
             stats=stats,
         )

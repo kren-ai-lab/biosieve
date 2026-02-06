@@ -21,6 +21,7 @@ def _ensure_dir(path: str) -> Path:
 
 def _write_csv(path: Path, df: pd.DataFrame) -> None:
     """Write a DataFrame to CSV (UTF-8, no index)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(df.to_csv(index=False), encoding="utf-8")
 
 
@@ -31,9 +32,18 @@ def _write_json(path: Path, payload: Dict[str, Any]) -> None:
 
 
 def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
-    """Validate required columns and unique ids."""
+    """
+    Validate required columns and id uniqueness.
+
+    Raises
+    ------
+    ValueError
+        If id column is missing or ids are not unique.
+    """
     if cols.id_col not in df.columns:
-        raise ValueError(f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}")
+        raise ValueError(
+            f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}"
+        )
 
     n_in = len(df)
     unique_ids = df[cols.id_col].astype(str).nunique()
@@ -58,22 +68,19 @@ def run_split(
     """
     Run a splitting strategy and export split artefacts to disk.
 
-    This runner supports:
-      1) **Single split** strategies that implement:
-         `run(df: pd.DataFrame, cols: Columns) -> SplitResult`
-         Output:
-           - outdir/train.csv
-           - outdir/test.csv
-           - outdir/val.csv (optional)
-           - outdir/split_report.json
+    Artefact contract
+    -----------------
+    Single split (strategies implementing `run(df, cols)`):
+      - outdir/train.csv
+      - outdir/test.csv
+      - outdir/val.csv (optional)
+      - outdir/split_report.json (default)
 
-      2) **K-fold** strategies that implement:
-         `run_folds(df: pd.DataFrame, cols: Columns) -> list[SplitResult]`
-         Output:
-           - outdir/fold_00/train.csv, test.csv, val.csv (optional)
-           - outdir/fold_01/...
-           - ...
-           - outdir/kfold_report.json
+    K-fold split (strategies implementing `run_folds(df, cols)`):
+      - outdir/fold_00/train.csv, test.csv, val.csv (optional)
+      - outdir/fold_01/...
+      - ...
+      - outdir/kfold_report.json (default)
 
     Parameters
     ----------
@@ -82,17 +89,18 @@ def run_split(
     outdir:
         Output directory where split files and reports are written.
     strategy:
-        Split strategy name (must exist in registry.splitters).
+        Split strategy name (must exist in `registry.splitters`).
     registry:
-        Strategy registry holding available splitters.
+        Strategy registry holding available splitters (classes).
     cols:
         Columns spec. If None, defaults to Columns(id_col="id", seq_col="sequence").
     report_path:
         Optional custom path for report JSON.
         - For single split: defaults to outdir/split_report.json
-        - For kfold: defaults to outdir/kfold_report.json
+        - For k-fold: defaults to outdir/kfold_report.json
     strategy_params:
         Parameters to instantiate the strategy dataclass.
+        Unknown keys raise ValueError (strict contract).
     read_csv_kwargs:
         Extra kwargs passed to pandas.read_csv (e.g., sep, dtype, usecols).
 
@@ -100,7 +108,36 @@ def run_split(
     ------
     ValueError
         If strategy is unknown, required columns are missing, ids are not unique,
-        or the splitter fails.
+        or the splitter returns invalid outputs.
+    ImportError
+        If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
+    FileNotFoundError
+        If `in_path` does not exist (raised by pandas).
+
+    Notes
+    -----
+    - The runner does not enforce presence of label/group/time columns; each strategy
+      validates its required inputs and raises descriptive errors.
+    - For k-fold, each fold is expected to include `stats["fold_index"]` (int). If not,
+      the runner will fall back to enumeration order.
+
+    Examples
+    --------
+    Single split:
+
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_random \\
+    ...   --strategy random \\
+    ...   --params params.yaml
+
+    K-fold split:
+
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_group_kfold \\
+    ...   --strategy group_kfold \\
+    ...   --params params.yaml
     """
     if cols is None:
         cols = Columns(id_col="id", seq_col="sequence")
@@ -151,6 +188,7 @@ def run_split(
 
         rp = Path(report_path) if report_path else (out / "kfold_report.json")
         report = {
+            "schema_version": "0.1",
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "in_path": str(in_path),
             "outdir": str(out),
@@ -159,7 +197,14 @@ def run_split(
             "kfold": True,
             "n_folds": len(folds_meta),
             "folds": folds_meta,
-            "columns": {"id_col": cols.id_col, "seq_col": cols.seq_col},
+            "columns": {
+                "id_col": cols.id_col,
+                "seq_col": cols.seq_col,
+                "label_col": cols.label_col,
+                "group_col": cols.group_col,
+                "cluster_col": cols.cluster_col,
+                "date_col": cols.date_col,
+            },
         }
         _write_json(rp, report)
         return
@@ -176,6 +221,7 @@ def run_split(
 
     rp = Path(report_path) if report_path else (out / "split_report.json")
     report = {
+        "schema_version": "0.1",
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "in_path": str(in_path),
         "outdir": str(out),
@@ -184,6 +230,13 @@ def run_split(
         "kfold": False,
         "split_params": res.params,
         "stats": res.stats,
-        "columns": {"id_col": cols.id_col, "seq_col": cols.seq_col},
+        "columns": {
+            "id_col": cols.id_col,
+            "seq_col": cols.seq_col,
+            "label_col": cols.label_col,
+            "group_col": cols.group_col,
+            "cluster_col": cols.cluster_col,
+            "date_col": cols.date_col,
+        },
     }
     _write_json(rp, report)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -27,22 +27,52 @@ def _to_datetime(s: pd.Series, fmt: Optional[str]) -> pd.Series:
 @dataclass(frozen=True)
 class TimeSplitter:
     """
-    Temporal split: train is earlier, test is later (and optional val in-between).
+    Time-based split (chronological): train is earlier, test is later.
 
-    Behavior:
-      - parse time_col as datetime (or numeric if you set parse_datetime=False)
-      - sort by time
-      - split by fractions: train | val | test (chronological)
-      - no shuffling
+    This strategy sorts the dataset by a time column and splits chronologically:
+      train | (optional val) | test
 
-    Params:
-      - time_col: column with timestamps (string or numeric)
-      - parse_datetime: if True (default), parse with pandas.to_datetime
-      - time_format: optional strptime-like format string (e.g., "%Y-%m-%d")
-      - ascending: True means older->newer
-      - test_size, val_size
+    Parameters
+    ----------
+    time_col:
+        Column containing timestamps (string datetime) or numeric time values.
+    test_size:
+        Fraction assigned to the test split (latest samples if ascending=True).
+    val_size:
+        Fraction assigned to a validation split between train and test (0 disables validation).
+    parse_datetime:
+        If True, parse `time_col` using `pandas.to_datetime`. If False, parse as numeric.
+    time_format:
+        Optional datetime format string (e.g., "%Y-%m-%d"). Only used when parse_datetime=True.
+    ascending:
+        If True, sorts from older to newer. If False, newer to older (reverses split direction).
+
+    Returns
+    -------
+    SplitResult
+        Container with train/test/val DataFrames plus:
+        - params: effective parameters
+        - stats: counts and time ranges per split
+
+    Raises
+    ------
+    ValueError
+        If time column missing, sizes invalid, parsing fails, or rounding produces empty splits.
+
+    Notes
+    -----
+    - No shuffling is performed.
+    - This does not enforce homology/group/structure leakage constraints by itself.
+      For time-first with leakage guardrails, consider a hybrid (future feature).
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_time \\
+    ...   --strategy time \\
+    ...   --params params.yaml
     """
-
     time_col: str = "time"
     test_size: float = 0.2
     val_size: float = 0.0
@@ -64,10 +94,12 @@ class TimeSplitter:
 
         t_raw = work[self.time_col]
 
+        if t_raw.isna().any():
+            raise ValueError(f"Found NaN timestamps in '{self.time_col}'. Clean dataset before splitting.")
+
         if self.parse_datetime:
             t = _to_datetime(t_raw, self.time_format)
         else:
-            # numeric time is allowed
             t = pd.to_numeric(t_raw, errors="raise")
 
         work["_biosieve_time__"] = t
@@ -93,7 +125,6 @@ class TimeSplitter:
         )
         test = work.iloc[n_train + n_val :].drop(columns=["_biosieve_time__"]).reset_index(drop=True)
 
-        # stats: time ranges
         def _range(x: pd.DataFrame) -> Dict[str, Any]:
             if len(x) == 0:
                 return {"min": None, "max": None}
@@ -108,7 +139,9 @@ class TimeSplitter:
             "n_test": int(len(test)),
             "n_val": int(len(val)) if val is not None else 0,
             "time_col": self.time_col,
-            "ascending": self.ascending,
+            "ascending": bool(self.ascending),
+            "parse_datetime": bool(self.parse_datetime),
+            "time_format": self.time_format,
             "train_time_range": _range(train),
             "test_time_range": _range(test),
         }

@@ -277,8 +277,6 @@ Estrategias híbridas propuestas:
 
 ### Fase A (producto usable ya)
 
-1. `stratified_numeric` ✅
-2. `kfold` variants (random/stratified/group)
 3. `biosieve info`
 4. `biosieve validate`
 5. logging end-to-end

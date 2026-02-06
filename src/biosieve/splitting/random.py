@@ -11,6 +11,14 @@ from biosieve.splitting.base import SplitResult
 
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
+    """
+    Validate split fractions.
+
+    Raises
+    ------
+    ValueError
+        If sizes are out of range or leave no samples for training.
+    """
     if not (0.0 < test_size < 1.0):
         raise ValueError("test_size must be in (0, 1)")
     if not (0.0 <= val_size < 1.0):
@@ -19,7 +27,28 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError("test_size + val_size must be < 1.0")
 
 
-def _index_split(n: int, test_size: float, val_size: float, seed: int) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+def _index_split(
+    n: int, test_size: float, val_size: float, seed: int
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+    """
+    Create index splits for train/test(/val) using a seeded RNG.
+
+    Parameters
+    ----------
+    n:
+        Number of rows.
+    test_size:
+        Fraction assigned to test.
+    val_size:
+        Fraction assigned to val (0 disables validation).
+    seed:
+        RNG seed.
+
+    Returns
+    -------
+    train_idx, test_idx, val_idx
+        Numpy arrays of indices. `val_idx` may be None.
+    """
     rng = np.random.default_rng(seed)
     idx = np.arange(n)
     rng.shuffle(idx)
@@ -40,8 +69,44 @@ def _index_split(n: int, test_size: float, val_size: float, seed: int) -> Tuple[
 @dataclass(frozen=True)
 class RandomSplitter:
     """
-    Random train/test(/val) split.
-    Deterministic via seed.
+    Random train/test(/val) split (deterministic via seed).
+
+    Parameters
+    ----------
+    test_size:
+        Fraction of samples assigned to the test set.
+    val_size:
+        Fraction of samples assigned to the validation set (0 disables validation).
+        This fraction is taken from the *whole dataset*, not only from train.
+    seed:
+        Random seed used to shuffle indices.
+
+    Returns
+    -------
+    SplitResult
+        A container with:
+        - train/test/val DataFrames
+        - params: {"test_size","val_size","seed"}
+        - stats: counts and effective sizes
+
+    Raises
+    ------
+    ValueError
+        If `test_size` or `val_size` are invalid or leave no samples for training.
+
+    Notes
+    -----
+    - This strategy does not consider labels, groups, homology, time, or distances.
+      It is appropriate for quick baselines but can lead to leakage in biological datasets
+      where redundancy or relatedness exists.
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_random \\
+    ...   --strategy random \\
+    ...   --params params.yaml
     """
     test_size: float = 0.2
     val_size: float = 0.0
@@ -56,6 +121,7 @@ class RandomSplitter:
 
         work = df.copy().reset_index(drop=True)
         n = len(work)
+
         train_idx, test_idx, val_idx = _index_split(n, self.test_size, self.val_size, self.seed)
 
         train = work.iloc[train_idx].reset_index(drop=True)
@@ -67,6 +133,9 @@ class RandomSplitter:
             "n_train": int(len(train)),
             "n_test": int(len(test)),
             "n_val": int(len(val)) if val is not None else 0,
+            "test_size": float(self.test_size),
+            "val_size": float(self.val_size),
+            "seed": int(self.seed),
         }
 
         return SplitResult(

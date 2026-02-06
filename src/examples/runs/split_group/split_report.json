@@ -1,5 +1,6 @@
 {
-  "timestamp": "2026-02-02T21:37:48.621979Z",
+  "schema_version": "0.1",
+  "timestamp": "2026-02-06T18:55:55.636568Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_group",
   "strategy": "group",
@@ -32,6 +33,10 @@
   },
   "columns": {
     "id_col": "id",
-    "seq_col": "sequence"
+    "seq_col": "sequence",
+    "label_col": "label",
+    "group_col": null,
+    "cluster_col": null,
+    "date_col": null
   }
 }

@@ -1,15 +1,76 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
+
 import pandas as pd
+
 from biosieve.types import Columns
 
-@dataclass(frozen=True)
-class ReductionResult:
-    df: pd.DataFrame
-    mapping: pd.DataFrame
-    strategy: str
-    params: dict
 
+__all__ = ["ReductionResult", "Reducer"]
+
+
+@dataclass(frozen=True, slots=True)
+class ReductionResult:
+    """
+    Container for redundancy-reduction outputs.
+
+    Parameters
+    ----------
+    df:
+        The reduced (non-redundant) dataset.
+    mapping:
+        Optional mapping table describing which original ids were removed and which
+        representative id they were assigned to.
+        Recommended schema (stable columns):
+          - removed_id
+          - representative_id
+          - cluster_id (optional)
+          - score (optional; similarity/distance/identity depending on reducer)
+    strategy:
+        Strategy identifier (e.g., "mmseqs2", "embedding_cosine", "descriptor_euclidean").
+    params:
+        Effective parameters used by the reducer (after defaults).
+        Must be JSON-serializable (or easily coercible for reporting).
+    stats:
+        Optional reducer-specific statistics (coverage, thresholds effective, etc.).
+
+    Notes
+    -----
+    - `mapping` may be None for reducers that do not produce explicit assignments.
+      Runners should handle this and optionally write an empty mapping file for
+      stable downstream workflows.
+    - The `df` output must preserve the original `cols.id_col` values for the
+      retained representatives.
+
+    Examples
+    --------
+    >>> res = reducer.run(df, cols)
+    >>> res.df.shape
+    """
+
+    df: pd.DataFrame
+    mapping: Optional[pd.DataFrame]
+    strategy: str
+    params: Dict[str, Any]
+    stats: Optional[Dict[str, Any]] = None
+
+
+@runtime_checkable
 class Reducer(Protocol):
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult: ...
+    """
+    Protocol for redundancy-reduction strategies.
+
+    Required interface
+    ------------------
+    - `strategy` property: returns the reducer name used in reports and CLI.
+    - `run(df, cols) -> ReductionResult`
+    """
+
+    @property
+    def strategy(self) -> str:  # pragma: no cover
+        ...
+
+    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # pragma: no cover
+        ...
