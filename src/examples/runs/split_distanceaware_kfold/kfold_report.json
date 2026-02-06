@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "timestamp": "2026-02-06T18:56:09.675935Z",
+  "timestamp": "2026-02-06T21:51:53.944272Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_distanceaware_kfold",
   "strategy": "distance_aware_kfold",
@@ -26,6 +26,7 @@
         "seed": 13,
         "shuffle_ties": true,
         "val_size": 0.1,
+        "drop_internal_index": true,
         "embeddings_path": "embeddings.npy",
         "ids_path": "embedding_ids.csv",
         "n_features": 320,
@@ -50,14 +51,14 @@
           "q75": 0.025067738050831206
         },
         "distance_stats_train": {
-          "n": 800,
+          "n": 720,
           "min": 0.003867048340842061,
           "max": 0.027093673999892376,
-          "mean": 0.015365805885805363,
-          "std": 0.005063652294809619,
-          "median": 0.014597102253530003,
-          "q25": 0.011551676987746867,
-          "q75": 0.01896972987893722
+          "mean": 0.01532122552607129,
+          "std": 0.005061099722358168,
+          "median": 0.014540332849254378,
+          "q25": 0.01159767518201718,
+          "q75": 0.018839136770746473
         },
         "distance_stats_test": {
           "n": 200,
@@ -69,8 +70,16 @@
           "q25": 0.030004165942610767,
           "q75": 0.04235571417086348
         },
-        "distance_stats_val": null,
-        "note_val_distances": "val distances not computed in v0.1 (requires index tracking)."
+        "distance_stats_val": {
+          "n": 80,
+          "min": 0.006755356361966114,
+          "max": 0.02629693580540171,
+          "mean": 0.01576702912341203,
+          "std": 0.005100904086231504,
+          "median": 0.01505197710336792,
+          "q25": 0.011540643371468429,
+          "q75": 0.020239575562954998
+        }
       }
     },
     {
@@ -82,6 +91,7 @@
         "seed": 13,
         "shuffle_ties": true,
         "val_size": 0.1,
+        "drop_internal_index": true,
         "embeddings_path": "embeddings.npy",
         "ids_path": "embedding_ids.csv",
         "n_features": 320,
@@ -106,13 +116,13 @@
           "q75": 0.025067738050831206
         },
         "distance_stats_train": {
-          "n": 800,
-          "min": 0.003867048340842061,
-          "max": 0.0892988274986053,
-          "mean": 0.01912025965327158,
-          "std": 0.01207066764460302,
-          "median": 0.014597102253530003,
-          "q25": 0.011551676987746867,
+          "n": 720,
+          "min": 0.00583781043254894,
+          "max": 0.07978868382432291,
+          "mean": 0.019166985969791755,
+          "std": 0.011947280065217326,
+          "median": 0.014629949152828503,
+          "q25": 0.011667034153995642,
           "q75": 0.020999044111559673
         },
         "distance_stats_test": {
@@ -125,8 +135,16 @@
           "q25": 0.02020824167436641,
           "q75": 0.025067738050831206
         },
-        "distance_stats_val": null,
-        "note_val_distances": "val distances not computed in v0.1 (requires index tracking)."
+        "distance_stats_val": {
+          "n": 80,
+          "min": 0.003867048340842061,
+          "max": 0.0892988274986053,
+          "mean": 0.018699722804590008,
+          "std": 0.013202957855009334,
+          "median": 0.014189140836573577,
+          "q25": 0.010933271789926924,
+          "q75": 0.020919039982042198
+        }
       }
     },
     {
@@ -138,6 +156,7 @@
         "seed": 13,
         "shuffle_ties": true,
         "val_size": 0.1,
+        "drop_internal_index": true,
         "embeddings_path": "embeddings.npy",
         "ids_path": "embedding_ids.csv",
         "n_features": 320,
@@ -162,12 +181,12 @@
           "q75": 0.025067738050831206
         },
         "distance_stats_train": {
-          "n": 800,
+          "n": 720,
           "min": 0.003867048340842061,
           "max": 0.0892988274986053,
-          "mean": 0.020688889845661276,
-          "std": 0.01205971679579935,
-          "median": 0.016787212374129445,
+          "mean": 0.020689427128316267,
+          "std": 0.012138218779555728,
+          "median": 0.01457831992665476,
           "q25": 0.011551676987746867,
           "q75": 0.027094784215343726
         },
@@ -181,8 +200,16 @@
           "q25": 0.015136210048848908,
           "q75": 0.017335160775848624
         },
-        "distance_stats_val": null,
-        "note_val_distances": "val distances not computed in v0.1 (requires index tracking)."
+        "distance_stats_val": {
+          "n": 80,
+          "min": 0.0063860692976155375,
+          "max": 0.05180247312540687,
+          "mean": 0.020684054301766334,
+          "std": 0.01140127527974175,
+          "median": 0.019964916613676442,
+          "q25": 0.011511608743069418,
+          "q75": 0.026945755864996562
+        }
       }
     },
     {
@@ -194,6 +221,7 @@
         "seed": 13,
         "shuffle_ties": true,
         "val_size": 0.1,
+        "drop_internal_index": true,
         "embeddings_path": "embeddings.npy",
         "ids_path": "embedding_ids.csv",
         "n_features": 320,
@@ -218,14 +246,14 @@
           "q75": 0.025067738050831206
         },
         "distance_stats_train": {
-          "n": 800,
+          "n": 720,
           "min": 0.003867048340842061,
           "max": 0.0892988274986053,
-          "mean": 0.02150006366601502,
-          "std": 0.01162593045654639,
-          "median": 0.018973439229694133,
-          "q25": 0.01383755009908566,
-          "q75": 0.027094784215343726
+          "mean": 0.021211126724479293,
+          "std": 0.011277723498733348,
+          "median": 0.018769341379641702,
+          "q25": 0.011540643371468429,
+          "q75": 0.026853607520949896
         },
         "distance_stats_test": {
           "n": 200,
@@ -237,8 +265,16 @@
           "q25": 0.012256610728693718,
           "q75": 0.013872056321131476
         },
-        "distance_stats_val": null,
-        "note_val_distances": "val distances not computed in v0.1 (requires index tracking)."
+        "distance_stats_val": {
+          "n": 80,
+          "min": 0.007005677887038764,
+          "max": 0.07978868382432291,
+          "mean": 0.024100496139836534,
+          "std": 0.014207356403529336,
+          "median": 0.020431436320863416,
+          "q25": 0.014842088566885542,
+          "q75": 0.031051347588208766
+        }
       }
     },
     {
@@ -250,6 +286,7 @@
         "seed": 13,
         "shuffle_ties": true,
         "val_size": 0.1,
+        "drop_internal_index": true,
         "embeddings_path": "embeddings.npy",
         "ids_path": "embedding_ids.csv",
         "n_features": 320,
@@ -274,14 +311,14 @@
           "q75": 0.025067738050831206
         },
         "distance_stats_train": {
-          "n": 800,
-          "min": 0.011552806874890686,
+          "n": 720,
+          "min": 0.011596830159185556,
           "max": 0.0892988274986053,
-          "mean": 0.02237030937711582,
-          "std": 0.010786988099824308,
-          "median": 0.018973439229694133,
-          "q25": 0.01459886997176954,
-          "q75": 0.027094784215343726
+          "mean": 0.02231326378259351,
+          "std": 0.010775126635747641,
+          "median": 0.018855396427756188,
+          "q25": 0.014631554756933146,
+          "q75": 0.026968050579653735
         },
         "distance_stats_test": {
           "n": 200,
@@ -293,8 +330,16 @@
           "q25": 0.008574441462257915,
           "q75": 0.010742091365597256
         },
-        "distance_stats_val": null,
-        "note_val_distances": "val distances not computed in v0.1 (requires index tracking)."
+        "distance_stats_val": {
+          "n": 80,
+          "min": 0.011552806874890686,
+          "max": 0.061450371979410945,
+          "mean": 0.022883719727816637,
+          "std": 0.010948203091446507,
+          "median": 0.0197090503082612,
+          "q25": 0.014436138906252782,
+          "q75": 0.028622636673913404
+        }
       }
     }
   ],

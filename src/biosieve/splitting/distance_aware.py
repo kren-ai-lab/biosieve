@@ -37,9 +37,26 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 
 def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
     """
-    Returns distance to centroid for each row.
-      - cosine: 1 - cos_sim(x, c) where both normalized
-      - euclidean: ||x - mean||_2
+    Compute distance to centroid for each row.
+
+    Parameters
+    ----------
+    X:
+        Feature matrix (n_samples, n_features).
+    metric:
+        Distance metric:
+        - "cosine": 1 - cosine_similarity(x, centroid) in L2-normalized space
+        - "euclidean": L2 distance to mean vector
+
+    Returns
+    -------
+    np.ndarray
+        Distance vector of shape (n_samples,).
+
+    Raises
+    ------
+    ValueError
+        If metric is not supported.
     """
     if metric == "cosine":
         Xn = _l2_normalize(X)
@@ -47,33 +64,129 @@ def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
         c = _l2_normalize(c)
         sims = (Xn * c).sum(axis=1)
         return 1.0 - sims
-    elif metric == "euclidean":
+    if metric == "euclidean":
         c = X.mean(axis=0, keepdims=True)
         dif = X - c
         return np.sqrt((dif * dif).sum(axis=1))
-    else:
-        raise ValueError("metric must be 'cosine' or 'euclidean'")
+    raise ValueError("metric must be 'cosine' or 'euclidean'")
+
+
+def _dist_stats(d: np.ndarray) -> Dict[str, Any]:
+    if d.size == 0:
+        return {"n": 0, "min": None, "max": None, "mean": None, "std": None, "median": None, "q25": None, "q75": None}
+    return {
+        "n": int(d.size),
+        "min": float(np.min(d)),
+        "max": float(np.max(d)),
+        "mean": float(np.mean(d)),
+        "std": float(np.std(d, ddof=1)) if d.size > 1 else 0.0,
+        "median": float(np.median(d)),
+        "q25": float(np.quantile(d, 0.25)),
+        "q75": float(np.quantile(d, 0.75)),
+    }
 
 
 @dataclass(frozen=True)
 class DistanceAwareSplitter:
     """
-    Distance-aware split (v0.1):
-      Select test (and optional val) as the samples farthest from the centroid
-      in a feature space.
+    Distance-aware split (OOD-oriented) selecting farthest samples as test (and optional val).
 
-    Supports:
-      - embeddings via (embeddings.npy + embedding_ids.csv) with cosine distance
-      - descriptors via columns (desc_*) with euclidean distance (optionally z-scored)
+    This strategy selects the test set as the samples farthest from the centroid in a
+    feature space (embeddings or descriptors). Optionally, validation can be selected
+    either randomly from the remaining pool or as the "next farthest" samples.
 
-    Selection:
-      - test_method: 'farthest' (default)   -> top-N farthest points as test
-      - val_method:  'random' or 'farthest_next'
-          random: pick val randomly from remaining
-          farthest_next: next farthest points after test
+    Supported feature modes
+    -----------------------
+    - feature_mode="embeddings":
+        Uses embeddings exported as:
+          - embeddings_path: .npy array (N, D)
+          - ids_path: CSV with embedding row ids
+        Distances typically use metric="cosine" (default).
+    - feature_mode="descriptors":
+        Uses numeric descriptor columns (explicit list or prefix selection).
+        Distances typically use metric="euclidean", optionally after z-scoring.
 
-    Missing features:
-      - if some ids have no embedding (embeddings mode), they are kept in TRAIN (safe default)
+    Selection policies
+    ------------------
+    - test_method="farthest" (v0.1):
+        Take the top `n_test` farthest samples (among those with features).
+    - val_method:
+        - "random": pick val uniformly from the remaining candidates
+        - "farthest_next": take the next `n_val` farthest samples after test
+
+    Missing features behavior (embeddings mode)
+    -------------------------------------------
+    If some dataset ids do not have embeddings, they are *kept in TRAIN* by default.
+    This is a conservative choice that avoids accidentally evaluating on samples that
+    cannot be represented.
+
+    Parameters
+    ----------
+    test_size:
+        Fraction of full dataset assigned to test.
+    val_size:
+        Fraction of full dataset assigned to validation (0 disables validation).
+    seed:
+        Seed used for random val selection (val_method="random").
+    feature_mode:
+        "embeddings" or "descriptors".
+    metric:
+        "cosine" or "euclidean".
+    embeddings_path, ids_path, ids_col:
+        Embeddings layout parameters (embeddings mode).
+    descriptor_prefix, descriptor_cols, standardize:
+        Descriptor selection and normalization (descriptors mode).
+    test_method:
+        Only "farthest" is supported in v0.1.
+    val_method:
+        "random" or "farthest_next".
+    dtype:
+        Numpy dtype used to load/cast features ("float32" default).
+
+    Returns
+    -------
+    SplitResult
+        train/test/val DataFrames plus:
+        - params: effective parameters and feature configuration
+        - stats:
+            - feature coverage
+            - distance summaries (global/train/test/val) computed over *available-feature* pool
+            - selection policy metadata
+
+    Raises
+    ------
+    ValueError
+        If split sizes are invalid, test/val sizes become zero after rounding, feature_mode
+        or metric are invalid, no features are available, or descriptors contain NaNs.
+    FileNotFoundError
+        If embeddings files are missing (embeddings mode).
+    ImportError
+        If optional backends require missing dependencies (propagated).
+
+    Notes
+    -----
+    - This strategy is designed for robustness/OOD evaluation: test is intentionally
+      "harder" (farthest from centroid).
+    - It does not enforce leakage constraints by itself (homology/structure/groups).
+      If you need leakage-aware OOD splitting, a hybrid strategy is recommended.
+
+    Examples
+    --------
+    Embeddings mode:
+
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_distance_aware \\
+    ...   --strategy distance_aware \\
+    ...   --params params.yaml
+
+    Descriptors mode:
+
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_distance_aware_desc \\
+    ...   --strategy distance_aware \\
+    ...   --params params.yaml
     """
 
     # Core split sizes
@@ -110,10 +223,21 @@ class DistanceAwareSplitter:
 
     def _build_features(self, df: pd.DataFrame, cols: Columns) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
         """
-        Return:
-          X: features for rows that have features
-          idx: row indices in df that correspond to X
-          meta: stats (coverage, etc.)
+        Build feature matrix and return aligned dataframe indices.
+
+        Returns
+        -------
+        X:
+            Feature matrix for rows that have features.
+        idx:
+            Row indices in `df` corresponding to rows in X.
+        meta:
+            Feature coverage metadata.
+
+        Raises
+        ------
+        ValueError
+            If no usable features can be constructed.
         """
         ids = df[cols.id_col].astype(str).tolist()
 
@@ -126,8 +250,8 @@ class DistanceAwareSplitter:
             )
             id_to_idx = {sid: i for i, sid in enumerate(store.ids)}
 
-            present_idx = []
-            emb_rows = []
+            present_idx: List[int] = []
+            emb_rows: List[int] = []
             missing = 0
             for i, sid in enumerate(ids):
                 j = id_to_idx.get(sid)
@@ -140,40 +264,41 @@ class DistanceAwareSplitter:
             if len(present_idx) == 0:
                 raise ValueError("No dataset ids found in embedding ids file. Cannot run distance-aware split.")
 
-            X = store.X[np.array(emb_rows, dtype=int)]
-            idx = np.array(present_idx, dtype=int)
+            X = store.X[np.asarray(emb_rows, dtype=int)]
+            idx = np.asarray(present_idx, dtype=int)
             meta = {
                 "feature_mode": "embeddings",
-                "n_total": len(df),
+                "n_total": int(len(df)),
                 "n_with_features": int(len(idx)),
                 "n_missing_features": int(missing),
                 "coverage": float(len(idx) / len(df)) if len(df) else 0.0,
                 "embeddings_path": self.embeddings_path,
                 "ids_path": self.ids_path,
                 "ids_col": self.ids_col,
+                "n_features": int(X.shape[1]),
             }
             return X, idx, meta
 
-        elif self.feature_mode == "descriptors":
+        if self.feature_mode == "descriptors":
             dcols = infer_descriptor_columns(df, prefix=self.descriptor_prefix, explicit_cols=self.descriptor_cols)
             mat = extract_descriptor_matrix(df, dcols, dtype=self.dtype)
             X = mat.X
             idx = np.arange(len(df), dtype=int)
             meta = {
                 "feature_mode": "descriptors",
-                "n_total": len(df),
+                "n_total": int(len(df)),
                 "n_with_features": int(len(df)),
                 "n_missing_features": 0,
                 "coverage": 1.0,
                 "descriptor_prefix": self.descriptor_prefix,
-                "descriptor_cols_used": dcols[:10] + (["..."] if len(dcols) > 10 else []),
-                "n_descriptors": len(dcols),
+                "descriptor_cols_used_preview": dcols[:10] + (["..."] if len(dcols) > 10 else []),
+                "n_descriptors": int(len(dcols)),
                 "standardize": bool(self.standardize),
+                "n_features": int(X.shape[1]),
             }
             return X, idx, meta
 
-        else:
-            raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")
+        raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
         _validate_sizes(self.test_size, self.val_size)
@@ -184,6 +309,7 @@ class DistanceAwareSplitter:
         n_test = int(round(n * self.test_size))
         n_val = int(round(n * self.val_size)) if self.val_size > 0 else 0
         n_train = n - n_test - n_val
+
         if n_train <= 0:
             raise ValueError("Split sizes leave no training samples. Reduce test_size/val_size.")
         if n_test <= 0:
@@ -200,7 +326,7 @@ class DistanceAwareSplitter:
 
         X, feat_idx, feat_meta = self._build_features(work, cols)
 
-        # Standardize descriptors if requested (only makes sense for euclidean / descriptors)
+        # Standardize descriptors if requested (useful mainly for euclidean)
         z_mu = None
         z_sd = None
         if self.feature_mode == "descriptors" and self.standardize:
@@ -209,44 +335,61 @@ class DistanceAwareSplitter:
         # Compute distance-to-centroid for candidates with features
         dist = _distance_to_centroid(X, metric=self.metric)
 
-        # Sort feature-rows by distance desc
+        # Sort candidates by distance desc
         order = np.argsort(-dist, kind="mergesort")
-        ranked_df_idx = feat_idx[order]  # indices in work, sorted by "most different first"
+        ranked_df_idx = feat_idx[order]  # indices in work, sorted by farthest-first
+        ranked_dist = dist[order]
 
-        # Choose test indices
+        # Choose test indices (only among feature-covered candidates)
+        if len(ranked_df_idx) < n_test:
+            raise ValueError(
+                f"Not enough feature-covered samples to allocate test. "
+                f"need n_test={n_test}, have n_candidates={len(ranked_df_idx)}"
+            )
         test_idx = ranked_df_idx[:n_test].tolist()
 
         # Choose val indices
-        remaining = ranked_df_idx[n_test:].tolist()
+        remaining_idx = ranked_df_idx[n_test:].tolist()
+        remaining_dist = ranked_dist[n_test:]
 
         if n_val > 0:
+            if len(remaining_idx) < n_val:
+                raise ValueError("Not enough remaining feature-covered samples to allocate validation.")
             if self.val_method == "farthest_next":
-                val_idx = remaining[:n_val]
-                remaining = remaining[n_val:]
+                val_idx = remaining_idx[:n_val]
             else:
                 rng = np.random.default_rng(self.seed)
-                if len(remaining) < n_val:
-                    raise ValueError("Not enough remaining samples to allocate validation.")
-                sel = rng.choice(np.array(remaining, dtype=int), size=n_val, replace=False)
+                sel = rng.choice(np.asarray(remaining_idx, dtype=int), size=n_val, replace=False)
                 val_idx = sel.tolist()
-                remaining_set = set(remaining)
-                for s in val_idx:
-                    remaining_set.discard(int(s))
-                remaining = list(remaining_set)
         else:
             val_idx = []
 
-        # TRAIN gets:
-        #  - all samples not in test/val
-        #  - plus any samples missing features (in embeddings mode) will naturally land here
-        test_set = set(test_idx)
-        val_set = set(val_idx)
+        test_set = set(int(i) for i in test_idx)
+        val_set = set(int(i) for i in val_idx)
 
+        # TRAIN gets everything not in test/val (including missing-feature rows)
         train_idx = [i for i in range(n) if i not in test_set and i not in val_set]
 
         train = work.iloc[train_idx].reset_index(drop=True)
         test = work.iloc[test_idx].reset_index(drop=True)
         val = work.iloc[val_idx].reset_index(drop=True) if n_val > 0 else None
+
+        # Distance stats are computed only for samples WITH FEATURES
+        # We can still compute per-split stats by intersecting indices with feat_idx.
+        feat_idx_set = set(int(i) for i in feat_idx.tolist())
+
+        def _subset_dist(idxs: List[int]) -> np.ndarray:
+            # idxs are dataframe row indices; select those that have features
+            mask = [i for i in idxs if int(i) in feat_idx_set]
+            if not mask:
+                return np.asarray([], dtype=float)
+            # map df indices -> position in feat_idx
+            pos = {int(df_i): k for k, df_i in enumerate(feat_idx.tolist())}
+            return dist[np.asarray([pos[int(i)] for i in mask], dtype=int)]
+
+        d_train = _subset_dist(train_idx)
+        d_test = _subset_dist(test_idx)
+        d_val = _subset_dist(val_idx) if n_val > 0 else np.asarray([], dtype=float)
 
         stats: Dict[str, Any] = {
             "n_total": int(n),
@@ -257,7 +400,11 @@ class DistanceAwareSplitter:
             "metric": self.metric,
             "test_method": self.test_method,
             "val_method": self.val_method,
-            "note": "test is selected as farthest-from-centroid in feature space (distance-aware v0.1).",
+            "distance_stats_global": _dist_stats(dist),
+            "distance_stats_train": _dist_stats(d_train),
+            "distance_stats_test": _dist_stats(d_test),
+            "distance_stats_val": _dist_stats(d_val) if n_val > 0 else None,
+            "note": "test is selected as farthest-from-centroid in feature space (distance-aware).",
         }
 
         return SplitResult(

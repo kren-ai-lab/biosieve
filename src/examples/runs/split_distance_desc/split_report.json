@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "timestamp": "2026-02-06T18:55:57.053904Z",
+  "timestamp": "2026-02-06T21:51:40.788939Z",
   "in_path": "biosieve_example_dataset_1000_desc.csv",
   "outdir": "runs/split_distance_desc",
   "strategy": "distance_aware",
@@ -44,7 +44,7 @@
       "n_missing_features": 0,
       "coverage": 1.0,
       "descriptor_prefix": "desc_",
-      "descriptor_cols_used": [
+      "descriptor_cols_used_preview": [
         "desc_000",
         "desc_001",
         "desc_002",
@@ -58,12 +58,53 @@
         "..."
       ],
       "n_descriptors": 32,
-      "standardize": true
+      "standardize": true,
+      "n_features": 32
     },
     "metric": "euclidean",
     "test_method": "farthest",
     "val_method": "farthest_next",
-    "note": "test is selected as farthest-from-centroid in feature space (distance-aware v0.1)."
+    "distance_stats_global": {
+      "n": 1000,
+      "min": 3.3909637928009033,
+      "max": 7.635706424713135,
+      "mean": 5.612571716308594,
+      "std": 0.7067792415618896,
+      "median": 5.598487377166748,
+      "q25": 5.133612155914307,
+      "q75": 6.0634074211120605
+    },
+    "distance_stats_train": {
+      "n": 700,
+      "min": 3.3909637928009033,
+      "max": 5.961659908294678,
+      "mean": 5.2581706047058105,
+      "std": 0.482401043176651,
+      "median": 5.300022125244141,
+      "q25": 4.936065673828125,
+      "q75": 5.652965545654297
+    },
+    "distance_stats_test": {
+      "n": 200,
+      "min": 6.196539402008057,
+      "max": 7.635706424713135,
+      "mean": 6.623493671417236,
+      "std": 0.3367150127887726,
+      "median": 6.555028915405273,
+      "q25": 6.343255043029785,
+      "q75": 6.79763126373291
+    },
+    "distance_stats_val": {
+      "n": 100,
+      "min": 5.963888645172119,
+      "max": 6.195602893829346,
+      "mean": 6.071537017822266,
+      "std": 0.06613125652074814,
+      "median": 6.063570022583008,
+      "q25": 6.0163893699646,
+      "q75": 6.121684551239014
+    },
+    "note": "test is selected as farthest-from-centroid in feature space (distance-aware)."
   },
   "columns": {
     "id_col": "id",

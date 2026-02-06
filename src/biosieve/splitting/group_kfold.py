@@ -25,16 +25,22 @@ def _try_import_train_test_split():
         return None
 
 
+def _group_set(df: pd.DataFrame, group_col: str) -> set[str]:
+    return set(df[group_col].astype(str).unique())
+
+
 @dataclass(frozen=True)
 class GroupKFoldSplitter:
     """
-    Group K-Fold splitting (leakage-aware).
+    Group K-Fold splitting (leakage-aware cross-validation).
 
     Ensures that the same group does not appear in both train and test for any fold.
 
+    Output
+    ------
     Produces a list of SplitResult objects, one per fold:
       - train: training subset for that fold
-      - test:  held-out subset for that fold
+      - test:  held-out subset for that fold (group-disjoint from train)
       - val:   optional validation subset sampled from train (val_size > 0)
 
     Parameters
@@ -42,16 +48,47 @@ class GroupKFoldSplitter:
     group_col:
         Column containing group identifiers (e.g., subject_id, cluster_id, taxid).
     n_splits:
-        Number of folds.
-    seed:
-        Used only for the optional val split inside the train fold.
+        Number of folds (must be >= 2).
     val_size:
-        Optional validation fraction sampled from the fold's train set.
+        Optional validation fraction sampled from each fold's *train* split.
+        Set to 0.0 to disable validation.
+    seed:
+        Seed used only for the optional val split inside each fold.
+    dropna:
+        If True, drop rows with NaN group ids. If False, raise when NaNs are present.
+
+    Returns
+    -------
+    list[SplitResult]
+        One SplitResult per fold. Each SplitResult includes:
+        - params: effective fold parameters (includes fold_index)
+        - stats: counts and leakage checks:
+            - leak_groups_train_test must be 0
+            - leak_groups_val_test should be 0 (val sampled from train)
+
+    Raises
+    ------
+    ImportError
+        If scikit-learn is not installed.
+    ValueError
+        If required columns are missing, parameter ranges are invalid, NaNs are present
+        and dropna=False, or there are insufficient unique groups for n_splits.
 
     Notes
     -----
-    - `GroupKFold` does not support shuffle; folds are deterministic given group ordering.
-      If you want shuffled group folds, we can add `GroupShuffleSplit`-based CV later.
+    - `GroupKFold` does not support shuffling; folds are deterministic given the group
+      ordering in the input. If you require shuffled group CV, consider a future
+      `group_shuffle_kfold` strategy based on `GroupShuffleSplit`.
+    - Validation is sampled from the training fold. It may share groups with train
+      (by design), but should never include groups from the test fold.
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_group_kfold \\
+    ...   --strategy group_kfold \\
+    ...   --params params.yaml
     """
 
     group_col: str = "group"
@@ -61,7 +98,7 @@ class GroupKFoldSplitter:
     val_size: float = 0.0
     seed: int = 13
 
-    dropna: bool = True  # drop rows with NaN group ids
+    dropna: bool = True
 
     @property
     def strategy(self) -> str:
@@ -77,7 +114,7 @@ class GroupKFoldSplitter:
 
         if self.n_splits < 2:
             raise ValueError("n_splits must be >= 2")
-        if self.val_size < 0 or self.val_size >= 1:
+        if not (0.0 <= self.val_size < 1.0):
             raise ValueError("val_size must be in [0, 1)")
         if self.group_col not in df.columns:
             raise ValueError(
@@ -111,7 +148,7 @@ class GroupKFoldSplitter:
         gkf = GroupKFold(n_splits=self.n_splits)
 
         tts = None
-        if self.val_size and self.val_size > 0:
+        if self.val_size > 0:
             tts = _try_import_train_test_split()
             if tts is None:
                 raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
@@ -126,15 +163,21 @@ class GroupKFoldSplitter:
             test_df = work.iloc[test_idx].copy().reset_index(drop=True)
 
             # leakage check (group disjointness)
-            train_groups = set(train_df[self.group_col].astype(str).unique())
-            test_groups = set(test_df[self.group_col].astype(str).unique())
-            leak = len(train_groups & test_groups)
+            train_groups = _group_set(train_df, self.group_col)
+            test_groups = _group_set(test_df, self.group_col)
+            leak_tt = len(train_groups & test_groups)
+
+            if leak_tt != 0:
+                raise ValueError(
+                    f"Group leakage detected in fold {fold_idx}: "
+                    f"train/test share {leak_tt} group(s). This should never happen."
+                )
 
             val_df: Optional[pd.DataFrame] = None
-            val_leak_train = 0
-            val_leak_test = 0
+            leak_vt = 0
+            leak_vr = 0
 
-            if self.val_size and self.val_size > 0:
+            if self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
                 train_df, val_df = tts(
                     train_df,
@@ -146,10 +189,10 @@ class GroupKFoldSplitter:
                 train_df = train_df.reset_index(drop=True)
                 val_df = val_df.reset_index(drop=True)
 
-                val_groups = set(val_df[self.group_col].astype(str).unique())
-                train_groups2 = set(train_df[self.group_col].astype(str).unique())
-                val_leak_train = len(val_groups & train_groups2)
-                val_leak_test = len(val_groups & test_groups)
+                val_groups = _group_set(val_df, self.group_col)
+                train_groups2 = _group_set(train_df, self.group_col)
+                leak_vr = len(val_groups & train_groups2)  # expected possibly >0
+                leak_vt = len(val_groups & test_groups)    # should be 0
 
             folds.append(
                 SplitResult(
@@ -163,7 +206,7 @@ class GroupKFoldSplitter:
                         "val_size": self.val_size,
                         "seed": self.seed,
                         "dropna": self.dropna,
-                        "fold_index": fold_idx,
+                        "fold_index": int(fold_idx),
                     },
                     stats={
                         "fold_index": int(fold_idx),
@@ -176,9 +219,9 @@ class GroupKFoldSplitter:
                         "n_groups_total": int(n_groups),
                         "n_groups_train": int(len(train_groups)),
                         "n_groups_test": int(len(test_groups)),
-                        "leak_groups_train_test": int(leak),
-                        "leak_groups_val_train": int(val_leak_train),
-                        "leak_groups_val_test": int(val_leak_test),
+                        "leak_groups_train_test": int(leak_tt),      # must be 0
+                        "leak_groups_val_train": int(leak_vr),       # may be >0 (by design)
+                        "leak_groups_val_test": int(leak_vt),        # should be 0
                     },
                 )
             )

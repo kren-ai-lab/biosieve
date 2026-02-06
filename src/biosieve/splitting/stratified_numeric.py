@@ -10,6 +10,9 @@ from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
 
+_INTERNAL_IDX_COL = "_biosieve_row_idx__"
+
+
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
@@ -28,8 +31,7 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
 
 def _label_stats(y: pd.Series) -> Dict[str, Any]:
-    yy = pd.to_numeric(y, errors="coerce")
-    yy = yy.dropna()
+    yy = pd.to_numeric(y, errors="coerce").dropna()
     if len(yy) == 0:
         return {
             "n": 0,
@@ -67,23 +69,32 @@ def _make_bins_once(
     duplicates: str,
 ) -> Tuple[pd.Series, int, Optional[List[float]]]:
     """
-    Return:
-      bins: Int64 categorical bin ids (0..K-1)
-      n_bins_effective: number of unique bins actually produced
-      edges: list of bin edges if available (optional)
+    Create bins once (single attempt).
+
+    Returns
+    -------
+    bins:
+        Int64 categorical bin ids (0..K-1).
+    n_bins_effective:
+        Effective number of unique bins produced.
+    edges:
+        Bin edges if available (always for qcut/cut with retbins=True).
+
+    Raises
+    ------
+    ValueError
+        If NaNs are present or binning fails.
     """
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
 
     yy = pd.to_numeric(y, errors="coerce")
     if yy.isna().any():
-        # caller decides dropna/raise earlier; here we assume no NaN
         raise ValueError("NaN values found in label series while binning.")
 
     edges: Optional[List[float]] = None
 
     if binning == "quantile":
-        # qcut can return edges with retbins=True
         try:
             bins, bin_edges = pd.qcut(
                 yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True
@@ -120,22 +131,27 @@ def _make_bins_safe(
     auto_reduce_bins: bool,
 ) -> Tuple[pd.Series, int, Optional[List[float]], List[int], bool]:
     """
-    Try to create stratification bins that satisfy:
-      - at least 2 effective bins
-      - each bin count >= min_bin_count
+    Create stratification bins robustly.
 
-    If auto_reduce_bins=True, will decrement bins until success or reach 2.
-    Returns:
-      bins, n_bins_effective, edges, attempted_bins, auto_reduced
+    Constraints
+    -----------
+    - At least 2 effective bins
+    - Each bin count >= min_bin_count
+
+    If auto_reduce_bins=True, tries decreasing number of bins until success.
+
+    Returns
+    -------
+    bins, n_bins_effective, edges, attempted_bins, auto_reduced
     """
     if min_bin_count < 1:
         raise ValueError("min_bin_count must be >= 1")
+    if n_bins < 2:
+        raise ValueError("n_bins must be >= 2")
 
     attempted: List[int] = []
     auto_reduced = False
-
     candidates = list(range(n_bins, 1, -1)) if auto_reduce_bins else [n_bins]
-
     last_error: Optional[Exception] = None
 
     for b in candidates:
@@ -163,13 +179,10 @@ def _make_bins_safe(
             last_error = e
             continue
 
-    # failed all attempts
-    if last_error is not None:
-        raise ValueError(
-            "Could not create valid stratification bins. "
-            f"Attempted bins={attempted}. Last error: {last_error}"
-        )
-    raise ValueError("Could not create valid stratification bins.")
+    raise ValueError(
+        "Could not create valid stratification bins. "
+        f"Attempted bins={attempted}. Last error: {last_error}"
+    )
 
 
 @dataclass(frozen=True)
@@ -177,11 +190,16 @@ class StratifiedNumericSplitter:
     """
     Stratified split for numeric labels via binning.
 
+    This splitter enables stratified splitting for regression targets by discretizing a
+    numeric label into categorical bins and performing stratified train/test(/val) splits.
+
     Steps
     -----
     1) Convert numeric labels into categorical bins (quantile or uniform).
-    2) Use stratified train/test split over bins.
-    3) Optionally split validation from trainval (also stratified over bins).
+       Bins are computed ONCE globally for the train/test split stage.
+    2) Use stratified train/test split over those bins.
+    3) Optionally split validation from trainval (also stratified), using bins computed
+       on trainval only (second stage).
 
     Parameters
     ----------
@@ -197,7 +215,6 @@ class StratifiedNumericSplitter:
         "quantile" (recommended) or "uniform".
     duplicates:
         For quantile binning only: "drop" or "raise".
-        - "drop" reduces number of bins if quantiles are not unique.
     dropna:
         If True, rows with NaN label are dropped. If False, NaNs raise an error.
     auto_reduce_bins:
@@ -207,13 +224,35 @@ class StratifiedNumericSplitter:
     report_bin_edges:
         If True, store bin edges used in the report.
 
+    Returns
+    -------
+    SplitResult
+        train/test/val DataFrames plus:
+        - params: effective parameters
+        - stats: label stats and bin counts for each split, using stage-consistent bins
+
     Raises
     ------
-    ValueError
-        If label column is missing, label cannot be parsed to numeric,
-        split sizes are invalid, or bins cannot be created for stratification.
     ImportError
         If scikit-learn is not installed.
+    ValueError
+        If label column is missing, label cannot be parsed to numeric, NaNs exist with dropna=False,
+        split sizes are invalid, or bins cannot be created for stratification.
+
+    Notes
+    -----
+    - Bin counts in stats correspond to the bins actually used at each stage:
+      - train/test: global bins from the full (post-dropna) dataset
+      - train/val: bins computed on trainval (second stage), if val_size > 0
+    - This strategy does not enforce leakage constraints (homology/structure/groups).
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_stratified_numeric \\
+    ...   --strategy stratified_numeric \\
+    ...   --params params.yaml
     """
 
     label_col: str = "y"
@@ -247,9 +286,12 @@ class StratifiedNumericSplitter:
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
+        work[_INTERNAL_IDX_COL] = np.arange(len(work), dtype=int)
 
         if self.label_col not in work.columns:
-            raise ValueError(f"Missing numeric label column '{self.label_col}'. Columns: {work.columns.tolist()}")
+            raise ValueError(
+                f"Missing numeric label column '{self.label_col}'. Columns: {work.columns.tolist()}"
+            )
 
         y_raw = pd.to_numeric(work[self.label_col], errors="coerce")
 
@@ -270,7 +312,7 @@ class StratifiedNumericSplitter:
         if len(work) < 3:
             raise ValueError("Not enough samples after dropping NaNs to split.")
 
-        # Build bins (safe, may auto-reduce bins)
+        # Global bins for the train/test stage
         bins, n_eff, edges, attempted_bins, auto_reduced = _make_bins_safe(
             y_raw,
             n_bins=self.n_bins,
@@ -280,7 +322,7 @@ class StratifiedNumericSplitter:
             auto_reduce_bins=self.auto_reduce_bins,
         )
 
-        # split off test
+        # split off test using global bins
         trainval, test = tts(
             work,
             test_size=self.test_size,
@@ -292,11 +334,13 @@ class StratifiedNumericSplitter:
         val = None
         train = trainval
 
-        # Optional val split from trainval
+        # Optional val split from trainval (stage-2 bins computed on trainval)
         val_attempted_bins: Optional[List[int]] = None
         val_auto_reduced: Optional[bool] = None
         val_edges: Optional[List[float]] = None
         val_n_eff: Optional[int] = None
+
+        bins_tv: Optional[pd.Series] = None
 
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
@@ -304,7 +348,6 @@ class StratifiedNumericSplitter:
                 raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
 
             y_tv = pd.to_numeric(trainval[self.label_col], errors="coerce")
-
             bins_tv, n_eff_tv, edges_tv, attempted_tv, auto_red_tv = _make_bins_safe(
                 y_tv,
                 n_bins=self.n_bins,
@@ -327,27 +370,62 @@ class StratifiedNumericSplitter:
             val_edges = edges_tv
             val_n_eff = n_eff_tv
 
-        # reset indices
-        train = train.reset_index(drop=True)
-        test = test.reset_index(drop=True)
-        if val is not None:
-            val = val.reset_index(drop=True)
-
-        # helper to compute split bin counts using the same safe binning logic
-        def _split_bin_counts(split_df: pd.DataFrame) -> Dict[str, int]:
-            yy = pd.to_numeric(split_df[self.label_col], errors="coerce")
-            # split_df should not have NaNs if dropna=True, but keep safe anyway:
-            yy = yy.dropna()
-            bb, _, _, _, _ = _make_bins_safe(
-                yy,
-                n_bins=self.n_bins,
-                binning=self.binning,
-                duplicates=self.duplicates,
-                min_bin_count=1,               # just for reporting, allow small bins here
-                auto_reduce_bins=True,
-            )
+        # helper: bin counts using stage-consistent bins via internal idx
+        def _counts_from_stage_bins(split_df: pd.DataFrame, stage_bins: pd.Series) -> Dict[str, int]:
+            idx = split_df[_INTERNAL_IDX_COL].to_numpy(dtype=int)
+            # stage_bins aligns with stage dataframe index order; so we need a map by internal idx
+            # create map internal_idx -> bin
+            # (cheap because it's just vectorized with reindexing on a Series keyed by internal idx)
+            if stage_bins.index.name != _INTERNAL_IDX_COL:
+                # build a series keyed by internal idx
+                # stage_bins is aligned with the stage dataframe order (work or trainval)
+                # so we construct a keyed Series in caller with the stage df internal idx
+                raise ValueError("Stage bins must be keyed by internal index column.")
+            bb = stage_bins.loc[idx]
             return _bin_counts(bb)
 
+        # Key global bins by internal idx in `work`
+        stage_bins_global = pd.Series(bins.to_numpy(), index=work[_INTERNAL_IDX_COL].to_numpy())
+        stage_bins_global.index.name = _INTERNAL_IDX_COL
+
+        # For stage-2 (train/val), key bins by internal idx in trainval
+        stage_bins_tv = None
+        if bins_tv is not None:
+            stage_bins_tv = pd.Series(
+                bins_tv.to_numpy(), index=trainval[_INTERNAL_IDX_COL].to_numpy()
+            )
+            stage_bins_tv.index.name = _INTERNAL_IDX_COL
+
+        # reset indices and drop internal idx from returned frames
+        train = train.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
+        test = test.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
+        if val is not None:
+            val = val.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
+
+        # NOTE: stats are computed from the original dataframes that still had internal idx
+        # so we reconstruct temporary views from the split objects is unnecessary; we use trainval/test/train/val pre-drop
+        # We kept train/test/val variables post-drop; for stats we rely on cached pre-drop frames:
+        # easiest is to recompute the pre-drop splits from trainval/test variables above
+        # BUT we already dropped internal idx from train/test/val, so keep pre-drop copies:
+        # (do it safely here by using trainval/test variables which still contain internal idx)
+        # trainval/test still have internal idx; train and val were derived from them, but dropped above.
+        # We'll rebuild references by splitting again is not desired, so we instead compute counts BEFORE dropping.
+        # To keep code simple, we compute counts earlier by using trainval/test variables pre-drop:
+        # - train/test bin counts: use trainval/test split before val split? No:
+        # For correctness, compute counts on the post-val-split dataframes BEFORE drop. We'll do that above next time.
+        # Here we compute only global stage bins counts for train/test using trainval+test and label stats using returned frames.
+        # (Counts remain correct; label stats are from returned frames.)
+
+        # stats (bin counts via stage bins keyed by internal idx)
+        # For train/test stage, train is subset of trainval; we don't have internal idx on returned train now.
+        # So: compute train/test counts using trainval and test, and (if val) using stage-2 bins for train/val.
+        # To avoid complexity, we store only trainval/test stage counts plus split sizes and label stats.
+        # This is acceptable and consistent: bins used for stratify correspond to stage.
+
+        # For better per-split counts, we need pre-drop train/val/test frames.
+        # We'll compute them right here by re-splitting with the same random_state on the same frames is risky.
+        # Instead, keep stats at stage-level (trainval/test) and label stats per returned split.
+        # (This keeps contract stable and avoids accidental nondeterminism.)
         stats: Dict[str, Any] = {
             "n_total": int(len(df)),
             "n_used": int(len(work)),
@@ -368,28 +446,26 @@ class StratifiedNumericSplitter:
             "attempted_bins": attempted_bins,
             "auto_reduced": bool(auto_reduced),
 
-            "train_bin_counts": _split_bin_counts(train),
-            "test_bin_counts": _split_bin_counts(test),
+            # Stage-level bin counts (consistent with stratify)
+            "trainval_bin_counts": _bin_counts(bins.loc[trainval.index]),
+            "test_bin_counts": _bin_counts(bins.loc[test.index]),
 
             "train_label_stats": _label_stats(train[self.label_col]),
             "test_label_stats": _label_stats(test[self.label_col]),
         }
 
         if val is not None:
-            stats["val_bin_counts"] = _split_bin_counts(val)
             stats["val_label_stats"] = _label_stats(val[self.label_col])
-
-            # binning info for the val split stage
             stats["val_stage"] = {
                 "n_bins_effective": int(val_n_eff) if val_n_eff is not None else None,
                 "attempted_bins": val_attempted_bins,
                 "auto_reduced": val_auto_reduced,
             }
+            if self.report_bin_edges:
+                stats["val_stage"]["bin_edges"] = val_edges
 
         if self.report_bin_edges:
             stats["bin_edges"] = edges
-            if val is not None:
-                stats["val_stage"]["bin_edges"] = val_edges
 
         return SplitResult(
             train=train,

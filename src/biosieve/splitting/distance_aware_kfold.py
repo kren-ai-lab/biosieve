@@ -11,6 +11,9 @@ from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
 
+_INTERNAL_IDX_COL = "_biosieve_row_idx__"
+
+
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
@@ -21,7 +24,16 @@ def _try_import_train_test_split():
 
 def _label_stats_from_array(x: np.ndarray) -> Dict[str, Any]:
     if x.size == 0:
-        return {"n": 0, "min": None, "max": None, "mean": None, "std": None, "median": None, "q25": None, "q75": None}
+        return {
+            "n": 0,
+            "min": None,
+            "max": None,
+            "mean": None,
+            "std": None,
+            "median": None,
+            "q25": None,
+            "q75": None,
+        }
     return {
         "n": int(x.size),
         "min": float(np.min(x)),
@@ -42,7 +54,6 @@ def _standardize(X: np.ndarray) -> np.ndarray:
 
 
 def _cosine_distance_to_centroid(X: np.ndarray) -> np.ndarray:
-    # centroid then normalize
     c = X.mean(axis=0, keepdims=True)
     Xn = X / (np.linalg.norm(X, axis=1, keepdims=True) + 1e-12)
     cn = c / (np.linalg.norm(c, axis=1, keepdims=True) + 1e-12)
@@ -61,22 +72,25 @@ def _load_embedding_ids(path: str) -> List[str]:
         raise FileNotFoundError(f"ids_path not found: {p}")
 
     df = pd.read_csv(p)
-    # accept common variants
     for col in ["id", "ids", "sequence_id", "uniprot_id"]:
         if col in df.columns:
             return df[col].astype(str).tolist()
 
-    # fallback: 1-column CSV
     if df.shape[1] == 1:
         return df.iloc[:, 0].astype(str).tolist()
 
     raise ValueError(
-        f"ids_path must contain a recognizable id column (id/ids/sequence_id/uniprot_id) "
+        "ids_path must contain a recognizable id column (id/ids/sequence_id/uniprot_id) "
         f"or be a single-column CSV. Found: {df.columns.tolist()}"
     )
 
 
-def _load_features_embeddings(df: pd.DataFrame, cols: Columns, embeddings_path: str, ids_path: str) -> Tuple[np.ndarray, np.ndarray]:
+def _load_features_embeddings(
+    df: pd.DataFrame,
+    cols: Columns,
+    embeddings_path: str,
+    ids_path: str,
+) -> np.ndarray:
     ep = Path(embeddings_path)
     if not ep.exists():
         raise FileNotFoundError(f"embeddings_path not found: {ep}")
@@ -108,7 +122,7 @@ def _load_features_embeddings(df: pd.DataFrame, cols: Columns, embeddings_path: 
         )
 
     idx_arr = np.asarray(idx, dtype=int)
-    return X[idx_arr, :], idx_arr
+    return X[idx_arr, :]
 
 
 def _load_features_descriptors(
@@ -129,14 +143,14 @@ def _load_features_descriptors(
         raise ValueError("No descriptor columns selected for descriptors mode.")
 
     Xdf = df[cols].copy()
-
-    # coerce to numeric
     for c in cols:
         Xdf[c] = pd.to_numeric(Xdf[c], errors="coerce")
 
     if Xdf.isna().any().any():
-        bad = Xdf.isna().sum().sum()
-        raise ValueError(f"Descriptor matrix contains NaNs after coercion ({bad} NaN cells). Clean/impute first.")
+        bad = int(Xdf.isna().sum().sum())
+        raise ValueError(
+            f"Descriptor matrix contains NaNs after coercion ({bad} NaN cells). Clean/impute first."
+        )
 
     X = Xdf.to_numpy(dtype=float)
     if standardize:
@@ -144,14 +158,21 @@ def _load_features_descriptors(
     return X, cols
 
 
+def _get_distances_for_df(df_split: pd.DataFrame, d: np.ndarray) -> np.ndarray:
+    if _INTERNAL_IDX_COL not in df_split.columns:
+        raise ValueError(f"Internal index column missing: {_INTERNAL_IDX_COL}")
+    idx = df_split[_INTERNAL_IDX_COL].to_numpy(dtype=int)
+    return d[idx]
+
+
 @dataclass(frozen=True)
 class DistanceAwareKFoldSplitter:
     """
     Distance-aware K-Fold splitting (OOD-oriented CV).
 
-    This splitter builds folds by ranking samples according to their distance
-    to the global centroid in feature space, then partitioning that ranking into
-    disjoint test folds.
+    This splitter creates folds by ranking samples according to their distance to
+    the global centroid in feature space, then partitioning that ranking into
+    disjoint test folds (farthest-first).
 
     Feature modes
     -------------
@@ -170,13 +191,15 @@ class DistanceAwareKFoldSplitter:
     metric:
         "cosine" or "euclidean".
     n_splits:
-        Number of folds (test folds are disjoint and cover the dataset).
+        Number of folds (>=2). Test folds are disjoint and cover the dataset.
     shuffle_ties:
-        If True, breaks distance ties using a seeded random jitter.
+        If True, break distance ties using a seeded tiny jitter.
     seed:
         Seed used for tie-breaking and optional val sampling.
     val_size:
-        Optional validation fraction sampled randomly from each fold's train set.
+        Optional validation fraction sampled from each fold's train split.
+    drop_internal_index:
+        If True, remove internal `_biosieve_row_idx__` from exported splits.
 
     Embeddings mode parameters
     -------------------------
@@ -194,20 +217,47 @@ class DistanceAwareKFoldSplitter:
     standardize_descriptors:
         If True, z-score descriptors before distances.
 
+    Returns
+    -------
+    list[SplitResult]
+        One SplitResult per fold. Each fold includes:
+        - train/test/val DataFrames
+        - stats: distance summaries for train/test/val using the *global* distance vector
+        - params: effective parameters including `fold_index`
+
+    Raises
+    ------
+    ValueError
+        If parameters are invalid, required inputs (columns/files) are missing,
+        embeddings do not cover all ids, or the dataset is too small for n_splits.
+    ImportError
+        If `val_size > 0` but scikit-learn is not installed.
+
     Notes
     -----
-    - This is not a "random CV": it intentionally creates OOD test folds.
-    - Useful to evaluate model robustness / generalization to distant regions.
+    - This is intentionally not a random CV. It creates OOD-oriented test folds
+      to evaluate robustness to distant regions of the feature space.
+    - This does not prevent biological leakage by itself. Combine with group/homology/structure
+      constraints if needed (future hybrid).
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_distance_aware_kfold \\
+    ...   --strategy distance_aware_kfold \\
+    ...   --params params.yaml
     """
 
-    feature_mode: str = "embeddings"    # "embeddings" | "descriptors"
-    metric: str = "cosine"             # "cosine" | "euclidean"
+    feature_mode: str = "embeddings"  # "embeddings" | "descriptors"
+    metric: str = "cosine"           # "cosine" | "euclidean"
 
     n_splits: int = 5
     seed: int = 13
     shuffle_ties: bool = True
 
     val_size: float = 0.0
+    drop_internal_index: bool = True
 
     # embeddings
     embeddings_path: Optional[str] = None
@@ -229,18 +279,22 @@ class DistanceAwareKFoldSplitter:
             raise ValueError("val_size must be in [0, 1)")
 
         work = df.copy().reset_index(drop=True)
+        work[_INTERNAL_IDX_COL] = np.arange(len(work), dtype=int)
+
         n = len(work)
         if n < self.n_splits:
             raise ValueError(f"Not enough samples (n={n}) for n_splits={self.n_splits}")
 
-        # --- Load features ---
         feature_info: Dict[str, Any] = {"feature_mode": self.feature_mode}
 
+        # --- Load features ---
         if self.feature_mode == "embeddings":
             if not self.embeddings_path or not self.ids_path:
                 raise ValueError("Embeddings mode requires embeddings_path and ids_path.")
-            X, idx_arr = _load_features_embeddings(work, cols, self.embeddings_path, self.ids_path)
-            feature_info.update({"embeddings_path": self.embeddings_path, "ids_path": self.ids_path, "n_features": int(X.shape[1])})
+            X = _load_features_embeddings(work, cols, self.embeddings_path, self.ids_path)
+            feature_info.update(
+                {"embeddings_path": self.embeddings_path, "ids_path": self.ids_path, "n_features": int(X.shape[1])}
+            )
 
         elif self.feature_mode == "descriptors":
             X, used_cols = _load_features_descriptors(
@@ -250,11 +304,7 @@ class DistanceAwareKFoldSplitter:
                 standardize=self.standardize_descriptors,
             )
             feature_info.update(
-                {
-                    "descriptor_cols": used_cols,
-                    "standardize_descriptors": bool(self.standardize_descriptors),
-                    "n_features": int(X.shape[1]),
-                }
+                {"descriptor_cols": used_cols, "standardize_descriptors": bool(self.standardize_descriptors), "n_features": int(X.shape[1])}
             )
         else:
             raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")
@@ -269,15 +319,9 @@ class DistanceAwareKFoldSplitter:
 
         # --- Rank samples farthest -> closest ---
         rng = np.random.default_rng(self.seed)
-        if self.shuffle_ties:
-            # tiny jitter to break ties deterministically
-            jitter = rng.normal(0.0, 1e-12, size=d.shape[0])
-            key = -(d + jitter)
-        else:
-            key = -d
+        key = -(d + rng.normal(0.0, 1e-12, size=d.shape[0])) if self.shuffle_ties else -d
         order = np.argsort(key)
 
-        # Split ranking into disjoint test folds
         test_slices = np.array_split(order, self.n_splits)
 
         tts = None
@@ -289,7 +333,6 @@ class DistanceAwareKFoldSplitter:
                 )
 
         folds: List[SplitResult] = []
-
         all_idx = np.arange(n, dtype=int)
 
         for fold_idx, test_idx in enumerate(test_slices):
@@ -299,10 +342,10 @@ class DistanceAwareKFoldSplitter:
             mask[test_idx] = False
             train_idx = all_idx[mask]
 
-            train_df = work.iloc[train_idx].copy().reset_index(drop=True)
-            test_df = work.iloc[test_idx].copy().reset_index(drop=True)
+            train_df = work.iloc[train_idx].copy()
+            test_df = work.iloc[test_idx].copy()
 
-            # optional val
+            # optional val sampled from fold train
             val_df: Optional[pd.DataFrame] = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
@@ -313,12 +356,11 @@ class DistanceAwareKFoldSplitter:
                     shuffle=True,
                     stratify=None,
                 )
-                train_df = train_df.reset_index(drop=True)
-                val_df = val_df.reset_index(drop=True)
 
-            # distance stats
-            d_train = d[train_idx]
-            d_test = d[test_idx]
+            # distance stats using internal indices (exact for train/test/val)
+            d_train = _get_distances_for_df(train_df, d)
+            d_test = _get_distances_for_df(test_df, d)
+            d_val = _get_distances_for_df(val_df, d) if val_df is not None else None
 
             stats: Dict[str, Any] = {
                 "fold_index": int(fold_idx),
@@ -327,22 +369,24 @@ class DistanceAwareKFoldSplitter:
                 "n_train": int(len(train_df)),
                 "n_test": int(len(test_df)),
                 "n_val": int(len(val_df)) if val_df is not None else 0,
-
                 "metric": self.metric,
                 "distance_stats_global": _label_stats_from_array(d),
                 "distance_stats_train": _label_stats_from_array(d_train),
                 "distance_stats_test": _label_stats_from_array(d_test),
+                "distance_stats_val": _label_stats_from_array(d_val) if d_val is not None else None,
             }
 
-            if val_df is not None:
-                # val distances: need indices in original fold train; approximate by recomputing from ids is heavy,
-                # but we can compute them by mapping via original index values before reset.
-                # Simpler: compute d_val using original indices from the selection.
-                # We can recover original indices by using train_idx split before reset:
-                # (val_df was sampled from train_df after reset, so we can't index d directly).
-                # For now we provide val stats as None; if you want exact val stats, we can enhance runner to keep original indices.
-                stats["distance_stats_val"] = None
-                stats["note_val_distances"] = "val distances not computed in v0.1 (requires index tracking)."
+            # clean export frames (optional)
+            if self.drop_internal_index:
+                train_df = train_df.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
+                test_df = test_df.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
+                if val_df is not None:
+                    val_df = val_df.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
+            else:
+                train_df = train_df.reset_index(drop=True)
+                test_df = test_df.reset_index(drop=True)
+                if val_df is not None:
+                    val_df = val_df.reset_index(drop=True)
 
             folds.append(
                 SplitResult(
@@ -357,8 +401,9 @@ class DistanceAwareKFoldSplitter:
                         "seed": self.seed,
                         "shuffle_ties": self.shuffle_ties,
                         "val_size": self.val_size,
+                        "drop_internal_index": self.drop_internal_index,
                         **feature_info,
-                        "fold_index": fold_idx,
+                        "fold_index": int(fold_idx),
                     },
                     stats=stats,
                 )

@@ -9,11 +9,33 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
-# We reuse the same group split logic (sklearn GroupShuffleSplit)
+# Reuse group split logic (sklearn GroupShuffleSplit)
 from biosieve.splitting.group import _split_groups, _validate_sizes
 
 
+_INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
+
+
 def _write_fasta(df: pd.DataFrame, id_col: str, seq_col: str, out_fa: Path) -> None:
+    """
+    Write a FASTA file from a DataFrame.
+
+    Parameters
+    ----------
+    df:
+        Input DataFrame.
+    id_col:
+        Column containing sequence/sample ids.
+    seq_col:
+        Column containing sequences.
+    out_fa:
+        Output FASTA path.
+
+    Raises
+    ------
+    ValueError
+        If any sequence is empty.
+    """
     lines = []
     for _, row in df.iterrows():
         sid = str(row[id_col])
@@ -36,9 +58,43 @@ def _run_mmseqs_easy_cluster(
     threads: int = 8,
 ) -> Path:
     """
-    Runs:
-      mmseqs easy-cluster input.fasta out_prefix tmp_dir --min-seq-id ... -c ... --cov-mode ... --threads ...
-    Output mapping file typically: out_prefix_cluster.tsv (rep \t member)
+    Run mmseqs2 easy-cluster and return the produced cluster TSV path.
+
+    Command
+    -------
+    mmseqs easy-cluster input.fasta out_prefix tmp_dir
+        --min-seq-id <min_seq_id> -c <coverage> --cov-mode <cov_mode> --threads <threads>
+
+    Parameters
+    ----------
+    fasta_path:
+        Input FASTA file.
+    out_prefix:
+        Output prefix for mmseqs2.
+    tmp_dir:
+        Temporary directory for mmseqs2.
+    mmseqs_bin:
+        Path to mmseqs binary ("mmseqs" by default).
+    min_seq_id:
+        Minimum sequence identity threshold.
+    coverage:
+        Coverage threshold (-c).
+    cov_mode:
+        Coverage mode (--cov-mode).
+    threads:
+        Number of threads.
+
+    Returns
+    -------
+    Path
+        Path to the expected TSV file `{out_prefix}_cluster.tsv` containing `rep<TAB>member`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the mmseqs binary is not found or the expected output TSV is missing.
+    RuntimeError
+        If mmseqs2 returns a non-zero code.
     """
     import subprocess
 
@@ -65,7 +121,7 @@ def _run_mmseqs_easy_cluster(
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError:
         raise FileNotFoundError(
-            f"mmseqs2 binary not found ('{mmseqs_bin}'). Install mmseqs2 or provide precomputed clusters."
+            f"mmseqs2 binary not found ('{mmseqs_bin}'). Install mmseqs2 or use mode='precomputed'."
         )
     except subprocess.CalledProcessError as e:
         msg = (e.stderr or e.stdout or "").strip()
@@ -74,17 +130,24 @@ def _run_mmseqs_easy_cluster(
     tsv = Path(str(out_prefix) + "_cluster.tsv")
     if not tsv.exists():
         raise FileNotFoundError(
-            f"Expected mmseqs2 output not found: {tsv}. "
-            "Check mmseqs2 version/output naming."
+            f"Expected mmseqs2 output not found: {tsv}. Check mmseqs2 version/output naming."
         )
     return tsv
 
 
 def _load_mmseqs_cluster_tsv(cluster_tsv: Path) -> pd.DataFrame:
     """
-    mmseqs easy-cluster typically outputs: rep<TAB>member
-    We'll return a DataFrame with columns: representative_id, member_id, cluster_id
-    where cluster_id is representative_id by default (stable, deterministic).
+    Load mmseqs2 easy-cluster mapping TSV.
+
+    Expected format: rep<TAB>member
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns:
+        - representative_id
+        - member_id
+        - cluster_id (defaults to representative_id for stable deterministic naming)
     """
     df = pd.read_csv(cluster_tsv, sep="\t", header=None, names=["representative_id", "member_id"])
     df["representative_id"] = df["representative_id"].astype(str)
@@ -99,10 +162,17 @@ def _build_cluster_id_map(
     member_col: str = "member_id",
     cluster_col: str = "cluster_id",
 ) -> Dict[str, str]:
+    """
+    Build a member->cluster_id dict from a mapping DataFrame.
+
+    Raises
+    ------
+    ValueError
+        If required columns are missing.
+    """
     if member_col not in mapping_df.columns or cluster_col not in mapping_df.columns:
         raise ValueError(
-            f"mapping_df must contain '{member_col}' and '{cluster_col}'. "
-            f"Found: {mapping_df.columns.tolist()}"
+            f"mapping_df must contain '{member_col}' and '{cluster_col}'. Found: {mapping_df.columns.tolist()}"
         )
     return dict(zip(mapping_df[member_col].astype(str), mapping_df[cluster_col].astype(str)))
 
@@ -110,16 +180,86 @@ def _build_cluster_id_map(
 @dataclass(frozen=True)
 class HomologyAwareSplitter:
     """
-    Homology-aware split: clusters sequences by homology and uses cluster_id as group,
-    ensuring no homologous cluster appears in multiple splits.
+    Homology-aware split using sequence clusters as groups (no homology leakage).
 
-    Modes:
-      - mode="precomputed": provide clusters_path with mapping member->cluster
-      - mode="mmseqs2": run mmseqs2 easy-cluster on the input dataset sequences
+    This strategy clusters sequences by homology and then performs a group-based split
+    over cluster ids, ensuring that no homology cluster appears in multiple splits.
 
-    Outputs:
-      - train/test(/val) CSVs via run_split
-      - split_report includes cluster coverage and group leakage checks
+    Modes
+    -----
+    1) mode="mmseqs2":
+       Runs `mmseqs easy-cluster` on the input dataset and derives cluster ids from
+       the output mapping (rep -> member).
+    2) mode="precomputed":
+       Uses a precomputed mapping file with `member_id -> cluster_id`.
+
+    Missing mapping coverage
+    ------------------------
+    Any sample id not present in the mapping is assigned a safe singleton cluster:
+    `singleton:<id>`, preventing accidental leakage.
+
+    Parameters
+    ----------
+    test_size, val_size, seed:
+        Split fractions and seed (group-based split is deterministic given seed).
+    mode:
+        "mmseqs2" or "precomputed".
+    clusters_path:
+        Path to precomputed clusters mapping (required if mode="precomputed").
+    clusters_format:
+        "mmseqs_tsv" (rep<TAB>member) or "csv".
+    member_col, cluster_col:
+        Column names in the precomputed mapping (csv mode).
+    mmseqs_bin, min_seq_id, coverage, cov_mode, threads:
+        mmseqs2 parameters (used only in mode="mmseqs2").
+    work_dir:
+        Directory for intermediate mmseqs2 artefacts (FASTA, tmp, TSV).
+    keep_work:
+        If False, removes `work_dir` after success (best-effort).
+
+    Returns
+    -------
+    SplitResult
+        train/test/val splits plus:
+        - params: effective configuration (including mmseqs2 options)
+        - stats: cluster counts, leakage checks, and mapping metadata
+
+    Raises
+    ------
+    ValueError
+        If split sizes are invalid, mode is unknown, required inputs are missing,
+        or sequence column is missing in mmseqs2 mode.
+    FileNotFoundError
+        If clusters_path is missing (precomputed) or mmseqs2 binary/output is missing.
+    RuntimeError
+        If mmseqs2 fails.
+
+    Notes
+    -----
+    - Leakage contract (must be zero):
+      leak_clusters_train_test == 0 and leak_clusters_val_test == 0.
+      If val exists, leak_clusters_train_val == 0 as well (val is group-split from trainval).
+    - This prevents homology leakage, but does not enforce label balancing.
+      For balanced yet leakage-aware splits, a hybrid cluster-level balancing strategy
+      can be added later.
+
+    Examples
+    --------
+    mmseqs2 mode:
+
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_homology_mmseqs2 \\
+    ...   --strategy homology_aware \\
+    ...   --params params.yaml
+
+    precomputed mode:
+
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_homology_precomputed \\
+    ...   --strategy homology_aware \\
+    ...   --params params.yaml
     """
 
     # core sizes
@@ -127,7 +267,7 @@ class HomologyAwareSplitter:
     val_size: float = 0.0
     seed: int = 13
 
-    # homology clustering mode
+    # clustering mode
     mode: str = "mmseqs2"  # "mmseqs2" | "precomputed"
 
     # precomputed mapping
@@ -165,12 +305,13 @@ class HomologyAwareSplitter:
 
             if self.clusters_format == "mmseqs_tsv":
                 mdf = _load_mmseqs_cluster_tsv(p)
+                cmap = _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id")
             elif self.clusters_format == "csv":
                 mdf = pd.read_csv(p)
+                cmap = _build_cluster_id_map(mdf, member_col=self.member_col, cluster_col=self.cluster_col)
             else:
                 raise ValueError("clusters_format must be 'mmseqs_tsv' or 'csv'")
 
-            cmap = _build_cluster_id_map(mdf, member_col=self.member_col, cluster_col=self.cluster_col)
             meta = {
                 "mode": "precomputed",
                 "clusters_path": str(p),
@@ -231,7 +372,7 @@ class HomologyAwareSplitter:
 
         cmap, cmeta = self._get_cluster_map(work, cols)
 
-        # attach cluster_id; for any missing, assign unique singleton cluster
+        # attach cluster_id; missing -> singleton
         ids = work[cols.id_col].astype(str)
         cluster_ids = []
         missing = 0
@@ -242,10 +383,10 @@ class HomologyAwareSplitter:
                 cid = f"singleton:{sid}"
             cluster_ids.append(cid)
 
-        work["_biosieve_cluster_id__"] = cluster_ids
+        work[_INTERNAL_CLUSTER_COL] = pd.Series(cluster_ids, index=work.index, dtype="string").astype(str)
 
         # group split using cluster ids
-        groups = work["_biosieve_cluster_id__"].astype(str)
+        groups = work[_INTERNAL_CLUSTER_COL].astype(str)
 
         # 1) split off test
         trainval, test = _split_groups(work, groups, test_size=self.test_size, seed=self.seed)
@@ -256,22 +397,31 @@ class HomologyAwareSplitter:
         # 2) optional val split from trainval (group-aware)
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
-            tv_groups = trainval["_biosieve_cluster_id__"].astype(str)
+            if frac <= 0 or frac >= 1:
+                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+            tv_groups = trainval[_INTERNAL_CLUSTER_COL].astype(str)
             train, val = _split_groups(trainval, tv_groups, test_size=frac, seed=self.seed)
 
+        # leakage checks using internal cluster id column (correct, deterministic)
+        train_c = set(train[_INTERNAL_CLUSTER_COL].astype(str).unique())
+        test_c = set(test[_INTERNAL_CLUSTER_COL].astype(str).unique())
+        val_c = set(val[_INTERNAL_CLUSTER_COL].astype(str).unique()) if val is not None else set()
+
+        leak_tt = len(train_c & test_c)
+        leak_tv = len(train_c & val_c) if val is not None else 0
+        leak_vt = len(val_c & test_c) if val is not None else 0
+
+        if leak_tt != 0 or leak_tv != 0 or leak_vt != 0:
+            raise ValueError(
+                "Homology leakage detected (should not happen with group-based splitting). "
+                f"leak_train_test={leak_tt}, leak_train_val={leak_tv}, leak_val_test={leak_vt}"
+            )
+
         # cleanup
-        train = train.drop(columns=["_biosieve_cluster_id__"]).reset_index(drop=True)
-        test = test.drop(columns=["_biosieve_cluster_id__"]).reset_index(drop=True)
+        train = train.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
+        test = test.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
         if val is not None:
-            val = val.drop(columns=["_biosieve_cluster_id__"]).reset_index(drop=True)
-
-        # leakage checks on clusters
-        def _cset(x: pd.DataFrame) -> set[str]:
-            return set(x[cols.id_col].astype(str).map(lambda s: cmap.get(s, f"singleton:{s}")).tolist())
-
-        train_c = _cset(train)
-        test_c = _cset(test)
-        val_c = _cset(val) if val is not None else set()
+            val = val.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
 
         stats: Dict[str, Any] = {
             "n_total": int(len(df)),
@@ -282,18 +432,18 @@ class HomologyAwareSplitter:
             "n_clusters_train": int(len(train_c)),
             "n_clusters_test": int(len(test_c)),
             "n_clusters_val": int(len(val_c)) if val is not None else 0,
-            "leak_clusters_train_test": int(len(train_c & test_c)),
-            "leak_clusters_train_val": int(len(train_c & val_c)),
-            "leak_clusters_val_test": int(len(val_c & test_c)),
+            "leak_clusters_train_test": 0,
+            "leak_clusters_train_val": 0,
+            "leak_clusters_val_test": 0,
             "n_missing_cluster_assignments": int(missing),
             "cluster_meta": cmeta,
         }
 
-        # Respect keep_work flag (mmseqs2 mode)
+        # best-effort cleanup
         if self.mode == "mmseqs2" and not self.keep_work:
-            # best-effort cleanup
             try:
                 import shutil
+
                 shutil.rmtree(Path(self.work_dir), ignore_errors=True)
             except Exception:
                 pass

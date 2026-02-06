@@ -53,6 +53,7 @@ def _make_bins_once(
     n_bins: int,
     binning: str,
     duplicates: str,
+    return_edges: bool,
 ) -> Tuple[pd.Series, int, Optional[List[float]]]:
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
@@ -64,21 +65,23 @@ def _make_bins_once(
     edges: Optional[List[float]] = None
 
     if binning == "quantile":
-        bins, bin_edges = pd.qcut(
-            yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True
-        )
+        if return_edges:
+            bins, bin_edges = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True)
+            edges = [float(x) for x in np.asarray(bin_edges).tolist()]
+        else:
+            bins = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates)
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
-        edges = [float(x) for x in np.asarray(bin_edges).tolist()]
         return bins, n_eff, edges
 
     if binning == "uniform":
-        bins, bin_edges = pd.cut(
-            yy, bins=n_bins, labels=False, include_lowest=True, retbins=True
-        )
+        if return_edges:
+            bins, bin_edges = pd.cut(yy, bins=n_bins, labels=False, include_lowest=True, retbins=True)
+            edges = [float(x) for x in np.asarray(bin_edges).tolist()]
+        else:
+            bins = pd.cut(yy, bins=n_bins, labels=False, include_lowest=True)
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
-        edges = [float(x) for x in np.asarray(bin_edges).tolist()]
         return bins, n_eff, edges
 
     raise ValueError("binning must be 'quantile' or 'uniform'")
@@ -92,9 +95,12 @@ def _make_bins_safe(
     duplicates: str,
     min_bin_count: int,
     auto_reduce_bins: bool,
+    return_edges: bool,
 ) -> Tuple[pd.Series, int, Optional[List[float]], List[int], bool]:
     if min_bin_count < 1:
         raise ValueError("min_bin_count must be >= 1")
+    if n_bins < 2:
+        raise ValueError("n_bins must be >= 2")
 
     attempted: List[int] = []
     auto_reduced = False
@@ -105,14 +111,22 @@ def _make_bins_safe(
     for b in candidates:
         attempted.append(int(b))
         try:
-            bins, n_eff, edges = _make_bins_once(y, n_bins=b, binning=binning, duplicates=duplicates)
+            bins, n_eff, edges = _make_bins_once(
+                y,
+                n_bins=b,
+                binning=binning,
+                duplicates=duplicates,
+                return_edges=return_edges,
+            )
 
             if n_eff < 2:
                 raise ValueError(f"Effective bins={n_eff} (requested={b}). Cannot stratify.")
 
             counts = bins.value_counts(dropna=False)
             if int(counts.min()) < min_bin_count:
-                raise ValueError(f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}.")
+                raise ValueError(
+                    f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
+                )
 
             if b != n_bins:
                 auto_reduced = True
@@ -134,14 +148,16 @@ class StratifiedNumericKFoldSplitter:
     """
     Stratified K-Fold splitting for numeric labels via binning.
 
+    This is the k-fold analogue of `stratified_numeric`: it enables stratified CV
+    for regression by discretizing a numeric label into bins and applying
+    `StratifiedKFold` on those bins.
+
     Approach
     --------
-    1) Convert numeric label y into categorical bins (quantile/uniform).
-    2) Run StratifiedKFold using the bins as y_strat.
-    3) Optionally create a validation subset from the fold's train split.
-
-    This is useful for regression datasets where you want fold-level balance across
-    the label range.
+    1) Convert the numeric label `y` into categorical bins (quantile or uniform).
+       Bins are computed ONCE globally, to define a stable stratification target.
+    2) Run StratifiedKFold using the bins (`y_strat=bins`).
+    3) Optionally sample a validation subset from the fold's train split.
 
     Parameters
     ----------
@@ -154,18 +170,44 @@ class StratifiedNumericKFoldSplitter:
     n_bins, binning, duplicates:
         Binning configuration.
     auto_reduce_bins, min_bin_count:
-        Robustness controls for real-world datasets with repeated values.
+        Robustness controls for datasets with repeated values.
     val_size:
         Optional validation fraction sampled from fold train (random).
     dropna:
         If True, drop rows with NaN labels; else raise.
     report_bin_edges:
-        If True, include bin edges in each fold report.
+        If True, include global bin edges in each fold report.
+
+    Returns
+    -------
+    list[SplitResult]
+        One SplitResult per fold. Each fold includes:
+        - train/test/val DataFrames
+        - params: effective parameters (includes fold_index)
+        - stats: bin counts (based on GLOBAL bins), label summary stats, and binning metadata
+
+    Raises
+    ------
+    ImportError
+        If scikit-learn is not installed.
+    ValueError
+        If label column is missing, NaNs are present (dropna=False), `n_bins < 2`,
+        or stratification is impossible (e.g., some bins have < n_splits samples).
 
     Notes
     -----
-    - StratifiedKFold requires each bin to have at least `n_splits` samples.
-      This splitter checks this and will auto-reduce bins if enabled.
+    - `StratifiedKFold` requires every stratum (bin) to have at least `n_splits` samples.
+      This splitter checks that condition after binning.
+    - This strategy does not prevent biological leakage (homology/structure). For leakage-aware CV,
+      prefer `group_kfold` (with clusters) or hybrid strategies.
+
+    Examples
+    --------
+    >>> biosieve split \\
+    ...   --in dataset.csv \\
+    ...   --outdir runs/split_stratnum_kfold \\
+    ...   --strategy stratified_numeric_kfold \\
+    ...   --params params.yaml
     """
 
     label_col: str = "y"
@@ -222,7 +264,7 @@ class StratifiedNumericKFoldSplitter:
         if len(work) < self.n_splits:
             raise ValueError(f"Not enough samples (n={len(work)}) for n_splits={self.n_splits}")
 
-        # Build bins robustly (may auto-reduce)
+        # Global bins (stable stratification target)
         bins, n_eff, edges, attempted_bins, auto_reduced = _make_bins_safe(
             y_raw,
             n_bins=self.n_bins,
@@ -230,6 +272,7 @@ class StratifiedNumericKFoldSplitter:
             duplicates=self.duplicates,
             min_bin_count=self.min_bin_count,
             auto_reduce_bins=self.auto_reduce_bins,
+            return_edges=self.report_bin_edges,
         )
 
         # StratifiedKFold constraint: each stratum must have >= n_splits
@@ -270,22 +313,9 @@ class StratifiedNumericKFoldSplitter:
                 train_df = train_df.reset_index(drop=True)
                 val_df = val_df.reset_index(drop=True)
 
-            # For reporting, compute bins per split using the same chosen binning setup
-            # but allow min_bin_count=1 (reporting only).
-            def _bins_for_split(split_df: pd.DataFrame) -> pd.Series:
-                yy = pd.to_numeric(split_df[self.label_col], errors="coerce").dropna()
-                bb, _, _, _, _ = _make_bins_safe(
-                    yy,
-                    n_bins=self.n_bins,
-                    binning=self.binning,
-                    duplicates=self.duplicates,
-                    min_bin_count=1,
-                    auto_reduce_bins=True,
-                )
-                return bb
-
-            train_bins = _bins_for_split(train_df)
-            test_bins = _bins_for_split(test_df)
+            # IMPORTANT: bin counts reported using GLOBAL bins, not recomputed bins.
+            train_bins = bins.iloc[train_idx].reset_index(drop=True)
+            test_bins = bins.iloc[test_idx].reset_index(drop=True)
 
             stats: Dict[str, Any] = {
                 "fold_index": int(fold_idx),
@@ -315,8 +345,9 @@ class StratifiedNumericKFoldSplitter:
             }
 
             if val_df is not None:
-                val_bins = _bins_for_split(val_df)
-                stats["val_bin_counts"] = _bin_counts(val_bins)
+                # val is sampled from train_df (after reset), so we compute bins by reindexing:
+                # easiest: recompute bins for val using the global edges is complex when qcut with duplicates.
+                # pragmatic: report only label stats for val (bins not guaranteed stable after sampling).
                 stats["val_label_stats"] = _label_stats(val_df[self.label_col])
 
             if self.report_bin_edges:
@@ -341,7 +372,7 @@ class StratifiedNumericKFoldSplitter:
                         "val_size": self.val_size,
                         "dropna": self.dropna,
                         "report_bin_edges": self.report_bin_edges,
-                        "fold_index": fold_idx,
+                        "fold_index": int(fold_idx),
                     },
                     stats=stats,
                 )
