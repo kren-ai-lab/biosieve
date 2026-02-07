@@ -1,97 +1,80 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Type
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Type, Union
 
-from biosieve.reduction.base import Reducer
-from biosieve.splitting.base import Splitter
-
-
-__all__ = ["StrategyRegistry"]
+from biosieve.core.spec import StrategySpec, lazy_import_class
 
 
-@dataclass(frozen=True, slots=True)
+ReducerLike = Union[Type[Any], StrategySpec]
+SplitterLike = Union[Type[Any], StrategySpec]
+
+
+@dataclass
 class StrategyRegistry:
     """
-    Registry of available BioSieve strategies.
+    Registry of available reducer and splitter strategies.
 
-    The registry stores *strategy classes* (not instances). Runners/CLI can then
-    instantiate them via `instantiate_strategy(...)` with validated parameters.
-
-    Parameters
-    ----------
-    reducers:
-        Mapping from reducer name to reducer class.
-        Example: {"embedding_cosine": EmbeddingCosineReducer}
-    splitters:
-        Mapping from splitter name to splitter class.
-        Example: {"group_kfold": GroupKFoldSplitter}
+    Supports both:
+    - eager class registration (Type)
+    - lazy registration via StrategySpec (import path)
 
     Notes
     -----
-    - The values are strategy *types* (classes), not constructed objects.
-    - Strategy names should be stable because they appear in CLI and reports.
-    - Keeping the registry lightweight allows `biosieve info` to list strategies
-      without importing heavy optional dependencies (prefer lazy imports inside
-      the strategy implementations).
-
-    Examples
-    --------
-    >>> registry = StrategyRegistry(
-    ...     reducers={"embedding_cosine": EmbeddingCosineReducer},
-    ...     splitters={"random": RandomSplitter},
-    ... )
-    >>> reducer_cls = registry.get_reducer("embedding_cosine")
+    - `list_*` is safe for light registries (does not import classes).
+    - `get_*` may import classes for StrategySpec entries.
     """
-    reducers: Dict[str, Type[Reducer]]
-    splitters: Dict[str, Type[Splitter]]
+    reducers: Dict[str, ReducerLike] = field(default_factory=dict)
+    splitters: Dict[str, SplitterLike] = field(default_factory=dict)
 
-    def get_reducer(self, name: str) -> Type[Reducer]:
-        """
-        Get a reducer class by name.
+    def add_reducer(self, name: str, reducer: ReducerLike) -> None:
+        self.reducers[name] = reducer
 
-        Parameters
-        ----------
-        name:
-            Registered reducer strategy name.
+    def add_splitter(self, name: str, splitter: SplitterLike) -> None:
+        self.splitters[name] = splitter
 
-        Returns
-        -------
-        Type[Reducer]
-            Reducer class associated with `name`.
+    def has_reducer(self, name: str) -> bool:
+        return name in self.reducers
 
-        Raises
-        ------
-        ValueError
-            If `name` is not registered.
-        """
+    def has_splitter(self, name: str) -> bool:
+        return name in self.splitters
+
+    def list_reducers(self) -> Dict[str, ReducerLike]:
+        return dict(self.reducers)
+
+    def list_splitters(self) -> Dict[str, SplitterLike]:
+        return dict(self.splitters)
+
+    def get_reducer_class(self, name: str) -> Type[Any]:
         if name not in self.reducers:
-            raise ValueError(
-                f"Unknown reduction strategy '{name}'. Available: {sorted(self.reducers)}"
-            )
-        return self.reducers[name]
+            raise KeyError(f"Unknown reducer strategy '{name}'. Available: {sorted(self.reducers)}")
+        obj = self.reducers[name]
+        if isinstance(obj, StrategySpec):
+            cls = lazy_import_class(obj.import_path)
+            # cache resolved class for future calls (safe)
+            self.reducers[name] = cls
+            return cls
+        return obj
 
-    def get_splitter(self, name: str) -> Type[Splitter]:
-        """
-        Get a splitter class by name.
-
-        Parameters
-        ----------
-        name:
-            Registered split strategy name.
-
-        Returns
-        -------
-        Type[Splitter]
-            Splitter class associated with `name`.
-
-        Raises
-        ------
-        ValueError
-            If `name` is not registered.
-        """
+    def get_splitter_class(self, name: str) -> Type[Any]:
         if name not in self.splitters:
-            raise ValueError(
-                f"Unknown split strategy '{name}'. Available: {sorted(self.splitters)}"
-            )
-        return self.splitters[name]
+            raise KeyError(f"Unknown splitter strategy '{name}'. Available: {sorted(self.splitters)}")
+        obj = self.splitters[name]
+        if isinstance(obj, StrategySpec):
+            cls = lazy_import_class(obj.import_path)
+            self.splitters[name] = cls
+            return cls
+        return obj
+
+    def get_spec(self, name: str, kind: str) -> Optional[StrategySpec]:
+        """
+        Return StrategySpec if the entry is lazy, else None.
+        """
+        if kind == "reducer":
+            obj = self.reducers.get(name)
+        elif kind == "splitter":
+            obj = self.splitters.get(name)
+        else:
+            raise ValueError("kind must be 'reducer' or 'splitter'")
+
+        return obj if isinstance(obj, StrategySpec) else None

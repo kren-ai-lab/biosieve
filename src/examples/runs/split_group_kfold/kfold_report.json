@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "timestamp": "2026-02-06T21:51:51.341091Z",
+  "timestamp": "2026-02-07T08:26:35.788718Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_group_kfold",
   "strategy": "group_kfold",

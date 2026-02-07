@@ -1,59 +1,45 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Dict, Type, TypeVar
+from dataclasses import is_dataclass, fields
+from typing import Any, Dict, Type
 
-T = TypeVar("T")
 
-
-def instantiate_strategy(cls: Type[T], params: Dict[str, Any]) -> T:
+def instantiate_strategy(cls: Type[Any], params: Dict[str, Any]) -> Any:
     """
-    Instantiate a strategy class (splitter/reducer) from validated parameters.
+    Instantiate a strategy class with strict parameter validation.
 
-    This helper enforces strict parameter validation to prevent silent typos:
-    unknown keys in `params` will raise an error.
+    Unknown parameter keys raise ValueError to prevent silent typos.
 
     Parameters
     ----------
     cls:
-        Strategy class (typically a dataclass-based splitter/reducer).
+        Strategy class (dataclass preferred).
     params:
-        Dictionary of keyword arguments used to instantiate `cls`.
+        Parameter dictionary.
 
     Returns
     -------
-    T
+    Any
         Instantiated strategy object.
 
     Raises
     ------
     ValueError
-        If `params` is not a dict, or if it contains unknown keys for the class
-        constructor signature.
-
-    Notes
-    -----
-    - This function validates keys against the `__init__` signature (via `inspect.signature`).
-    - It does not validate value ranges; that is the responsibility of each strategy
-      (e.g., ensuring `test_size` is in (0,1), thresholds are valid, etc.).
-    - Designed to be used by runners/CLI to enforce reproducible, fail-fast behaviour.
-
-    Examples
-    --------
-    >>> splitter = instantiate_strategy(RandomSplitter, {"test_size": 0.2, "seed": 13})
+        If unknown keys are provided.
     """
-    if not isinstance(params, dict):
-        raise ValueError("params must be a dict")
+    params = params or {}
+
+    if is_dataclass(cls):
+        allowed = {f.name for f in fields(cls)}
+        unknown = set(params) - allowed
+        if unknown:
+            raise ValueError(f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}")
+        return cls(**params)
 
     sig = inspect.signature(cls)
     allowed = set(sig.parameters.keys())
-    allowed.discard("self")
-
-    unknown = [k for k in params.keys() if k not in allowed]
+    unknown = set(params) - allowed
     if unknown:
-        raise ValueError(
-            f"Unknown parameter(s) for {cls.__name__}: {unknown}. "
-            f"Allowed: {sorted(allowed)}"
-        )
-
-    return cls(**params)  # type: ignore[arg-type]
+        raise ValueError(f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}")
+    return cls(**params)
