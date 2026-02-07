@@ -9,7 +9,7 @@ from biosieve.core.strategies import build_registry, build_registry_light
 from biosieve.cli.reduce import add_reduce_subcommand
 from biosieve.cli.split import add_split_subcommand
 from biosieve.cli.info import add_info_subcommand
-
+from biosieve.cli.validate import add_validate_subcommand
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -34,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_reduce_subcommand(subparsers)
     add_split_subcommand(subparsers)
     add_info_subcommand(subparsers)
+    add_validate_subcommand(subparsers)
 
     return parser
 
