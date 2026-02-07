@@ -10,6 +10,8 @@ from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.group import _split_groups, _validate_sizes
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
 

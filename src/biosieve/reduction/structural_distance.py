@@ -9,6 +9,8 @@ from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
 from biosieve.reduction.backends.structure_backend import load_edges_csv
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class StructuralDistanceReducer:

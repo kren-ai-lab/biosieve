@@ -9,6 +9,8 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     """
@@ -117,6 +119,13 @@ class RandomSplitter:
         return "random"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
+        log.info(
+            "random:start | test_size=%.3f | val_size=%.3f | seed=%s",
+            self.test_size, self.val_size, self.seed
+        )
+        log.debug("random:params | %s", self.__dict__)
+
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
@@ -138,6 +147,10 @@ class RandomSplitter:
             "seed": int(self.seed),
         }
 
+        log.info(
+            "random:stats | train=%d | val=%d | test=%d",
+            int(len(train)), int(len(val)), int(len(test))
+        )
         return SplitResult(
             train=train,
             test=test,

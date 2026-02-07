@@ -1,66 +1,6 @@
 
 ## 0) Fundaciones de ingeniería
 
-### 0.1 Docstrings y documentación interna
-
-* **Docstrings estilo NumPy** en:
-
-  * todos los splitters (`splitting/*`)
-  * todos los reducers (`reduction/*`)
-  * runners (`core/runner.py`, `core/split_runner.py`)
-  * backends (`reduction/backends/*`)
-  * params (`io/params.py`)
-* Docstrings deben incluir siempre:
-
-  * `Parameters` con defaults
-  * `Returns` (incluyendo schema de report/mapping)
-  * `Raises` con errores típicos (missing columns, missing files, etc.)
-  * `Notes` sobre leakage/coverage y decisiones de diseño
-  * `Examples` (1 comando CLI real)
-
-### 0.2 Tipado y contratos
-
-* Type hints completos y consistentes:
-
-  * `SplitResult`, `ReductionResult`, `Columns`
-  * `StrategyRegistry` (tipar `Dict[str, type]`)
-* Validación de params:
-
-  * unknown keys → error (evitar typos silenciosos)
-  * validación de rangos (`test_size`, thresholds, etc.)
-* Contract de artefactos:
-
-  * naming estable para outputs (`train.csv`, `test.csv`, `val.csv`, `split_report.json`, etc.)
-
-### 0.3 Imports eficientes (`__init__` + lazy loading)
-
-* Evitar imports pesados al `import biosieve`:
-
-  * `mmseqs2`, `sklearn`, `datasketch`, `faiss` deben ser **lazy** (import dentro de funciones)
-* `__init__.py` minimalistas:
-
-  * exportar solo API liviana
-  * no importar “todas las estrategias” si eso dispara deps
-* Agregar `biosieve info` para descubrir estrategias sin cargar todo (vía introspección del registry, sin instanciar).
-
-### 0.4 Logging serio (nivel equipo)
-
-* Estándar: `biosieve.utils.logging.get_logger(name)`
-* CLI flags:
-
-  * `--log-level {DEBUG,INFO,WARNING,ERROR}`
-  * `--quiet`
-  * `--log-file`
-* Logs estructurados en runners:
-
-  * start/end, tiempos, n_rows, coverage, paths
-  * warnings: missing embeddings/ids, bins pequeños, etc.
-* Cada estrategia debe loguear:
-
-  * parámetros efectivos
-  * decisiones (fallbacks, reducción de bins, etc.)
-  * stats clave
-
 ### 0.5 Tests + CI
 
 * Unit tests por estrategia (mínimo):
@@ -84,18 +24,6 @@
 
 ### 1.1 Comandos “meta”
 
-* `biosieve info`
-
-  * lista estrategias `reduce` y `split`
-  * muestra params + defaults (autogenerado desde dataclasses)
-  * ejemplo YAML por estrategia
-* `biosieve validate`
-
-  * input checks (ids únicos, columnas requeridas)
-  * embeddings alignment: ids ↔ filas de `.npy`
-  * descriptors: NaNs, no-numéricos, escala recomendada
-  * structural edges: ids presentes, simetría opcional, rangos
-  * mmseqs2 binary disponible (si se usa)
 * `biosieve doctor` (opcional)
 
   * imprime versiones, rutas de binarios, deps opcionales disponibles
@@ -142,7 +70,7 @@
 
 ---
 
-## 3) Splits basados en estructuras (lo que pediste explícito)
+## 3) Splits basados en estructuras
 
 ### 3.1 Structural-aware split (precomputed)
 

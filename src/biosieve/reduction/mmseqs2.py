@@ -17,6 +17,8 @@ from biosieve.reduction.backends.mmseqs2_backend import (
     build_cluster_ids,
 )
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class MMseqs2Reducer:

@@ -8,6 +8,8 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _try_import_train_test_split():
     try:
@@ -91,6 +93,13 @@ class StratifiedSplitter:
         return "stratified"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
+        log.info(
+            "stratified:start | label_col=%s | test_size=%.3f | val_size=%.3f",
+            cols.label_col, self.test_size, self.val_size
+        )
+        log.debug("stratified:params | %s", self.__dict__)
+        
         tts = _try_import_train_test_split()
         if tts is None:
             raise ImportError(
@@ -146,6 +155,7 @@ class StratifiedSplitter:
 
         train = train.reset_index(drop=True)
         test = test.reset_index(drop=True)
+        
         if val is not None:
             val = val.reset_index(drop=True)
 
@@ -161,6 +171,12 @@ class StratifiedSplitter:
             "train_label_counts": train[self.label_col].astype(str).value_counts(dropna=False).to_dict(),
             "test_label_counts": test[self.label_col].astype(str).value_counts(dropna=False).to_dict(),
         }
+
+        log.info(
+            "stratified:stats | train=%d | val=%d | test=%d",
+            int(len(train)), int(len(val)), int(len(test))
+        )
+
         if val is not None:
             stats["val_label_counts"] = val[self.label_col].astype(str).value_counts(dropna=False).to_dict()
 

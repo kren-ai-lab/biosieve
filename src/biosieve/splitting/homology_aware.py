@@ -12,6 +12,8 @@ from biosieve.splitting.base import SplitResult
 # Reuse group split logic (sklearn GroupShuffleSplit)
 from biosieve.splitting.group import _split_groups, _validate_sizes
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
 
@@ -366,11 +368,18 @@ class HomologyAwareSplitter:
         raise ValueError("mode must be 'mmseqs2' or 'precomputed'")
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
 
         cmap, cmeta = self._get_cluster_map(work, cols)
+
+        log.info(
+            "homology_aware:start | source=%s",
+            "precomputed" if cmeta["mode"] else "mmseqs2"
+        )
+        log.debug("homology_aware:params | %s", self.__dict__)
 
         # attach cluster_id; missing -> singleton
         ids = work[cols.id_col].astype(str)
@@ -438,6 +447,11 @@ class HomologyAwareSplitter:
             "n_missing_cluster_assignments": int(missing),
             "cluster_meta": cmeta,
         }
+
+        log.info(
+            "homology_aware:stats | train=%d | val=%d | test=%d",
+            stats["n_train"], stats["n_val"], stats["n_test"]
+        )
 
         # best-effort cleanup
         if self.mode == "mmseqs2" and not self.keep_work:

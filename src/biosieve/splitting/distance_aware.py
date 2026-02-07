@@ -12,6 +12,8 @@ from biosieve.splitting.base import SplitResult
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.reduction.backends.descriptor_backend import infer_descriptor_columns, extract_descriptor_matrix
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
@@ -301,6 +303,13 @@ class DistanceAwareSplitter:
         raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
+        log.info(
+            "distance_aware:start | metric=%s | test_size=%.3f",
+            self.metric, self.test_size
+        )
+        log.debug("distance_aware:params | %s", self.__dict__)
+
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
@@ -406,6 +415,11 @@ class DistanceAwareSplitter:
             "distance_stats_val": _dist_stats(d_val) if n_val > 0 else None,
             "note": "test is selected as farthest-from-centroid in feature space (distance-aware).",
         }
+
+        log.info(
+            "distance_aware:stats | train=%d | val=%d | test=%d",
+            stats["n_train"], stats["n_val"], stats["n_test"]
+        )
 
         return SplitResult(
             train=train,

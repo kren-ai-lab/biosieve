@@ -11,7 +11,9 @@ import pandas as pd
 from biosieve.core.factory import instantiate_strategy
 from biosieve.core.registry import StrategyRegistry
 from biosieve.types import Columns
-
+import time
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _ensure_parent(path: Optional[str]) -> None:
     """Create parent directory for a file path if needed."""
@@ -140,6 +142,13 @@ def run_reduce(
     ...   --map mapping.csv \\
     ...   --report reduction.json
     """
+    t0 = time.time()
+    log.info(
+        "reduce:start | strategy=%s | in=%s | out=%s | map=%s | report=%s",
+        strategy, in_path, out_path, map_path, report_path
+    )
+    log.info("reduce:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
+
     if cols is None:
         cols = Columns(id_col="id", seq_col="sequence")
 
@@ -162,7 +171,7 @@ def run_reduce(
     # We do not raise here to keep descriptor/structural reducers usable.
     # Reducers SHOULD raise if they require sequence and it is missing.
 
-    reducer_cls = registry.reducers[strategy]
+    reducer_cls = registry.get_reducer_class(strategy)
     reducer = instantiate_strategy(reducer_cls, strategy_params)
 
     res = reducer.run(df, cols)
@@ -207,3 +216,13 @@ def run_reduce(
             report["reducer_stats"] = _safe_jsonable(res.stats)
 
         Path(report_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    log.info(
+        "reduce:result | n_kept=%d | n_removed=%d | ratio=%.4f",
+        len(res.df),
+        len(res.mapping) if getattr(res, "mapping", None) is not None else 0,
+        (len(res.df) / len(df)) if len(df) else 0.0,
+    )
+
+    elapsed = time.time() - t0
+    log.info("reduce:end | seconds=%.3f | out=%s", elapsed, out_path)

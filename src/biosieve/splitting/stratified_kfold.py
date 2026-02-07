@@ -8,6 +8,8 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _try_import_stratified_kfold():
     try:

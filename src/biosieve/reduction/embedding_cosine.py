@@ -10,6 +10,8 @@ from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _try_import_faiss():
     try:

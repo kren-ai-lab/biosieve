@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "timestamp": "2026-02-07T08:26:25.799009Z",
+  "timestamp": "2026-02-07T19:05:07.280051Z",
   "in_path": "biosieve_example_dataset_1000_desc.csv",
   "outdir": "runs/split_distance_desc",
   "strategy": "distance_aware",

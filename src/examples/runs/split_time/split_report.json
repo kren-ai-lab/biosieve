@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "timestamp": "2026-02-07T08:26:24.968592Z",
+  "timestamp": "2026-02-07T19:05:06.385468Z",
   "in_path": "biosieve_example_dataset_1000.csv",
   "outdir": "runs/split_time",
   "strategy": "time",

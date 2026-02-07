@@ -9,6 +9,8 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
 
@@ -276,6 +278,13 @@ class StratifiedNumericSplitter:
         return "stratified_numeric"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
+        log.info(
+            "stratified_numeric:start | label_col=%s | n_bins=%d",
+            cols.label_col, self.n_bins
+        )
+        log.debug("stratified_numeric:params | %s", self.__dict__)
+
         tts = _try_import_train_test_split()
         if tts is None:
             raise ImportError(
@@ -453,6 +462,11 @@ class StratifiedNumericSplitter:
             "train_label_stats": _label_stats(train[self.label_col]),
             "test_label_stats": _label_stats(test[self.label_col]),
         }
+
+        log.info(
+            "stratified_numeric:stats | bins_used=%d | train=%d | val=%d | test=%d",
+            int(n_eff), stats["n_train"], stats["n_val"], stats["n_test"]
+        )
 
         if val is not None:
             stats["val_label_stats"] = _label_stats(val[self.label_col])

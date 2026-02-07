@@ -10,6 +10,9 @@ from biosieve.cli.reduce import add_reduce_subcommand
 from biosieve.cli.split import add_split_subcommand
 from biosieve.cli.info import add_info_subcommand
 from biosieve.cli.validate import add_validate_subcommand
+from biosieve.utils.logging import configure_logging, get_logger
+
+log = get_logger("biosieve")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -31,6 +34,22 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="",
     )
 
+    parser.add_argument(
+        "--log-level", 
+        choices=["DEBUG","INFO","WARNING","ERROR"], 
+        default="INFO"
+    )
+
+    parser.add_argument(
+        "--quiet", 
+        action="store_true"
+    )
+
+    parser.add_argument(
+        "--log-file", 
+        default=None
+    )
+
     add_reduce_subcommand(subparsers)
     add_split_subcommand(subparsers)
     add_info_subcommand(subparsers)
@@ -42,6 +61,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    configure_logging(level=args.log_level, quiet=args.quiet, log_file=args.log_file)
+    log.debug("CLI started | command=%s", getattr(args, "command", None))
 
     if not hasattr(args, "func"):
         parser.print_help(sys.stderr)

@@ -8,6 +8,8 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
@@ -86,6 +88,14 @@ class TimeSplitter:
         return "time"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
+        log.info(
+            "time:start | date_col=%s",
+            cols.date_col
+        )
+
+        log.debug("time:params | %s", self.__dict__)
+
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
@@ -145,6 +155,12 @@ class TimeSplitter:
             "train_time_range": _range(train),
             "test_time_range": _range(test),
         }
+
+        log.info(
+            "time:stats | train=%d | val=%d | test=%d",
+            stats["n_train"], stats["n_val"], stats["n_test"]
+        )
+
         if val is not None:
             stats["val_time_range"] = _range(val)
 

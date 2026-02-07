@@ -8,6 +8,8 @@ import pandas as pd
 from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
+from biosieve.utils.logging import get_logger
+log = get_logger(__name__)
 
 def _try_import_gss():
     try:
@@ -139,6 +141,13 @@ class GroupSplitter:
         return "group"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+
+        log.info(
+            "group:start | group_col=%s | test_size=%.3f | val_size=%.3f",
+            cols.group_col, self.test_size, self.val_size
+        )
+        log.debug("group:params | %s", self.__dict__)
+
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
@@ -210,6 +219,11 @@ class GroupSplitter:
             "leak_groups_val_test": int(leak_vt),
         }
 
+        log.info(
+            "group:stats | groups=%d | train=%d | val=%d | test=%d",
+            n_groups, stats["n_train"], stats["n_val"], stats["n_tests"]
+        )
+        
         return SplitResult(
             train=train,
             test=test,

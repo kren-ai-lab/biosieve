@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,9 @@ import pandas as pd
 from biosieve.core.factory import instantiate_strategy
 from biosieve.core.registry import StrategyRegistry
 from biosieve.types import Columns
+from biosieve.utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 def _ensure_dir(path: str) -> Path:
@@ -91,7 +95,7 @@ def run_split(
     strategy:
         Split strategy name (must exist in `registry.splitters`).
     registry:
-        Strategy registry holding available splitters (classes).
+        Strategy registry holding available splitters (classes/specs).
     cols:
         Columns spec. If None, defaults to Columns(id_col="id", seq_col="sequence").
     report_path:
@@ -113,55 +117,47 @@ def run_split(
         If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
     FileNotFoundError
         If `in_path` does not exist (raised by pandas).
-
-    Notes
-    -----
-    - The runner does not enforce presence of label/group/time columns; each strategy
-      validates its required inputs and raises descriptive errors.
-    - For k-fold, each fold is expected to include `stats["fold_index"]` (int). If not,
-      the runner will fall back to enumeration order.
-
-    Examples
-    --------
-    Single split:
-
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_random \\
-    ...   --strategy random \\
-    ...   --params params.yaml
-
-    K-fold split:
-
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_group_kfold \\
-    ...   --strategy group_kfold \\
-    ...   --params params.yaml
     """
+    t0 = time.time()
+
     if cols is None:
         cols = Columns(id_col="id", seq_col="sequence")
 
     strategy_params = strategy_params or {}
     read_csv_kwargs = read_csv_kwargs or {}
 
-    if strategy not in registry.splitters:
-        available = sorted(list(registry.splitters.keys()))
+    # Validate strategy name early (avoid silent typos)
+    if not registry.has_splitter(strategy):
+        available = sorted(list(registry.list_splitters().keys()))
         raise ValueError(f"Unknown split strategy '{strategy}'. Available: {available}")
 
     out = _ensure_dir(outdir)
 
+    log.info(
+        "split:start | strategy=%s | in=%s | outdir=%s",
+        strategy, in_path, str(out)
+    )
+    log.info("split:params | %s", strategy_params)
+
+    # Read + validate input
     df = pd.read_csv(in_path, **read_csv_kwargs)
     _validate_input_df(df, cols)
 
-    splitter_cls = registry.splitters[strategy]
+    log.info("split:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
+    log.debug("split:columns | %s", df.columns.tolist())
+
+    # Instantiate strategy (lazy-safe)
+    splitter_cls = registry.get_splitter_class(strategy)
+    log.debug("split:strategy_class | %s.%s", splitter_cls.__module__, splitter_cls.__name__)
     splitter = instantiate_strategy(splitter_cls, strategy_params)
 
     # ----------------------------
     # K-fold mode: splitter.run_folds
     # ----------------------------
     if hasattr(splitter, "run_folds") and callable(getattr(splitter, "run_folds")):
+        log.info("split:mode | kfold")
         folds = splitter.run_folds(df, cols)  # type: ignore[attr-defined]
+
         if not isinstance(folds, list) or len(folds) == 0:
             raise ValueError(
                 f"Splitter '{strategy}' returned an invalid folds object. "
@@ -177,6 +173,14 @@ def run_split(
             _write_csv(fdir / "test.csv", res.test)
             if res.val is not None:
                 _write_csv(fdir / "val.csv", res.val)
+
+            n_train = len(res.train)
+            n_test = len(res.test)
+            n_val = len(res.val) if res.val is not None else 0
+            log.info(
+                "split:fold | idx=%d | train=%d | val=%d | test=%d",
+                fold_idx, n_train, n_val, n_test
+            )
 
             folds_meta.append(
                 {
@@ -207,17 +211,26 @@ def run_split(
             },
         }
         _write_json(rp, report)
+
+        elapsed = time.time() - t0
+        log.info("split:end | mode=kfold | seconds=%.3f | report=%s", elapsed, str(rp))
         return
 
     # ----------------------------
     # Single split mode: splitter.run
     # ----------------------------
+    log.info("split:mode | single")
     res = splitter.run(df, cols)
 
     _write_csv(out / "train.csv", res.train)
     _write_csv(out / "test.csv", res.test)
     if res.val is not None:
         _write_csv(out / "val.csv", res.val)
+
+    n_train = len(res.train)
+    n_test = len(res.test)
+    n_val = len(res.val) if res.val is not None else 0
+    log.info("split:result | train=%d | val=%d | test=%d", n_train, n_val, n_test)
 
     rp = Path(report_path) if report_path else (out / "split_report.json")
     report = {
@@ -240,3 +253,6 @@ def run_split(
         },
     }
     _write_json(rp, report)
+
+    elapsed = time.time() - t0
+    log.info("split:end | mode=single | seconds=%.3f | report=%s", elapsed, str(rp))
