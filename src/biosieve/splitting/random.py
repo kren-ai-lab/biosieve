@@ -149,7 +149,7 @@ class RandomSplitter:
 
         log.info(
             "random:stats | train=%d | val=%d | test=%d",
-            int(len(train)), int(len(val)), int(len(test))
+            int(len(train)), int(len(val)) if val is not None else 0, int(len(test))
         )
         return SplitResult(
             train=train,
