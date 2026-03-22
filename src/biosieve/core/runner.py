@@ -147,7 +147,6 @@ def run_reduce(
         "reduce:start | strategy=%s | in=%s | out=%s | map=%s | report=%s",
         strategy, in_path, out_path, map_path, report_path
     )
-    log.info("reduce:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
 
     if cols is None:
         cols = Columns(id_col="id", seq_col="sequence")
@@ -164,6 +163,8 @@ def run_reduce(
     _ensure_parent(report_path)
 
     df = pd.read_csv(in_path, **read_csv_kwargs)
+
+    log.info("reduce:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
 
     _validate_unique_ids(df, cols.id_col)
 
