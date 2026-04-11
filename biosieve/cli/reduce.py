@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from biosieve.core.registry import StrategyRegistry  # ajusta si tu path es distinto
 from biosieve.core.runner import run_reduce

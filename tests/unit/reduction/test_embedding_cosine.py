@@ -1,0 +1,66 @@
+"""Tests for EmbeddingCosineReducer."""
+
+from __future__ import annotations
+
+import pytest
+
+from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.embedding_cosine import EmbeddingCosineReducer
+from biosieve.types import Columns
+
+COLS = Columns(id_col="id", seq_col="sequence")
+
+
+def test_happy_path(df_base, embeddings_files):
+    emb_path, ids_path = embeddings_files
+    reducer = EmbeddingCosineReducer(
+        embeddings_path=str(emb_path),
+        ids_path=str(ids_path),
+        threshold=0.5,
+        use_faiss=False,
+        n_jobs=1,
+    )
+    res = reducer.run(df_base, COLS)
+
+    assert isinstance(res, ReductionResult)
+    assert res.strategy == "embedding_cosine"
+    assert len(res.df) <= len(df_base)
+    assert len(res.df) > 0
+    assert set(res.df["id"]).issubset(set(df_base["id"]))
+
+
+def test_mapping_schema(df_base, embeddings_files):
+    emb_path, ids_path = embeddings_files
+    reducer = EmbeddingCosineReducer(
+        embeddings_path=str(emb_path),
+        ids_path=str(ids_path),
+        threshold=0.5,
+        use_faiss=False,
+    )
+    res = reducer.run(df_base, COLS)
+    if res.mapping is not None and len(res.mapping) > 0:
+        assert "removed_id" in res.mapping.columns
+        assert "representative_id" in res.mapping.columns
+
+
+def test_high_threshold_removes_nothing(df_base, embeddings_files):
+    """threshold=1.0 (max cosine similarity) → nothing removed."""
+    emb_path, ids_path = embeddings_files
+    reducer = EmbeddingCosineReducer(
+        embeddings_path=str(emb_path),
+        ids_path=str(ids_path),
+        threshold=1.0,
+        use_faiss=False,
+    )
+    res = reducer.run(df_base, COLS)
+    assert len(res.df) == len(df_base)
+
+
+def test_missing_embeddings_file_raises(df_base, tmp_path):
+    reducer = EmbeddingCosineReducer(
+        embeddings_path=str(tmp_path / "nonexistent.npy"),
+        ids_path=str(tmp_path / "nonexistent_ids.csv"),
+        use_faiss=False,
+    )
+    with pytest.raises((FileNotFoundError, ValueError, Exception)):
+        reducer.run(df_base, COLS)

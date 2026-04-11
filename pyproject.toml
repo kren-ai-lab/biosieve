@@ -23,6 +23,8 @@ dependencies = [
 dev = [
     "prek>=0.3.8",
     "pyrefly>=0.60.2",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
     "ruff>=0.15.10",
     "taskipy>=1.14.1",
     "ty>=0.0.29",
@@ -50,9 +52,18 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["F", "W", "E", "I", "A", "B", "N"]
+ignore = ["N802", "N803", "N806"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "mmseqs2: requires mmseqs binary in PATH",
+    "slow: slow integration tests",
+]
+addopts = "-q --tb=short"
 
 [tool.taskipy.tasks]
-sort-imports = "ruff check --fix --select I biosieve/ tests/"
+sort-imports = "ruff check --fix --select I,F401 biosieve/ tests/"
 format = "task sort-imports && ruff format biosieve/ tests/"
 lint = "ruff check biosieve/ tests/"
 lint-fix = "ruff check --fix biosieve/ tests/"

@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 
 from biosieve.core.registry import StrategyRegistry
-from biosieve.core.spec import lazy_import_class
 from biosieve.types import Columns
 
 
