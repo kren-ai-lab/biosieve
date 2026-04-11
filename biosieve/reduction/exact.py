@@ -7,9 +7,10 @@ import pandas as pd
 
 from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
-
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class ExactDedupReducer:

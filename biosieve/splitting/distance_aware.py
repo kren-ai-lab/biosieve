@@ -6,14 +6,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from biosieve.types import Columns
-from biosieve.splitting.base import SplitResult
-
+from biosieve.reduction.backends.descriptor_backend import extract_descriptor_matrix, infer_descriptor_columns
 from biosieve.reduction.backends.embedding_backend import load_embeddings
-from biosieve.reduction.backends.descriptor_backend import infer_descriptor_columns, extract_descriptor_matrix
-
+from biosieve.splitting.base import SplitResult
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
@@ -75,7 +75,16 @@ def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
 
 def _dist_stats(d: np.ndarray) -> Dict[str, Any]:
     if d.size == 0:
-        return {"n": 0, "min": None, "max": None, "mean": None, "std": None, "median": None, "q25": None, "q75": None}
+        return {
+            "n": 0,
+            "min": None,
+            "max": None,
+            "mean": None,
+            "std": None,
+            "median": None,
+            "q25": None,
+            "q75": None,
+        }
     return {
         "n": int(d.size),
         "min": float(np.min(d)),
@@ -200,7 +209,7 @@ class DistanceAwareSplitter:
     feature_mode: str = "embeddings"  # "embeddings" | "descriptors"
 
     # Metric
-    metric: str = "cosine"            # "cosine" | "euclidean"
+    metric: str = "cosine"  # "cosine" | "euclidean"
 
     # Embeddings inputs (when feature_mode="embeddings")
     embeddings_path: str = "embeddings.npy"
@@ -213,8 +222,8 @@ class DistanceAwareSplitter:
     standardize: bool = True
 
     # Selection behavior
-    test_method: str = "farthest"     # v0.1 only supports "farthest"
-    val_method: str = "random"        # "random" | "farthest_next"
+    test_method: str = "farthest"  # v0.1 only supports "farthest"
+    val_method: str = "random"  # "random" | "farthest_next"
 
     # dtype
     dtype: str = "float32"
@@ -223,7 +232,9 @@ class DistanceAwareSplitter:
     def strategy(self) -> str:
         return "distance_aware"
 
-    def _build_features(self, df: pd.DataFrame, cols: Columns) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    def _build_features(
+        self, df: pd.DataFrame, cols: Columns
+    ) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
         """
         Build feature matrix and return aligned dataframe indices.
 
@@ -264,7 +275,9 @@ class DistanceAwareSplitter:
                 emb_rows.append(j)
 
             if len(present_idx) == 0:
-                raise ValueError("No dataset ids found in embedding ids file. Cannot run distance-aware split.")
+                raise ValueError(
+                    "No dataset ids found in embedding ids file. Cannot run distance-aware split."
+                )
 
             X = store.X[np.asarray(emb_rows, dtype=int)]
             idx = np.asarray(present_idx, dtype=int)
@@ -282,7 +295,9 @@ class DistanceAwareSplitter:
             return X, idx, meta
 
         if self.feature_mode == "descriptors":
-            dcols = infer_descriptor_columns(df, prefix=self.descriptor_prefix, explicit_cols=self.descriptor_cols)
+            dcols = infer_descriptor_columns(
+                df, prefix=self.descriptor_prefix, explicit_cols=self.descriptor_cols
+            )
             mat = extract_descriptor_matrix(df, dcols, dtype=self.dtype)
             X = mat.X
             idx = np.arange(len(df), dtype=int)
@@ -304,10 +319,7 @@ class DistanceAwareSplitter:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
 
-        log.info(
-            "distance_aware:start | metric=%s | test_size=%.3f",
-            self.metric, self.test_size
-        )
+        log.info("distance_aware:start | metric=%s | test_size=%.3f", self.metric, self.test_size)
         log.debug("distance_aware:params | %s", self.__dict__)
 
         _validate_sizes(self.test_size, self.val_size)
@@ -418,7 +430,9 @@ class DistanceAwareSplitter:
 
         log.info(
             "distance_aware:stats | train=%d | val=%d | test=%d",
-            stats["n_train"], stats["n_val"], stats["n_test"]
+            stats["n_train"],
+            stats["n_val"],
+            stats["n_test"],
         )
 
         return SplitResult(

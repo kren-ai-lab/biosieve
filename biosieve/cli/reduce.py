@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 from typing import Any, Dict, Optional
 
+from biosieve.core.registry import StrategyRegistry  # ajusta si tu path es distinto
 from biosieve.core.runner import run_reduce
 from biosieve.io.params import load_params, params_for_strategy
 from biosieve.types import Columns
-from biosieve.core.registry import StrategyRegistry  # ajusta si tu path es distinto
 
 
 def add_reduce_subcommand(subparsers: argparse._SubParsersAction) -> None:
@@ -22,10 +22,14 @@ def add_reduce_subcommand(subparsers: argparse._SubParsersAction) -> None:
     # Required
     p.add_argument("--in", dest="in_path", required=True, help="Input CSV path.")
     p.add_argument("--out", dest="out_path", required=True, help="Output CSV path (non-redundant).")
-    p.add_argument("--strategy", required=True, help="Reducer strategy name (e.g., exact, mmseqs2, embedding_cosine).")
+    p.add_argument(
+        "--strategy", required=True, help="Reducer strategy name (e.g., exact, mmseqs2, embedding_cosine)."
+    )
 
     # Optional outputs
-    p.add_argument("--map", dest="map_path", default=None, help="CSV mapping path (removed_id -> representative_id).")
+    p.add_argument(
+        "--map", dest="map_path", default=None, help="CSV mapping path (removed_id -> representative_id)."
+    )
     p.add_argument("--report", dest="report_path", default=None, help="JSON report path.")
 
     # Column config

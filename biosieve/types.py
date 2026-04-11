@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-
 __all__ = ["Columns"]
 
 
@@ -56,6 +55,7 @@ class Columns:
     ...     date_col="collection_date",
     ... )
     """
+
     id_col: str = "id"
     seq_col: str = "sequence"
     label_col: Optional[str] = "label"

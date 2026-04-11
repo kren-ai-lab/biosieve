@@ -7,10 +7,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
@@ -19,6 +19,7 @@ _INTERNAL_IDX_COL = "_biosieve_row_idx__"
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None
@@ -252,7 +253,7 @@ class DistanceAwareKFoldSplitter:
     """
 
     feature_mode: str = "embeddings"  # "embeddings" | "descriptors"
-    metric: str = "cosine"           # "cosine" | "euclidean"
+    metric: str = "cosine"  # "cosine" | "euclidean"
 
     n_splits: int = 5
     seed: int = 13
@@ -295,7 +296,11 @@ class DistanceAwareKFoldSplitter:
                 raise ValueError("Embeddings mode requires embeddings_path and ids_path.")
             X = _load_features_embeddings(work, cols, self.embeddings_path, self.ids_path)
             feature_info.update(
-                {"embeddings_path": self.embeddings_path, "ids_path": self.ids_path, "n_features": int(X.shape[1])}
+                {
+                    "embeddings_path": self.embeddings_path,
+                    "ids_path": self.ids_path,
+                    "n_features": int(X.shape[1]),
+                }
             )
 
         elif self.feature_mode == "descriptors":
@@ -306,7 +311,11 @@ class DistanceAwareKFoldSplitter:
                 standardize=self.standardize_descriptors,
             )
             feature_info.update(
-                {"descriptor_cols": used_cols, "standardize_descriptors": bool(self.standardize_descriptors), "n_features": int(X.shape[1])}
+                {
+                    "descriptor_cols": used_cols,
+                    "standardize_descriptors": bool(self.standardize_descriptors),
+                    "n_features": int(X.shape[1]),
+                }
             )
         else:
             raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")

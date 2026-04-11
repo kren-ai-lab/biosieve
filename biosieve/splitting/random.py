@@ -6,11 +6,12 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     """
@@ -62,8 +63,8 @@ def _index_split(
         raise ValueError("Split sizes leave no training samples. Reduce test_size/val_size.")
 
     train_idx = idx[:n_train]
-    val_idx = idx[n_train:n_train + n_val] if n_val > 0 else None
-    test_idx = idx[n_train + n_val:]
+    val_idx = idx[n_train : n_train + n_val] if n_val > 0 else None
+    test_idx = idx[n_train + n_val :]
 
     return train_idx, test_idx, val_idx
 
@@ -110,6 +111,7 @@ class RandomSplitter:
     ...   --strategy random \\
     ...   --params params.yaml
     """
+
     test_size: float = 0.2
     val_size: float = 0.0
     seed: int = 13
@@ -122,7 +124,9 @@ class RandomSplitter:
 
         log.info(
             "random:start | test_size=%.3f | val_size=%.3f | seed=%s",
-            self.test_size, self.val_size, self.seed
+            self.test_size,
+            self.val_size,
+            self.seed,
         )
         log.debug("random:params | %s", self.__dict__)
 
@@ -149,7 +153,9 @@ class RandomSplitter:
 
         log.info(
             "random:stats | train=%d | val=%d | test=%d",
-            int(len(train)), int(len(val)) if val is not None else 0, int(len(test))
+            int(len(train)),
+            int(len(val)) if val is not None else 0,
+            int(len(test)),
         )
         return SplitResult(
             train=train,

@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.core.registry import StrategyRegistry
 from biosieve.core.spec import lazy_import_class
+from biosieve.types import Columns
+
 
 # -----------------------------
 # CLI wiring
@@ -179,7 +180,10 @@ def _check_embeddings_alignment(
 
     if present == 0:
         return False, "FAIL embeddings: none of dataset ids are present in embedding ids"
-    return True, f"OK   embeddings: aligned (rows={X.shape[0]}, dim={X.shape[1]}), dataset coverage={coverage:.3f}"
+    return (
+        True,
+        f"OK   embeddings: aligned (rows={X.shape[0]}, dim={X.shape[1]}), dataset coverage={coverage:.3f}",
+    )
 
 
 def _check_descriptors(df: pd.DataFrame, prefix: str) -> Tuple[bool, str]:
@@ -191,7 +195,10 @@ def _check_descriptors(df: pd.DataFrame, prefix: str) -> Tuple[bool, str]:
     coerced = sub.apply(pd.to_numeric, errors="coerce")
     n_nans = int(coerced.isna().sum().sum())
     if n_nans > 0:
-        return False, f"FAIL descriptors: non-numeric/NaN values detected (total NaNs after coercion: {n_nans})"
+        return (
+            False,
+            f"FAIL descriptors: non-numeric/NaN values detected (total NaNs after coercion: {n_nans})",
+        )
     return True, f"OK   descriptors: {len(cols)} numeric columns with prefix '{prefix}'"
 
 
@@ -341,10 +348,14 @@ def _run_validate(args: argparse.Namespace, registry: StrategyRegistry) -> None:
         # validate that strategy exists in registry light/full
         if args.kind == "reduce":
             if not registry.has_reducer(args.strategy):
-                raise ValueError(f"Unknown reducer strategy '{args.strategy}'. Available: {sorted(registry.list_reducers())}")
+                raise ValueError(
+                    f"Unknown reducer strategy '{args.strategy}'. Available: {sorted(registry.list_reducers())}"
+                )
         else:
             if not registry.has_splitter(args.strategy):
-                raise ValueError(f"Unknown splitter strategy '{args.strategy}'. Available: {sorted(registry.list_splitters())}")
+                raise ValueError(
+                    f"Unknown splitter strategy '{args.strategy}'. Available: {sorted(registry.list_splitters())}"
+                )
 
         req = _strategy_requires(args.strategy, args.kind)
 
@@ -358,50 +369,75 @@ def _run_validate(args: argparse.Namespace, registry: StrategyRegistry) -> None:
             record(ok, f"[strategy={args.strategy}] {msg}")
 
         if req.get("embeddings", False):
-            ok, msg = _check_embeddings_alignment(df, cols.id_col, args.embeddings, args.embedding_ids, args.embedding_ids_col)
+            ok, msg = _check_embeddings_alignment(
+                df, cols.id_col, args.embeddings, args.embedding_ids, args.embedding_ids_col
+            )
             record(ok, f"[strategy={args.strategy}] {msg}")
 
         if req.get("edges", False):
-            ok, msg = _check_edges(df, cols.id_col, args.edges, args.edges_id1_col, args.edges_id2_col, args.edges_value_col)
+            ok, msg = _check_edges(
+                df, cols.id_col, args.edges, args.edges_id1_col, args.edges_id2_col, args.edges_value_col
+            )
             record(ok, f"[strategy={args.strategy}] {msg}")
 
         if req.get("label", False):
             if not cols.label_col:
                 record(False, f"[strategy={args.strategy}] FAIL dataset: cols.label_col not configured")
             elif cols.label_col not in df.columns:
-                record(False, f"[strategy={args.strategy}] FAIL dataset: missing label column '{cols.label_col}'")
+                record(
+                    False, f"[strategy={args.strategy}] FAIL dataset: missing label column '{cols.label_col}'"
+                )
             else:
-                record(True, f"[strategy={args.strategy}] OK   dataset: label column '{cols.label_col}' present")
+                record(
+                    True, f"[strategy={args.strategy}] OK   dataset: label column '{cols.label_col}' present"
+                )
 
         if req.get("group", False):
             if not cols.group_col:
                 record(False, f"[strategy={args.strategy}] FAIL dataset: cols.group_col not configured")
             elif cols.group_col not in df.columns:
-                record(False, f"[strategy={args.strategy}] FAIL dataset: missing group column '{cols.group_col}'")
+                record(
+                    False, f"[strategy={args.strategy}] FAIL dataset: missing group column '{cols.group_col}'"
+                )
             else:
-                record(True, f"[strategy={args.strategy}] OK   dataset: group column '{cols.group_col}' present")
+                record(
+                    True, f"[strategy={args.strategy}] OK   dataset: group column '{cols.group_col}' present"
+                )
 
         if req.get("cluster", False):
             if not cols.cluster_col:
                 record(False, f"[strategy={args.strategy}] FAIL dataset: cols.cluster_col not configured")
             elif cols.cluster_col not in df.columns:
-                record(False, f"[strategy={args.strategy}] FAIL dataset: missing cluster column '{cols.cluster_col}'")
+                record(
+                    False,
+                    f"[strategy={args.strategy}] FAIL dataset: missing cluster column '{cols.cluster_col}'",
+                )
             else:
-                record(True, f"[strategy={args.strategy}] OK   dataset: cluster column '{cols.cluster_col}' present")
+                record(
+                    True,
+                    f"[strategy={args.strategy}] OK   dataset: cluster column '{cols.cluster_col}' present",
+                )
 
         if req.get("date", False):
             if not cols.date_col:
                 record(False, f"[strategy={args.strategy}] FAIL dataset: cols.date_col not configured")
             elif cols.date_col not in df.columns:
-                record(False, f"[strategy={args.strategy}] FAIL dataset: missing date column '{cols.date_col}'")
+                record(
+                    False, f"[strategy={args.strategy}] FAIL dataset: missing date column '{cols.date_col}'"
+                )
             else:
-                record(True, f"[strategy={args.strategy}] OK   dataset: date column '{cols.date_col}' present")
+                record(
+                    True, f"[strategy={args.strategy}] OK   dataset: date column '{cols.date_col}' present"
+                )
 
         if req.get("embeddings_or_descriptors", False):
             ok_emb = args.embeddings is not None and args.embedding_ids is not None
             ok_desc = any(c.startswith(args.descriptors_prefix) for c in df.columns)
             if not (ok_emb or ok_desc):
-                record(False, f"[strategy={args.strategy}] FAIL need embeddings (--embeddings + --embedding-ids) OR descriptor columns (prefix '{args.descriptors_prefix}')")
+                record(
+                    False,
+                    f"[strategy={args.strategy}] FAIL need embeddings (--embeddings + --embedding-ids) OR descriptor columns (prefix '{args.descriptors_prefix}')",
+                )
             else:
                 record(True, f"[strategy={args.strategy}] OK   embeddings/descriptors requirement satisfied")
 
@@ -418,6 +454,7 @@ def _run_validate(args: argparse.Namespace, registry: StrategyRegistry) -> None:
             "n_errors": int(errors),
         }
         import json
+
         Path(args.report).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if errors > 0:

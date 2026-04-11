@@ -6,19 +6,21 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from biosieve.reduction.backends.descriptor_backend import (
+    extract_descriptor_matrix,
+    infer_descriptor_columns,
+)
 from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
-from biosieve.reduction.backends.descriptor_backend import (
-    infer_descriptor_columns,
-    extract_descriptor_matrix,
-)
-
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_sklearn_nn():
     try:
         from sklearn.neighbors import NearestNeighbors  # type: ignore
+
         return NearestNeighbors
     except Exception:
         return None
@@ -154,7 +156,9 @@ class DescriptorEuclideanReducer:
 
         ids = work[cols.id_col].astype(str).tolist()
         if len(ids) != len(set(ids)):
-            raise ValueError("Duplicate ids detected. IDs must be unique for deterministic reduction mapping.")
+            raise ValueError(
+                "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+            )
 
         dcols = infer_descriptor_columns(
             work,
@@ -244,7 +248,9 @@ class DescriptorEuclideanReducer:
             )
         mapping = pd.DataFrame(rows, columns=["removed_id", "representative_id", "cluster_id", "score"])
 
-        kept_df["descriptor_euclidean_cluster_id"] = kept_df[cols.id_col].astype(str).apply(lambda x: f"deuc:{x}")
+        kept_df["descriptor_euclidean_cluster_id"] = (
+            kept_df[cols.id_col].astype(str).apply(lambda x: f"deuc:{x}")
+        )
 
         stats: Dict[str, Any] = {
             "n_total": int(len(work)),

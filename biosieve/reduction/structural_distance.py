@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from biosieve.reduction.backends.structure_backend import load_edges_csv
 from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
-from biosieve.reduction.backends.structure_backend import load_edges_csv
-
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class StructuralDistanceReducer:
@@ -118,7 +119,7 @@ class StructuralDistanceReducer:
     """
 
     edges_path: str = "struct_edges.csv"
-    mode: str = "distance"         # "distance" | "similarity"
+    mode: str = "distance"  # "distance" | "similarity"
     threshold: float = 0.5
 
     id1_col: str = "id1"
@@ -203,9 +204,7 @@ class StructuralDistanceReducer:
             columns=["removed_id", "representative_id", "cluster_id", "score"],
         )
 
-        kept_df["structural_cluster_id"] = kept_df[cols.id_col].astype(str).apply(
-            lambda x: f"struct:{x}"
-        )
+        kept_df["structural_cluster_id"] = kept_df[cols.id_col].astype(str).apply(lambda x: f"struct:{x}")
 
         stats: Dict[str, Any] = {
             "n_total": int(len(work)),

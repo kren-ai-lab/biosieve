@@ -5,15 +5,17 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_gss():
     try:
         from sklearn.model_selection import GroupShuffleSplit  # type: ignore
+
         return GroupShuffleSplit
     except Exception:
         return None
@@ -131,6 +133,7 @@ class GroupSplitter:
     ...   --strategy group \\
     ...   --params params.yaml
     """
+
     group_col: str = "group"
     test_size: float = 0.2
     val_size: float = 0.0
@@ -144,7 +147,9 @@ class GroupSplitter:
 
         log.info(
             "group:start | group_col=%s | test_size=%.3f | val_size=%.3f",
-            cols.group_col, self.test_size, self.val_size
+            cols.group_col,
+            self.test_size,
+            self.val_size,
         )
         log.debug("group:params | %s", self.__dict__)
 
@@ -221,9 +226,12 @@ class GroupSplitter:
 
         log.info(
             "group:stats | groups=%d | train=%d | val=%d | test=%d",
-            n_groups, stats["n_train"], stats["n_val"], stats["n_tests"]
+            n_groups,
+            stats["n_train"],
+            stats["n_val"],
+            stats["n_tests"],
         )
-        
+
         return SplitResult(
             train=train,
             test=test,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
@@ -11,9 +12,10 @@ import pandas as pd
 from biosieve.core.factory import instantiate_strategy
 from biosieve.core.registry import StrategyRegistry
 from biosieve.types import Columns
-import time
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _ensure_parent(path: Optional[str]) -> None:
     """Create parent directory for a file path if needed."""
@@ -145,7 +147,11 @@ def run_reduce(
     t0 = time.time()
     log.info(
         "reduce:start | strategy=%s | in=%s | out=%s | map=%s | report=%s",
-        strategy, in_path, out_path, map_path, report_path
+        strategy,
+        in_path,
+        out_path,
+        map_path,
+        report_path,
     )
 
     if cols is None:
@@ -182,9 +188,9 @@ def run_reduce(
 
     if map_path is not None:
         if res.mapping is None:
-            pd.DataFrame(
-                columns=["removed_id", "representative_id", "cluster_id", "score"]
-            ).to_csv(map_path, index=False)
+            pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"]).to_csv(
+                map_path, index=False
+            )
         else:
             res.mapping.to_csv(map_path, index=False)
 

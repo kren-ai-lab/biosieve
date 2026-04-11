@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import is_dataclass, fields
+from dataclasses import fields, is_dataclass
 from typing import Any, Dict
 
 from biosieve.core.registry import StrategyRegistry
@@ -15,7 +15,9 @@ def add_info_subcommand(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--kind", choices=["all", "reduce", "split"], default="all", help="Filter by kind.")
-    p.add_argument("--show-defaults", action="store_true", help="Show dataclass defaults (may import classes).")
+    p.add_argument(
+        "--show-defaults", action="store_true", help="Show dataclass defaults (may import classes)."
+    )
     p.set_defaults(func=_run_info)
 
 

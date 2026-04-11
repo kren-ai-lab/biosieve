@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 def _try_import_yaml():
     try:
         import yaml  # type: ignore
+
         return yaml
     except Exception:
         return None
@@ -123,7 +124,5 @@ def params_for_strategy(all_params: Dict[str, Any], strategy_name: str) -> Dict[
     if v is None:
         return {}
     if not isinstance(v, dict):
-        raise ValueError(
-            f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}."
-        )
+        raise ValueError(f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}.")
     return v

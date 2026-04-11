@@ -4,15 +4,15 @@ import argparse
 import sys
 from typing import Optional
 
-from biosieve.core.strategies import build_registry, build_registry_light
-
+from biosieve.cli.info import add_info_subcommand
 from biosieve.cli.reduce import add_reduce_subcommand
 from biosieve.cli.split import add_split_subcommand
-from biosieve.cli.info import add_info_subcommand
 from biosieve.cli.validate import add_validate_subcommand
+from biosieve.core.strategies import build_registry
 from biosieve.utils.logging import configure_logging, get_logger
 
 log = get_logger("biosieve")
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -34,21 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="",
     )
 
-    parser.add_argument(
-        "--log-level", 
-        choices=["DEBUG","INFO","WARNING","ERROR"], 
-        default="INFO"
-    )
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
 
-    parser.add_argument(
-        "--quiet", 
-        action="store_true"
-    )
+    parser.add_argument("--quiet", action="store_true")
 
-    parser.add_argument(
-        "--log-file", 
-        default=None
-    )
+    parser.add_argument("--log-file", default=None)
 
     add_reduce_subcommand(subparsers)
     add_split_subcommand(subparsers)
@@ -69,9 +59,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.print_help(sys.stderr)
         return 2
 
-    # Choose light registry for commands that must not import heavy deps.
-    cmd = getattr(args, "command", None)
-    registry = build_registry_light() if cmd in {"info", "validate"} else build_registry()
+    registry = build_registry()
 
     try:
         args.func(args, registry)

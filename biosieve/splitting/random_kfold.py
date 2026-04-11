@@ -5,15 +5,17 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_kfold():
     try:
         from sklearn.model_selection import KFold  # type: ignore
+
         return KFold
     except Exception:
         return None
@@ -22,6 +24,7 @@ def _try_import_kfold():
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None

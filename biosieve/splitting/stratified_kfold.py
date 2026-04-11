@@ -5,15 +5,17 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_stratified_kfold():
     try:
         from sklearn.model_selection import StratifiedKFold  # type: ignore
+
         return StratifiedKFold
     except Exception:
         return None
@@ -22,6 +24,7 @@ def _try_import_stratified_kfold():
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None
@@ -55,8 +58,8 @@ class StratifiedKFoldSplitter:
     val_size: float = 0.0
 
     # behavior
-    dropna: bool = True          # drop rows with NaN label
-    cast_to_str: bool = False    # optionally cast labels to str (useful if labels are mixed types)
+    dropna: bool = True  # drop rows with NaN label
+    cast_to_str: bool = False  # optionally cast labels to str (useful if labels are mixed types)
 
     @property
     def strategy(self) -> str:
@@ -75,9 +78,7 @@ class StratifiedKFoldSplitter:
         if self.val_size < 0 or self.val_size >= 1:
             raise ValueError("val_size must be in [0, 1)")
         if self.label_col not in df.columns:
-            raise ValueError(
-                f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}"
-            )
+            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}")
 
         work = df.copy().reset_index(drop=True)
 
@@ -93,9 +94,7 @@ class StratifiedKFoldSplitter:
             y = work[self.label_col].reset_index(drop=True)
         else:
             if y.isna().any():
-                raise ValueError(
-                    f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
-                )
+                raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
             dropped = 0
 
         if self.cast_to_str:

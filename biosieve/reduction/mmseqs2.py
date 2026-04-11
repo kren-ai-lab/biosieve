@@ -4,21 +4,22 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from biosieve.reduction.backends.mmseqs2_backend import (
+    build_cluster_ids,
+    parse_cluster_tsv,
+    run_mmseqs_easy_cluster,
+    write_fasta,
+)
 from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
-from biosieve.reduction.backends.mmseqs2_backend import (
-    write_fasta,
-    run_mmseqs_easy_cluster,
-    parse_cluster_tsv,
-    build_cluster_ids,
-)
-
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class MMseqs2Reducer:

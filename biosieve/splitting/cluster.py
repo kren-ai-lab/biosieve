@@ -6,11 +6,11 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.group import _split_groups, _validate_sizes
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
 
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
@@ -49,8 +49,7 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> Dict[str,
     df = pd.read_csv(p)
     if id_col not in df.columns or cluster_col not in df.columns:
         raise ValueError(
-            f"cluster map must contain columns '{id_col}' and '{cluster_col}'. "
-            f"Found: {df.columns.tolist()}"
+            f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns.tolist()}"
         )
 
     return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str)))
@@ -153,7 +152,7 @@ class ClusterAwareSplitter:
     seed: int = 13
 
     # cluster source
-    cluster_col: str = "cluster_id"         # if present in dataset
+    cluster_col: str = "cluster_id"  # if present in dataset
     cluster_map_path: Optional[str] = None  # optional mapping file id->cluster_id
     map_id_col: str = "id"
     map_cluster_col: str = "cluster_id"

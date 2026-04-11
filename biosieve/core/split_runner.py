@@ -45,9 +45,7 @@ def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
         If id column is missing or ids are not unique.
     """
     if cols.id_col not in df.columns:
-        raise ValueError(
-            f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}"
-        )
+        raise ValueError(f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}")
 
     n_in = len(df)
     unique_ids = df[cols.id_col].astype(str).nunique()
@@ -133,10 +131,7 @@ def run_split(
 
     out = _ensure_dir(outdir)
 
-    log.info(
-        "split:start | strategy=%s | in=%s | outdir=%s",
-        strategy, in_path, str(out)
-    )
+    log.info("split:start | strategy=%s | in=%s | outdir=%s", strategy, in_path, str(out))
     log.info("split:params | %s", strategy_params)
 
     # Read + validate input
@@ -177,10 +172,7 @@ def run_split(
             n_train = len(res.train)
             n_test = len(res.test)
             n_val = len(res.val) if res.val is not None else 0
-            log.info(
-                "split:fold | idx=%d | train=%d | val=%d | test=%d",
-                fold_idx, n_train, n_val, n_test
-            )
+            log.info("split:fold | idx=%d | train=%d | val=%d | test=%d", fold_idx, n_train, n_val, n_test)
 
             folds_meta.append(
                 {

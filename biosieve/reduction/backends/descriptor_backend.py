@@ -48,6 +48,8 @@ def extract_descriptor_matrix(
     X = X.astype(dtype, copy=False)
     if not np.isfinite(X).all():
         bad = np.argwhere(~np.isfinite(X))
-        raise ValueError(f"Descriptor matrix contains non-finite values at positions (first 5): {bad[:5].tolist()}")
+        raise ValueError(
+            f"Descriptor matrix contains non-finite values at positions (first 5): {bad[:5].tolist()}"
+        )
 
     return DescriptorMatrix(cols=cols, X=X)

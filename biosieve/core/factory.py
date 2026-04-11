@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import is_dataclass, fields
+from dataclasses import fields, is_dataclass
 from typing import Any, Dict, Type
 
 
@@ -34,12 +34,16 @@ def instantiate_strategy(cls: Type[Any], params: Dict[str, Any]) -> Any:
         allowed = {f.name for f in fields(cls)}
         unknown = set(params) - allowed
         if unknown:
-            raise ValueError(f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}")
+            raise ValueError(
+                f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
+            )
         return cls(**params)
 
     sig = inspect.signature(cls)
     allowed = set(sig.parameters.keys())
     unknown = set(params) - allowed
     if unknown:
-        raise ValueError(f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}")
+        raise ValueError(
+            f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
+        )
     return cls(**params)

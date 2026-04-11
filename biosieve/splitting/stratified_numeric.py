@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
@@ -18,6 +18,7 @@ _INTERNAL_IDX_COL = "_biosieve_row_idx__"
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None
@@ -98,13 +99,10 @@ def _make_bins_once(
 
     if binning == "quantile":
         try:
-            bins, bin_edges = pd.qcut(
-                yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True
-            )
+            bins, bin_edges = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True)
         except ValueError as e:
             raise ValueError(
-                f"qcut failed for n_bins={n_bins}. "
-                f"Try fewer bins or duplicates='drop'. Original error: {e}"
+                f"qcut failed for n_bins={n_bins}. Try fewer bins or duplicates='drop'. Original error: {e}"
             )
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
@@ -112,9 +110,7 @@ def _make_bins_once(
         return bins, n_eff, edges
 
     if binning == "uniform":
-        bins, bin_edges = pd.cut(
-            yy, bins=n_bins, labels=False, include_lowest=True, retbins=True
-        )
+        bins, bin_edges = pd.cut(yy, bins=n_bins, labels=False, include_lowest=True, retbins=True)
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
         edges = [float(x) for x in np.asarray(bin_edges).tolist()]
@@ -162,9 +158,7 @@ def _make_bins_safe(
             bins, n_eff, edges = _make_bins_once(y, n_bins=b, binning=binning, duplicates=duplicates)
 
             if n_eff < 2:
-                raise ValueError(
-                    f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify."
-                )
+                raise ValueError(f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify.")
 
             counts = bins.value_counts(dropna=False)
             if int(counts.min()) < min_bin_count:
@@ -182,8 +176,7 @@ def _make_bins_safe(
             continue
 
     raise ValueError(
-        "Could not create valid stratification bins. "
-        f"Attempted bins={attempted}. Last error: {last_error}"
+        f"Could not create valid stratification bins. Attempted bins={attempted}. Last error: {last_error}"
     )
 
 
@@ -263,8 +256,8 @@ class StratifiedNumericSplitter:
     seed: int = 13
 
     n_bins: int = 10
-    binning: str = "quantile"      # "quantile" | "uniform"
-    duplicates: str = "drop"       # "drop" | "raise" (qcut only)
+    binning: str = "quantile"  # "quantile" | "uniform"
+    duplicates: str = "drop"  # "drop" | "raise" (qcut only)
 
     dropna: bool = True
 
@@ -279,10 +272,7 @@ class StratifiedNumericSplitter:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
 
-        log.info(
-            "stratified_numeric:start | label_col=%s | n_bins=%d",
-            cols.label_col, self.n_bins
-        )
+        log.info("stratified_numeric:start | label_col=%s | n_bins=%d", cols.label_col, self.n_bins)
         log.debug("stratified_numeric:params | %s", self.__dict__)
 
         tts = _try_import_train_test_split()
@@ -314,8 +304,7 @@ class StratifiedNumericSplitter:
             dropped = int(y_raw.isna().sum())
             if dropped > 0:
                 raise ValueError(
-                    f"Found {dropped} NaN labels in '{self.label_col}'. "
-                    "Set dropna=true or clean the dataset."
+                    f"Found {dropped} NaN labels in '{self.label_col}'. Set dropna=true or clean the dataset."
                 )
 
         if len(work) < 3:
@@ -400,9 +389,7 @@ class StratifiedNumericSplitter:
         # For stage-2 (train/val), key bins by internal idx in trainval
         stage_bins_tv = None
         if bins_tv is not None:
-            stage_bins_tv = pd.Series(
-                bins_tv.to_numpy(), index=trainval[_INTERNAL_IDX_COL].to_numpy()
-            )
+            stage_bins_tv = pd.Series(bins_tv.to_numpy(), index=trainval[_INTERNAL_IDX_COL].to_numpy())
             stage_bins_tv.index.name = _INTERNAL_IDX_COL
 
         # reset indices and drop internal idx from returned frames
@@ -439,33 +426,31 @@ class StratifiedNumericSplitter:
             "n_total": int(len(df)),
             "n_used": int(len(work)),
             "n_dropped_nan": int(dropped),
-
             "n_train": int(len(train)),
             "n_test": int(len(test)),
             "n_val": int(len(val)) if val is not None else 0,
-
             "label_col": self.label_col,
             "binning": self.binning,
             "duplicates": self.duplicates,
-
             "n_bins_requested": int(self.n_bins),
             "n_bins_effective": int(n_eff),
             "min_bin_count": int(self.min_bin_count),
             "auto_reduce_bins": bool(self.auto_reduce_bins),
             "attempted_bins": attempted_bins,
             "auto_reduced": bool(auto_reduced),
-
             # Stage-level bin counts (consistent with stratify)
             "trainval_bin_counts": _bin_counts(bins.loc[trainval.index]),
             "test_bin_counts": _bin_counts(bins.loc[test.index]),
-
             "train_label_stats": _label_stats(train[self.label_col]),
             "test_label_stats": _label_stats(test[self.label_col]),
         }
 
         log.info(
             "stratified_numeric:stats | bins_used=%d | train=%d | val=%d | test=%d",
-            int(n_eff), stats["n_train"], stats["n_val"], stats["n_test"]
+            int(n_eff),
+            stats["n_train"],
+            stats["n_val"],
+            stats["n_test"],
         )
 
         if val is not None:

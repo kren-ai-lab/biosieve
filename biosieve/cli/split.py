@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 from typing import Any, Dict
 
+from biosieve.core.registry import StrategyRegistry
 from biosieve.core.split_runner import run_split
 from biosieve.io.params import load_params, params_for_strategy
 from biosieve.types import Columns
-from biosieve.core.registry import StrategyRegistry
 
 
 def add_split_subcommand(subparsers: argparse._SubParsersAction) -> None:
@@ -24,8 +24,12 @@ def add_split_subcommand(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--id-col", default="id", help="Column name for unique sample ids.")
     p.add_argument("--seq-col", default="sequence", help="Column name for sequences (if applicable).")
 
-    p.add_argument("--params", dest="params_path", default=None, help="YAML/JSON file with strategy parameters.")
-    p.add_argument("--set", dest="overrides", action="append", default=[], help="Override params: --set random.seed=13")
+    p.add_argument(
+        "--params", dest="params_path", default=None, help="YAML/JSON file with strategy parameters."
+    )
+    p.add_argument(
+        "--set", dest="overrides", action="append", default=[], help="Override params: --set random.seed=13"
+    )
 
     p.add_argument("--sep", default=",", help="CSV delimiter used to read input.")
     p.add_argument("--encoding", default="utf-8", help="CSV encoding used to read input.")

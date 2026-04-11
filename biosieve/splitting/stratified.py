@@ -5,15 +5,17 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None
@@ -82,6 +84,7 @@ class StratifiedSplitter:
     ...   --strategy stratified \\
     ...   --params params.yaml
     """
+
     label_col: str = "label"
     test_size: float = 0.2
     val_size: float = 0.0
@@ -96,24 +99,23 @@ class StratifiedSplitter:
 
         log.info(
             "stratified:start | label_col=%s | test_size=%.3f | val_size=%.3f",
-            cols.label_col, self.test_size, self.val_size
+            cols.label_col,
+            self.test_size,
+            self.val_size,
         )
         log.debug("stratified:params | %s", self.__dict__)
-        
+
         tts = _try_import_train_test_split()
         if tts is None:
             raise ImportError(
-                "StratifiedSplitter requires scikit-learn. "
-                "Install: conda install -c conda-forge scikit-learn"
+                "StratifiedSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
             )
 
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
         if self.label_col not in work.columns:
-            raise ValueError(
-                f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}"
-            )
+            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}")
 
         y = work[self.label_col]
         if y.isna().any():
@@ -122,9 +124,7 @@ class StratifiedSplitter:
                 work = work.loc[keep].reset_index(drop=True)
                 y = work[self.label_col].reset_index(drop=True)
             else:
-                raise ValueError(
-                    f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
-                )
+                raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
 
         # 1) split off test
         trainval, test = tts(
@@ -155,7 +155,7 @@ class StratifiedSplitter:
 
         train = train.reset_index(drop=True)
         test = test.reset_index(drop=True)
-        
+
         if val is not None:
             val = val.reset_index(drop=True)
 
@@ -173,8 +173,7 @@ class StratifiedSplitter:
         }
 
         log.info(
-            "stratified:stats | train=%d | val=%d | test=%d",
-            int(len(train)), int(len(val)), int(len(test))
+            "stratified:stats | train=%d | val=%d | test=%d", int(len(train)), int(len(val)), int(len(test))
         )
 
         if val is not None:

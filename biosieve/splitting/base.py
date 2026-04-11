@@ -7,7 +7,6 @@ import pandas as pd
 
 from biosieve.types import Columns
 
-
 __all__ = ["SplitResult", "Splitter", "KFoldSplitter"]
 
 
@@ -48,6 +47,7 @@ class SplitResult:
     A k-fold strategy returns multiple SplitResult objects (one per fold),
     typically via `run_folds` on a `KFoldSplitter`.
     """
+
     train: pd.DataFrame
     test: pd.DataFrame
     val: Optional[pd.DataFrame]

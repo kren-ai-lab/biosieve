@@ -6,13 +6,13 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
 
 # Reuse group split logic (sklearn GroupShuffleSplit)
 from biosieve.splitting.group import _split_groups, _validate_sizes
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
 
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
@@ -375,10 +375,7 @@ class HomologyAwareSplitter:
 
         cmap, cmeta = self._get_cluster_map(work, cols)
 
-        log.info(
-            "homology_aware:start | source=%s",
-            "precomputed" if cmeta["mode"] else "mmseqs2"
-        )
+        log.info("homology_aware:start | source=%s", "precomputed" if cmeta["mode"] else "mmseqs2")
         log.debug("homology_aware:params | %s", self.__dict__)
 
         # attach cluster_id; missing -> singleton
@@ -450,7 +447,9 @@ class HomologyAwareSplitter:
 
         log.info(
             "homology_aware:stats | train=%d | val=%d | test=%d",
-            stats["n_train"], stats["n_val"], stats["n_test"]
+            stats["n_train"],
+            stats["n_val"],
+            stats["n_test"],
         )
 
         # best-effort cleanup

@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional, Type, Union
 
 from biosieve.core.spec import StrategySpec, lazy_import_class
 
-
 ReducerLike = Union[Type[Any], StrategySpec]
 SplitterLike = Union[Type[Any], StrategySpec]
 
@@ -24,6 +23,7 @@ class StrategyRegistry:
     - `list_*` is safe for light registries (does not import classes).
     - `get_*` may import classes for StrategySpec entries.
     """
+
     reducers: Dict[str, ReducerLike] = field(default_factory=dict)
     splitters: Dict[str, SplitterLike] = field(default_factory=dict)
 

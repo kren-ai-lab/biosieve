@@ -5,15 +5,17 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_group_kfold():
     try:
         from sklearn.model_selection import GroupKFold  # type: ignore
+
         return GroupKFold
     except Exception:
         return None
@@ -22,6 +24,7 @@ def _try_import_group_kfold():
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None
@@ -110,8 +113,7 @@ class GroupKFoldSplitter:
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
             raise ImportError(
-                "GroupKFoldSplitter requires scikit-learn. "
-                "Install: conda install -c conda-forge scikit-learn"
+                "GroupKFoldSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
             )
 
         if self.n_splits < 2:
@@ -119,9 +121,7 @@ class GroupKFoldSplitter:
         if not (0.0 <= self.val_size < 1.0):
             raise ValueError("val_size must be in [0, 1)")
         if self.group_col not in df.columns:
-            raise ValueError(
-                f"Missing group column '{self.group_col}'. Columns: {df.columns.tolist()}"
-            )
+            raise ValueError(f"Missing group column '{self.group_col}'. Columns: {df.columns.tolist()}")
 
         work = df.copy().reset_index(drop=True)
         g = work[self.group_col]
@@ -134,9 +134,7 @@ class GroupKFoldSplitter:
             g = work[self.group_col].astype(str).reset_index(drop=True)
         else:
             if g.isna().any():
-                raise ValueError(
-                    f"Found NaN groups in '{self.group_col}'. Set dropna=true or clean dataset."
-                )
+                raise ValueError(f"Found NaN groups in '{self.group_col}'. Set dropna=true or clean dataset.")
             dropped = 0
             g = g.astype(str)
 
@@ -194,7 +192,7 @@ class GroupKFoldSplitter:
                 val_groups = _group_set(val_df, self.group_col)
                 train_groups2 = _group_set(train_df, self.group_col)
                 leak_vr = len(val_groups & train_groups2)  # expected possibly >0
-                leak_vt = len(val_groups & test_groups)    # should be 0
+                leak_vt = len(val_groups & test_groups)  # should be 0
 
             folds.append(
                 SplitResult(
@@ -221,9 +219,9 @@ class GroupKFoldSplitter:
                         "n_groups_total": int(n_groups),
                         "n_groups_train": int(len(train_groups)),
                         "n_groups_test": int(len(test_groups)),
-                        "leak_groups_train_test": int(leak_tt),      # must be 0
-                        "leak_groups_val_train": int(leak_vr),       # may be >0 (by design)
-                        "leak_groups_val_test": int(leak_vt),        # should be 0
+                        "leak_groups_train_test": int(leak_tt),  # must be 0
+                        "leak_groups_val_train": int(leak_vr),  # may be >0 (by design)
+                        "leak_groups_val_test": int(leak_vt),  # should be 0
                     },
                 )
             )

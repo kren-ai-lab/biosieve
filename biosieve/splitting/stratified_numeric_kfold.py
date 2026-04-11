@@ -6,15 +6,17 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_stratified_kfold():
     try:
         from sklearn.model_selection import StratifiedKFold  # type: ignore
+
         return StratifiedKFold
     except Exception:
         return None
@@ -23,6 +25,7 @@ def _try_import_stratified_kfold():
 def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # type: ignore
+
         return train_test_split
     except Exception:
         return None
@@ -31,7 +34,16 @@ def _try_import_train_test_split():
 def _label_stats(y: pd.Series) -> Dict[str, Any]:
     yy = pd.to_numeric(y, errors="coerce").dropna()
     if len(yy) == 0:
-        return {"n": 0, "min": None, "max": None, "mean": None, "std": None, "median": None, "q25": None, "q75": None}
+        return {
+            "n": 0,
+            "min": None,
+            "max": None,
+            "mean": None,
+            "std": None,
+            "median": None,
+            "q25": None,
+            "q75": None,
+        }
     return {
         "n": int(len(yy)),
         "min": float(yy.min()),
@@ -259,9 +271,7 @@ class StratifiedNumericKFoldSplitter:
             y_raw = y_raw.loc[keep].reset_index(drop=True)
         else:
             if y_raw.isna().any():
-                raise ValueError(
-                    f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
-                )
+                raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
 
         if len(work) < self.n_splits:
             raise ValueError(f"Not enough samples (n={len(work)}) for n_splits={self.n_splits}")
@@ -324,11 +334,9 @@ class StratifiedNumericKFoldSplitter:
                 "n_total": int(len(df)),
                 "n_used": int(len(work)),
                 "n_dropped_nan": int(dropped),
-
                 "n_train": int(len(train_df)),
                 "n_test": int(len(test_df)),
                 "n_val": int(len(val_df)) if val_df is not None else 0,
-
                 "label_col": self.label_col,
                 "binning": self.binning,
                 "duplicates": self.duplicates,
@@ -338,10 +346,8 @@ class StratifiedNumericKFoldSplitter:
                 "auto_reduce_bins": bool(self.auto_reduce_bins),
                 "attempted_bins": attempted_bins,
                 "auto_reduced": bool(auto_reduced),
-
                 "train_bin_counts": _bin_counts(train_bins),
                 "test_bin_counts": _bin_counts(test_bins),
-
                 "train_label_stats": _label_stats(train_df[self.label_col]),
                 "test_label_stats": _label_stats(test_df[self.label_col]),
             }

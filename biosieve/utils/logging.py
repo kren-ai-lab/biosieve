@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-
 _LEVELS = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,

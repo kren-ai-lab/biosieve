@@ -7,9 +7,10 @@ import pandas as pd
 
 from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
-
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _kmer_set(seq: str, k: int) -> set[str]:
     """Return set of k-mers for a sequence."""
@@ -152,7 +153,9 @@ class IdentityGreedyReducer:
 
         ids = work[cols.id_col].astype(str).tolist()
         if len(ids) != len(set(ids)):
-            raise ValueError("Duplicate ids detected. IDs must be unique for deterministic reduction mapping.")
+            raise ValueError(
+                "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+            )
 
         reps_idx: List[int] = []
         reps_kmers: List[set[str]] = []

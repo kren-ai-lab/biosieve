@@ -7,7 +7,6 @@ import pandas as pd
 
 from biosieve.types import Columns
 
-
 __all__ = ["ReductionResult", "Reducer"]
 
 

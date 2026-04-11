@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
+from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.reduction.base import ReductionResult
 from biosieve.types import Columns
-from biosieve.reduction.backends.embedding_backend import load_embeddings
-
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _try_import_faiss():
     try:
         import faiss  # type: ignore
+
         return faiss
     except Exception:
         return None
@@ -24,6 +26,7 @@ def _try_import_faiss():
 def _try_import_sklearn_nn():
     try:
         from sklearn.neighbors import NearestNeighbors  # type: ignore
+
         return NearestNeighbors
     except Exception:
         return None
@@ -317,8 +320,16 @@ class EmbeddingCosineReducer:
         )
 
         # Attach cluster id for representatives (convenience)
-        kept_df["embedding_cosine_cluster_id"] = kept_df[cols.id_col].astype(str).apply(
-            lambda x: f"embcos:{x}" if (x in present_set and x not in removed) else (f"singleton:{x}" if x in missing else None)
+        kept_df["embedding_cosine_cluster_id"] = (
+            kept_df[cols.id_col]
+            .astype(str)
+            .apply(
+                lambda x: (
+                    f"embcos:{x}"
+                    if (x in present_set and x not in removed)
+                    else (f"singleton:{x}" if x in missing else None)
+                )
+            )
         )
 
         stats: Dict[str, Any] = {

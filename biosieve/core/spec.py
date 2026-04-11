@@ -21,6 +21,7 @@ class StrategySpec:
     summary:
         Optional short description.
     """
+
     name: str
     kind: str  # "reducer" | "splitter"
     import_path: str

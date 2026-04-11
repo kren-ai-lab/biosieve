@@ -5,11 +5,12 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from biosieve.types import Columns
 from biosieve.splitting.base import SplitResult
-
+from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
 log = get_logger(__name__)
+
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
@@ -75,6 +76,7 @@ class TimeSplitter:
     ...   --strategy time \\
     ...   --params params.yaml
     """
+
     time_col: str = "time"
     test_size: float = 0.2
     val_size: float = 0.0
@@ -89,10 +91,7 @@ class TimeSplitter:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
 
-        log.info(
-            "time:start | date_col=%s",
-            cols.date_col
-        )
+        log.info("time:start | date_col=%s", cols.date_col)
 
         log.debug("time:params | %s", self.__dict__)
 
@@ -113,7 +112,9 @@ class TimeSplitter:
             t = pd.to_numeric(t_raw, errors="raise")
 
         work["_biosieve_time__"] = t
-        work = work.sort_values("_biosieve_time__", ascending=self.ascending, kind="mergesort").reset_index(drop=True)
+        work = work.sort_values("_biosieve_time__", ascending=self.ascending, kind="mergesort").reset_index(
+            drop=True
+        )
 
         n = len(work)
         n_test = int(round(n * self.test_size))
@@ -157,8 +158,7 @@ class TimeSplitter:
         }
 
         log.info(
-            "time:stats | train=%d | val=%d | test=%d",
-            stats["n_train"], stats["n_val"], stats["n_test"]
+            "time:stats | train=%d | val=%d | test=%d", stats["n_train"], stats["n_val"], stats["n_test"]
         )
 
         if val is not None:
