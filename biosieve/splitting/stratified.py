@@ -173,7 +173,10 @@ class StratifiedSplitter:
         }
 
         log.info(
-            "stratified:stats | train=%d | val=%d | test=%d", int(len(train)), int(len(val)), int(len(test))
+            "stratified:stats | train=%d | val=%d | test=%d",
+            int(len(train)),
+            int(len(val) if val is not None else 0),
+            int(len(test)),
         )
 
         if val is not None:

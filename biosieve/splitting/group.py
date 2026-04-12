@@ -229,7 +229,7 @@ class GroupSplitter:
             n_groups,
             stats["n_train"],
             stats["n_val"],
-            stats["n_tests"],
+            stats["n_test"],
         )
 
         return SplitResult(
