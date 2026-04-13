@@ -53,7 +53,7 @@ def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray
     return Xz, mu, sd
 
 
-def _validate_run_inputs(
+def _validate_inputs(
     *,
     df: pd.DataFrame,
     cols: Columns,
@@ -175,8 +175,7 @@ class DescriptorEuclideanReducer:
     - Falls back to O(N^2) brute force when sklearn is unavailable.
 
     Args:
-        threshold:
-            Euclidean radius. Samples at distance <= threshold are considered
+        threshold: Euclidean radius. Samples at distance <= threshold are considered
             redundant. Must be >= 0.
         descriptor_prefix: Prefix used to infer descriptor columns (e.g., "desc_").
         descriptor_cols: Explicit list of descriptor columns to use (overrides prefix inference).
@@ -232,7 +231,7 @@ class DescriptorEuclideanReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         """Reduce descriptor redundancy and return representatives plus mapping."""
-        _validate_run_inputs(
+        _validate_inputs(
             df=df,
             cols=cols,
             threshold=self.threshold,

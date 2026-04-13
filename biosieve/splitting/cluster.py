@@ -53,6 +53,67 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
     return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str), strict=False))
 
 
+def _validate_inputs(
+    df: pd.DataFrame,
+    cols: Columns,
+    *,
+    test_size: float,
+    val_size: float,
+    cluster_col: str,
+    cluster_map_path: str | None,
+    map_id_col: str,
+    map_cluster_col: str,
+    assign_singletons_for_missing: bool,
+) -> tuple[pd.DataFrame, str, int, int]:
+    _validate_sizes(test_size, val_size)
+    work = df.copy().reset_index(drop=True)
+
+    if cluster_col in work.columns:
+        work[_INTERNAL_CLUSTER_COL] = work[cluster_col].astype(str)
+        used_source = "dataset_column"
+        missing = 0
+    elif cluster_map_path:
+        cmap = _load_cluster_map_csv(cluster_map_path, map_id_col, map_cluster_col)
+        ids = work[cols.id_col].astype(str)
+
+        assigned = []
+        missing = 0
+        for sid in ids:
+            cid = cmap.get(sid)
+            if cid is None:
+                missing += 1
+                if assign_singletons_for_missing:
+                    cid = f"singleton:{sid}"
+                else:
+                    msg = (
+                        f"Missing cluster assignment for id={sid}. "
+                        "Either provide full mapping or set assign_singletons_for_missing=true."
+                    )
+                    raise ValueError(
+                        msg
+                    )
+            assigned.append(cid)
+
+        work[_INTERNAL_CLUSTER_COL] = pd.Series(assigned, index=work.index, dtype="string").astype(str)
+        used_source = "mapping_file"
+    else:
+        msg = (
+            "ClusterAwareSplitter requires either: "
+            f"(i) a '{cluster_col}' column in the dataset OR "
+            "(ii) cluster_map_path pointing to a CSV mapping id->cluster_id."
+        )
+        raise ValueError(
+            msg
+        )
+
+    n_clusters = int(work[_INTERNAL_CLUSTER_COL].astype(str).nunique(dropna=False))
+    if n_clusters < MIN_CLUSTERS_FOR_SPLIT:
+        msg = f"Need at least 2 clusters to split. Found {n_clusters} unique clusters."
+        raise ValueError(msg)
+
+    return work, used_source, missing, n_clusters
+
+
 @dataclass(frozen=True)
 class ClusterAwareSplitter:
     r"""Cluster-aware split (group-based) to prevent cluster leakage across splits.
@@ -74,7 +135,7 @@ class ClusterAwareSplitter:
     Args:
         test_size: Fraction of samples assigned to the test split (cluster-disjoint from train/val).
         val_size: Fraction of samples assigned to validation (0 disables validation).
-        Internally converted to a fraction of the remaining trainval split.
+            Internally converted to a fraction of the remaining trainval split.
         seed: Random seed for deterministic group splitting.
         cluster_col: Column name in the dataset containing cluster ids (used if present).
         cluster_map_path: Optional path to a CSV mapping ids to cluster ids.
@@ -144,56 +205,20 @@ class ClusterAwareSplitter:
         """Return the strategy identifier."""
         return "cluster_aware"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0915
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
         """Split data by cluster assignments into disjoint partitions."""
-        _validate_sizes(self.test_size, self.val_size)
-
-        work = df.copy().reset_index(drop=True)
-
-        # Always create an internal cluster id column to support correct leakage checks
-        if self.cluster_col in work.columns:
-            work[_INTERNAL_CLUSTER_COL] = work[self.cluster_col].astype(str)
-            used_source = "dataset_column"
-            missing = 0
-        elif self.cluster_map_path:
-            cmap = _load_cluster_map_csv(self.cluster_map_path, self.map_id_col, self.map_cluster_col)
-            ids = work[cols.id_col].astype(str)
-
-            assigned = []
-            missing = 0
-            for sid in ids:
-                cid = cmap.get(sid)
-                if cid is None:
-                    missing += 1
-                    if self.assign_singletons_for_missing:
-                        cid = f"singleton:{sid}"
-                    else:
-                        msg = (
-                            f"Missing cluster assignment for id={sid}. "
-                            f"Either provide full mapping or set assign_singletons_for_missing=true."
-                        )
-                        raise ValueError(
-                            msg
-                        )
-                assigned.append(cid)
-
-            work[_INTERNAL_CLUSTER_COL] = pd.Series(assigned, index=work.index, dtype="string").astype(str)
-            used_source = "mapping_file"
-        else:
-            msg = (
-                "ClusterAwareSplitter requires either: "
-                f"(i) a '{self.cluster_col}' column in the dataset OR "
-                "(ii) cluster_map_path pointing to a CSV mapping id->cluster_id."
-            )
-            raise ValueError(
-                msg
-            )
-
+        work, used_source, missing, n_clusters = _validate_inputs(
+            df,
+            cols,
+            test_size=self.test_size,
+            val_size=self.val_size,
+            cluster_col=self.cluster_col,
+            cluster_map_path=self.cluster_map_path,
+            map_id_col=self.map_id_col,
+            map_cluster_col=self.map_cluster_col,
+            assign_singletons_for_missing=self.assign_singletons_for_missing,
+        )
         cluster_ids = work[_INTERNAL_CLUSTER_COL].astype(str)
-        n_clusters = int(cluster_ids.nunique(dropna=False))
-        if n_clusters < MIN_CLUSTERS_FOR_SPLIT:
-            msg = f"Need at least 2 clusters to split. Found {n_clusters} unique clusters."
-            raise ValueError(msg)
 
         # 1) split off test by clusters
         trainval, test = _split_groups(work, cluster_ids, test_size=self.test_size, seed=self.seed)

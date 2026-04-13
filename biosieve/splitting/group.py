@@ -50,6 +50,31 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError(msg)
 
 
+def _validate_inputs(
+    df: pd.DataFrame,
+    group_col: str,
+    test_size: float,
+    val_size: float,
+) -> tuple[pd.Series, int]:
+    _validate_sizes(test_size, val_size)
+    if group_col not in df.columns:
+        msg = f"Missing group column '{group_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+    groups = df[group_col].astype(str)
+    if groups.isna().any():
+        msg = f"Found NaN group ids in '{group_col}'. Clean dataset before splitting."
+        raise ValueError(msg)
+
+    n_groups = int(groups.nunique(dropna=False))
+    if n_groups < MIN_GROUPS_FOR_SPLIT:
+        msg = f"Need at least 2 groups to split. Found {n_groups} unique groups in '{group_col}'."
+        raise ValueError(
+            msg
+        )
+    return groups, n_groups
+
+
 def _split_groups(
     df: pd.DataFrame,
     groups: pd.Series,
@@ -105,7 +130,7 @@ class GroupSplitter:
         group_col: Column defining group IDs (e.g., taxid, subject_id, cluster_id).
         test_size: Fraction of samples assigned to the test set (group-disjoint from train/val).
         val_size: Fraction of samples assigned to validation (0 disables validation).
-        Internally converted to a fraction of the remaining trainval split.
+            Internally converted to a fraction of the remaining trainval split.
         seed: Random seed for deterministic splitting.
 
     Returns:
@@ -154,24 +179,13 @@ class GroupSplitter:
         )
         log.debug("group:params | %s", self.__dict__)
 
-        _validate_sizes(self.test_size, self.val_size)
-
         work = df.copy().reset_index(drop=True)
-        if self.group_col not in work.columns:
-            msg = f"Missing group column '{self.group_col}'. Columns: {work.columns.tolist()}"
-            raise ValueError(msg)
-
-        groups = work[self.group_col].astype(str)
-        if groups.isna().any():
-            msg = f"Found NaN group ids in '{self.group_col}'. Clean dataset before splitting."
-            raise ValueError(msg)
-
-        n_groups = int(groups.nunique(dropna=False))
-        if n_groups < MIN_GROUPS_FOR_SPLIT:
-            msg = f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'."
-            raise ValueError(
-                msg
-            )
+        groups, n_groups = _validate_inputs(
+            work,
+            self.group_col,
+            self.test_size,
+            self.val_size,
+        )
 
         # 1) test split
         trainval, test = _split_groups(work, groups, test_size=self.test_size, seed=self.seed)

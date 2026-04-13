@@ -17,6 +17,18 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def _validate_inputs(df: pd.DataFrame, cols: Columns, mode: str, threshold: float) -> None:
+    if mode not in {"distance", "similarity"}:
+        msg = "mode must be 'distance' or 'similarity'"
+        raise ValueError(msg)
+    if mode == "distance" and threshold < 0:
+        msg = "threshold must be >= 0 for distance mode"
+        raise ValueError(msg)
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+
 @dataclass(frozen=True)
 class StructuralDistanceReducer:
     r"""Greedy redundancy reduction using precomputed structural distances or similarities.
@@ -51,8 +63,7 @@ class StructuralDistanceReducer:
 
     Args:
         edges_path: Path to CSV file containing structural edges.
-        mode:
-            Redundancy mode: `"distance"` marks neighbors redundant when
+        mode: Redundancy mode: `"distance"` marks neighbors redundant when
             `value <= threshold`, and `"similarity"` marks neighbors redundant
             when `value >= threshold`.
         threshold: Distance or similarity threshold defining redundancy.
@@ -118,19 +129,9 @@ class StructuralDistanceReducer:
         msg = "mode must be 'distance' or 'similarity'"
         raise ValueError(msg)
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901
+    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         """Reduce redundancy using precomputed structural edge relationships."""
-        if self.mode not in {"distance", "similarity"}:
-            msg = "mode must be 'distance' or 'similarity'"
-            raise ValueError(msg)
-
-        if self.mode == "distance" and self.threshold < 0:
-            msg = "threshold must be >= 0 for distance mode"
-            raise ValueError(msg)
-
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
+        _validate_inputs(df, cols, self.mode, self.threshold)
 
         # deterministic ordering
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)

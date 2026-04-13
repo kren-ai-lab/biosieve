@@ -65,6 +65,15 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return X / np.maximum(norms, eps)
 
 
+def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float) -> None:
+    if not (0.0 <= threshold <= 1.0):
+        msg = "threshold must be in [0, 1]"
+        raise ValueError(msg)
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+
 @dataclass(frozen=True)
 class EmbeddingCosineReducer:
     r"""Greedy redundancy reduction in embedding space using cosine similarity.
@@ -93,8 +102,7 @@ class EmbeddingCosineReducer:
     Args:
         embeddings_path: Path to embeddings .npy file (N, D).
         ids_path: Path to CSV with embedding row ids (length N).
-        ids_col:
-            Column name inside ids_path CSV containing ids. If the CSV has a single column,
+        ids_col: Column name inside ids_path CSV containing ids. If the CSV has a single column,
             it will be used automatically by the embedding backend.
         threshold: Cosine similarity threshold in [0, 1]. Neighbors with sim >= threshold are removed.
         use_faiss: If True, tries to use FAISS if installed; otherwise falls back to sklearn/brute-force.
@@ -151,13 +159,7 @@ class EmbeddingCosineReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
         """Reduce embedding redundancy and return representatives plus mapping."""
-        if not (0.0 <= self.threshold <= 1.0):
-            msg = "threshold must be in [0, 1]"
-            raise ValueError(msg)
-
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
+        _validate_inputs(df, cols, self.threshold)
 
         store = load_embeddings(
             embeddings_path=self.embeddings_path,

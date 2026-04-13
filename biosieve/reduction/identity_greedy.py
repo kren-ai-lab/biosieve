@@ -109,13 +109,11 @@ class IdentityGreedyReducer:
     - "First accepted representative" policy.
 
     Args:
-        threshold:
-            Identity threshold in [0, 1]. If approx_identity >= threshold, the sequence
+        threshold: Identity threshold in [0, 1]. If approx_identity >= threshold, the sequence
             is considered redundant.
         k: K-mer size for the Jaccard prefilter (>= 1).
         jaccard_prefilter: Jaccard cutoff in [0, 1] used to shortlist candidates.
-        length_tolerance:
-            Relative length tolerance in [0, 1]. Candidate is skipped if:
+        length_tolerance: Relative length tolerance in [0, 1]. Candidate is skipped if:
             abs(len_a - len_b) / max(len_a, len_b) > length_tolerance
         max_candidates: Maximum number of candidate representatives evaluated per sequence (>= 1).
 

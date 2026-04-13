@@ -114,12 +114,10 @@ class KmerJaccardReducer:
     Only the top `max_candidates` are evaluated to cap runtime.
 
     Args:
-        threshold:
-            Jaccard similarity threshold in [0, 1]. If score >= threshold, the sequence
+        threshold: Jaccard similarity threshold in [0, 1]. If score >= threshold, the sequence
             is removed as redundant.
         k: K-mer size (>= 1). Typical values: 3-7 for proteins (tradeoff speed/specificity).
-        max_candidates:
-            Maximum number of representative candidates to evaluate per sequence (>= 1).
+        max_candidates: Maximum number of representative candidates to evaluate per sequence (>= 1).
             Higher values are more accurate but slower.
 
     Returns:

@@ -54,6 +54,15 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError(msg)
 
 
+def _validate_inputs(df: pd.DataFrame, label_col: str, test_size: float, val_size: float) -> None:
+    _validate_sizes(test_size, val_size)
+    if label_col not in df.columns:
+        msg = f"Missing numeric label column '{label_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(
+            msg
+        )
+
+
 def _label_stats(y: pd.Series) -> dict[str, Any]:
     yy = pd.to_numeric(y, errors="coerce").dropna()
     if len(yy) == 0:
@@ -218,13 +227,11 @@ class StratifiedNumericSplitter:
 
     Args:
         label_col: Column containing numeric target values.
-        test_size, val_size:
-            Fractions for test and validation. Must satisfy test_size + val_size < 1.
+        test_size, val_size: Fractions for test and validation. Must satisfy test_size + val_size < 1.
         seed: Random seed for deterministic splits.
         n_bins: Requested number of bins for stratification.
         binning: "quantile" (recommended) or "uniform".
-        duplicates:
-        For quantile binning only: "drop" or "raise".
+        duplicates: For quantile binning only: "drop" or "raise".
         dropna: If True, rows with NaN label are dropped. If False, NaNs raise an error.
         auto_reduce_bins: If True, automatically decreases n_bins until stratification is feasible.
         min_bin_count: Minimum required count per bin to allow stratified splitting.
@@ -279,7 +286,7 @@ class StratifiedNumericSplitter:
         """Return the strategy identifier."""
         return "stratified_numeric"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0912,PLR0915
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0915
         """Create numeric-target stratified train/test/(val) partitions."""
         log.info("stratified_numeric:start | label_col=%s | n_bins=%d", cols.label_col, self.n_bins)
         log.debug("stratified_numeric:params | %s", self.__dict__)
@@ -294,16 +301,9 @@ class StratifiedNumericSplitter:
                 msg
             )
 
-        _validate_sizes(self.test_size, self.val_size)
-
         work = df.copy().reset_index(drop=True)
         work[_INTERNAL_IDX_COL] = np.arange(len(work), dtype=int)
-
-        if self.label_col not in work.columns:
-            msg = f"Missing numeric label column '{self.label_col}'. Columns: {work.columns.tolist()}"
-            raise ValueError(
-                msg
-            )
+        _validate_inputs(work, self.label_col, self.test_size, self.val_size)
 
         y_raw = pd.to_numeric(work[self.label_col], errors="coerce")
 

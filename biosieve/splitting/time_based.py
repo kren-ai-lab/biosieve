@@ -34,6 +34,18 @@ def _to_datetime(s: pd.Series, fmt: str | None) -> pd.Series:
     return pd.to_datetime(s, errors="raise")
 
 
+def _validate_inputs(df: pd.DataFrame, time_col: str, test_size: float, val_size: float) -> pd.Series:
+    _validate_sizes(test_size, val_size)
+    if time_col not in df.columns:
+        msg = f"Missing time column '{time_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+    t_raw = df[time_col]
+    if t_raw.isna().any():
+        msg = f"Found NaN timestamps in '{time_col}'. Clean dataset before splitting."
+        raise ValueError(msg)
+    return t_raw
+
+
 @dataclass(frozen=True)
 class TimeSplitter:
     r"""Time-based split (chronological): train is earlier, test is later.
@@ -84,24 +96,14 @@ class TimeSplitter:
         """Return the strategy identifier."""
         return "time"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
         """Create chronological train/test/(val) partitions."""
         log.info("time:start | date_col=%s", cols.date_col)
 
         log.debug("time:params | %s", self.__dict__)
 
-        _validate_sizes(self.test_size, self.val_size)
-
         work = df.copy().reset_index(drop=True)
-        if self.time_col not in work.columns:
-            msg = f"Missing time column '{self.time_col}'. Columns: {work.columns.tolist()}"
-            raise ValueError(msg)
-
-        t_raw = work[self.time_col]
-
-        if t_raw.isna().any():
-            msg = f"Found NaN timestamps in '{self.time_col}'. Clean dataset before splitting."
-            raise ValueError(msg)
+        t_raw = _validate_inputs(work, self.time_col, self.test_size, self.val_size)
 
         if self.parse_datetime:
             t = _to_datetime(t_raw, self.time_format)

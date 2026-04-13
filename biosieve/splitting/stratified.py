@@ -49,6 +49,29 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError(msg)
 
 
+def _validate_inputs(
+    df: pd.DataFrame,
+    label_col: str,
+    test_size: float,
+    val_size: float,
+    *,
+    dropna: bool,
+) -> pd.DataFrame:
+    _validate_sizes(test_size, val_size)
+    if label_col not in df.columns:
+        msg = f"Missing label column '{label_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+    y = df[label_col]
+    if y.isna().any():
+        if not dropna:
+            msg = f"Found NaN labels in '{label_col}'. Set dropna=true or clean dataset."
+            raise ValueError(msg)
+        keep = ~y.isna()
+        return df.loc[keep].reset_index(drop=True)
+    return df
+
+
 @dataclass(frozen=True)
 class StratifiedSplitter:
     r"""Stratified train/test(/val) split for classification.
@@ -60,8 +83,8 @@ class StratifiedSplitter:
         label_col: Column containing class labels.
         test_size: Fraction of samples assigned to the test set.
         val_size: Fraction of samples assigned to the validation set (0 disables validation).
-        This fraction is relative to the full dataset and is internally converted
-        to a fraction of the remaining train+val set.
+            This fraction is relative to the full dataset and is internally converted
+            to a fraction of the remaining train+val set.
         seed: Random seed used by scikit-learn.
         dropna: If True, drop rows with NaN labels. If False, raise on NaNs.
 
@@ -121,22 +144,14 @@ class StratifiedSplitter:
                 msg
             )
 
-        _validate_sizes(self.test_size, self.val_size)
-
-        work = df.copy().reset_index(drop=True)
-        if self.label_col not in work.columns:
-            msg = f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}"
-            raise ValueError(msg)
-
+        work = _validate_inputs(
+            df.copy().reset_index(drop=True),
+            self.label_col,
+            self.test_size,
+            self.val_size,
+            dropna=self.dropna,
+        )
         y = work[self.label_col]
-        if y.isna().any():
-            if self.dropna:
-                keep = ~y.isna()
-                work = work.loc[keep].reset_index(drop=True)
-                y = work[self.label_col].reset_index(drop=True)
-            else:
-                msg = f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
-                raise ValueError(msg)
 
         # 1) split off test
         trainval, test = tts(

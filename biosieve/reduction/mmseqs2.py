@@ -117,11 +117,9 @@ class MMseqs2Reducer:
         cov_mode: Coverage mode (MMseqs2 `--cov-mode`).
         cluster_mode: Cluster mode (MMseqs2 `--cluster-mode`).
         threads: Number of threads for MMseqs2.
-        tmp_root:
-            Optional parent directory for the temporary work directory. If None,
+        tmp_root: Optional parent directory for the temporary work directory. If None,
             uses system temp.
-        keep_tmp:
-            If True, copies the temporary folder to
+        keep_tmp: If True, copies the temporary folder to
             `./biosieve_mmseqs2_debug/` for debugging.
 
     Returns:

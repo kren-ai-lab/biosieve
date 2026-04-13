@@ -170,6 +170,10 @@ def _build_cluster_id_map(
     )
 
 
+def _validate_inputs(test_size: float, val_size: float) -> None:
+    _validate_sizes(test_size, val_size)
+
+
 @dataclass(frozen=True)
 class HomologyAwareSplitter:
     r"""Homology-aware split using sequence clusters as groups (no homology leakage).
@@ -189,15 +193,12 @@ class HomologyAwareSplitter:
     `singleton:<id>`, preventing accidental leakage.
 
     Args:
-        test_size, val_size, seed:
-            Split fractions and seed (group-based split is deterministic given seed).
+        test_size, val_size, seed: Split fractions and seed (group-based split is deterministic given seed).
         mode: "mmseqs2" or "precomputed".
         clusters_path: Path to precomputed clusters mapping (required if mode="precomputed").
         clusters_format: "mmseqs_tsv" (rep<TAB>member) or "csv".
-        member_col, cluster_col:
-            Column names in the precomputed mapping (csv mode).
-        mmseqs_bin, min_seq_id, coverage, cov_mode, threads:
-            mmseqs2 parameters (used only in mode="mmseqs2").
+        member_col, cluster_col: Column names in the precomputed mapping (csv mode).
+        mmseqs_bin, min_seq_id, coverage, cov_mode, threads: mmseqs2 parameters (used only in mode="mmseqs2").
         work_dir: Directory for intermediate mmseqs2 artefacts (FASTA, tmp, TSV).
         keep_work: If False, removes `work_dir` after success (best-effort).
 
@@ -352,7 +353,7 @@ class HomologyAwareSplitter:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
         """Split data into homology-disjoint train/test/(val) partitions."""
-        _validate_sizes(self.test_size, self.val_size)
+        _validate_inputs(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
 

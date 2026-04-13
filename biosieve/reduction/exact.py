@@ -16,6 +16,15 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def _validate_inputs(df: pd.DataFrame, cols: Columns) -> None:
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+    if cols.seq_col not in df.columns:
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+
 @dataclass(frozen=True)
 class ExactDedupReducer:
     r"""Exact redundancy reduction by identical sequences (exact match).
@@ -60,12 +69,7 @@ class ExactDedupReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         """Remove exact sequence duplicates and return representative mapping."""
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-        if cols.seq_col not in df.columns:
-            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
+        _validate_inputs(df, cols)
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 

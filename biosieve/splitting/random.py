@@ -36,6 +36,10 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError(msg)
 
 
+def _validate_inputs(test_size: float, val_size: float) -> None:
+    _validate_sizes(test_size, val_size)
+
+
 def _index_split(
     n: int, test_size: float, val_size: float, seed: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
@@ -120,7 +124,7 @@ class RandomSplitter:
         )
         log.debug("random:params | %s", self.__dict__)
 
-        _validate_sizes(self.test_size, self.val_size)
+        _validate_inputs(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
         n = len(work)

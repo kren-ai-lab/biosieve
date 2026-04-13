@@ -33,6 +33,25 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError(msg)
 
 
+def _validate_inputs(
+    test_size: float,
+    val_size: float,
+    test_method: str,
+    val_method: str,
+    metric: str,
+) -> None:
+    _validate_sizes(test_size, val_size)
+    if test_method != "farthest":
+        msg = "v0.1 supports test_method='farthest' only"
+        raise ValueError(msg)
+    if val_method not in {"random", "farthest_next"}:
+        msg = "val_method must be 'random' or 'farthest_next'"
+        raise ValueError(msg)
+    if metric not in {"cosine", "euclidean"}:
+        msg = "metric must be 'cosine' or 'euclidean'"
+        raise ValueError(msg)
+
+
 def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     mu = X.mean(axis=0)
     sd = X.std(axis=0)
@@ -137,8 +156,7 @@ class DistanceAwareSplitter:
         seed: Seed used for random val selection (val_method="random").
         feature_mode: "embeddings" or "descriptors".
         metric: "cosine" or "euclidean".
-        embeddings_path, ids_path, ids_col:
-            Embeddings layout parameters (embeddings mode).
+        embeddings_path, ids_path, ids_col: Embeddings layout parameters (embeddings mode).
         descriptor_prefix, descriptor_cols, standardize:
             Descriptor selection and normalization (descriptors mode).
         test_method: Only "farthest" is supported in v0.1.
@@ -299,12 +317,18 @@ class DistanceAwareSplitter:
         msg = "feature_mode must be 'embeddings' or 'descriptors'"
         raise ValueError(msg)
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0912,PLR0915
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0915
         """Create train/test/(val) splits using centroid-distance ranking."""
         log.info("distance_aware:start | metric=%s | test_size=%.3f", self.metric, self.test_size)
         log.debug("distance_aware:params | %s", self.__dict__)
 
-        _validate_sizes(self.test_size, self.val_size)
+        _validate_inputs(
+            self.test_size,
+            self.val_size,
+            self.test_method,
+            self.val_method,
+            self.metric,
+        )
 
         work = df.copy().reset_index(drop=True)
 
@@ -321,16 +345,6 @@ class DistanceAwareSplitter:
             raise ValueError(msg)
         if self.val_size > 0 and n_val <= 0:
             msg = "val_size too small -> no validation samples after rounding. Increase val_size."
-            raise ValueError(msg)
-
-        if self.test_method != "farthest":
-            msg = "v0.1 supports test_method='farthest' only"
-            raise ValueError(msg)
-        if self.val_method not in {"random", "farthest_next"}:
-            msg = "val_method must be 'random' or 'farthest_next'"
-            raise ValueError(msg)
-        if self.metric not in {"cosine", "euclidean"}:
-            msg = "metric must be 'cosine' or 'euclidean'"
             raise ValueError(msg)
 
         X, feat_idx, feat_meta = self._build_features(work, cols)
