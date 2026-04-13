@@ -13,25 +13,22 @@ hooks = [
 ]
 
 [[repos]]
-repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.15.10"
-hooks = [
-  {
-    id = "ruff-format",
-    args = ["--config=pyproject.toml"]
-  },
-  {
-    id = "ruff-check",
-    args = [
-      "--fix",
-      "--config=pyproject.toml"
-    ]
-  }
-]
-
-[[repos]]
 repo = "local"
 hooks = [
+  {
+    id = "format",
+    name = "lint-check",
+    entry = "uv run task format",
+    language = "system",
+    pass_filenames = false
+  },
+  {
+    id = "lint",
+    name = "lint-check",
+    entry = "uv run task lint",
+    language = "system",
+    pass_filenames = false
+  },
   {
     id = "ty",
     name = "ty-check",
