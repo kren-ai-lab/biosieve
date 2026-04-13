@@ -154,9 +154,11 @@ def edges_fixture(df_base: pd.DataFrame) -> pd.DataFrame:
     for i in range(N):
         # Each node gets 3 random neighbours (no self-loops)
         neighbours = rng.choice([j for j in range(N) if j != i], size=3, replace=False)
-        for j in neighbours:
-            if i < j:  # avoid duplicates
-                rows.append({"id1": ids[i], "id2": ids[j], "distance": float(rng.random())})
+        rows.extend(
+            {"id1": ids[i], "id2": ids[j], "distance": float(rng.random())}
+            for j in neighbours
+            if i < j
+        )
     return pd.DataFrame(rows)
 
 

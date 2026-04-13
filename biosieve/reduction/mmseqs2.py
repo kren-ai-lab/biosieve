@@ -244,7 +244,6 @@ class MMseqs2Reducer:
                     if debug_dir.exists():
                         shutil.rmtree(debug_dir)
                     shutil.copytree(tmpdir, debug_dir)
-                except Exception:
-                    # best-effort debug copy
-                    pass
+                except OSError as e:
+                    log.warning("Failed to copy debug artifacts to %s: %s", debug_dir, e)
             tmpdir_obj.cleanup()

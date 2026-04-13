@@ -31,7 +31,7 @@ def _try_import_gss() -> _GroupShuffleSplitFactory | None:
         from sklearn.model_selection import GroupShuffleSplit
 
         return cast("_GroupShuffleSplitFactory", GroupShuffleSplit)
-    except Exception:
+    except ImportError:
         return None
 
 

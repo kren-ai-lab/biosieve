@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -15,8 +15,8 @@ from biosieve.types import Columns
 if TYPE_CHECKING:
     from biosieve.core.registry import StrategyRegistry
 
-type JSONScalar = str | int | float | bool | None
-type JSONValue = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
+JSONScalar: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
 INPUT_DATA_OPTION = typer.Option(
     ...,
@@ -93,7 +93,7 @@ KIND_OPTION = typer.Option(
     show_default=True,
 )
 FAIL_FAST_OPTION = typer.Option(
-    False,  # noqa: FBT003
+    False,
     "--fail-fast/--no-fail-fast",
     help="Stop at first error.",
     show_default=True,
@@ -330,10 +330,10 @@ def validate(
     mmseqs2_binary: str = MMSEQS2_BINARY_OPTION,
     strategy: str | None = STRATEGY_OPTION,
     kind: str = KIND_OPTION,
-    fail_fast: bool = FAIL_FAST_OPTION,  # noqa: FBT001
+    fail_fast: bool = FAIL_FAST_OPTION,
     report_output: Path | None = REPORT_OUTPUT_OPTION,
     log_level: str = LOG_LEVEL_OPTION,
-    quiet: bool = QUIET_OPTION,  # noqa: FBT001
+    quiet: bool = QUIET_OPTION,
     log_file: Path | None = LOG_FILE_OPTION,
 ) -> None:
     """Validate dataset inputs and optional artefacts before split/reduce runs."""

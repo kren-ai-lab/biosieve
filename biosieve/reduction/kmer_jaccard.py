@@ -94,7 +94,7 @@ class KmerJaccardReducer:
         Jaccard similarity threshold in [0, 1]. If score >= threshold, the sequence
         is removed as redundant.
     k:
-        K-mer size (>= 1). Typical values: 3–7 for proteins (tradeoff speed/specificity).
+        K-mer size (>= 1). Typical values: 3-7 for proteins (tradeoff speed/specificity).
     max_candidates:
         Maximum number of representative candidates to evaluate per sequence (>= 1).
         Higher values are more accurate but slower.
@@ -197,8 +197,8 @@ class KmerJaccardReducer:
         empty_seq = 0
 
         for i in range(len(work)):
-            seq = str(work.at[i, cols.seq_col])
-            cur_id = str(work.at[i, cols.id_col])
+            seq = str(work.loc[i, cols.seq_col])
+            cur_id = str(work.loc[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
                 empty_seq += 1
@@ -240,7 +240,7 @@ class KmerJaccardReducer:
 
             if best_rep_pos is not None and best_score >= self.threshold:
                 rep_work_idx = reps_idx[best_rep_pos]
-                rep_id = str(work.at[rep_work_idx, cols.id_col])
+                rep_id = str(work.loc[rep_work_idx, cols.id_col])
                 removed_rows.append((cur_id, rep_id, float(best_score)))
             else:
                 add_rep(i, seq)

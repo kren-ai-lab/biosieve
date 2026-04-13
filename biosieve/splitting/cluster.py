@@ -56,7 +56,7 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
             msg
         )
 
-    return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str)))
+    return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str), strict=False))
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
@@ -21,7 +21,7 @@ LOG_LEVEL_OPTION = typer.Option(
     show_default=True,
 )
 QUIET_OPTION = typer.Option(
-    False,  # noqa: FBT003
+    False,
     "--quiet/--no-quiet",
     help="Suppress console logs.",
     show_default=True,
@@ -33,7 +33,7 @@ LOG_FILE_OPTION = typer.Option(
 )
 
 
-def version_callback(value: bool) -> None:  # noqa: FBT001
+def version_callback(value: bool) -> None:
     """Show version and exit."""
     if value:
         typer.echo(f"biosieve {biosieve.__version__}")

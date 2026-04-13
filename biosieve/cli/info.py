@@ -21,7 +21,7 @@ KIND_OPTION = typer.Option(
     show_default=True,
 )
 SHOW_DEFAULTS_OPTION = typer.Option(
-    False,  # noqa: FBT003
+    False,
     "--show-defaults/--no-show-defaults",
     help="Show dataclass defaults (may import classes).",
     show_default=True,
@@ -51,7 +51,7 @@ def _print_block(title: str, items: Mapping[str, StrategySpec | type[object]]) -
 
 def info(
     kind: str = KIND_OPTION,
-    show_defaults: bool = SHOW_DEFAULTS_OPTION,  # noqa: FBT001
+    show_defaults: bool = SHOW_DEFAULTS_OPTION,
 ) -> None:
     """List available strategies and their default parameters."""
     if kind not in {"all", "reduce", "split"}:

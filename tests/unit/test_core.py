@@ -276,5 +276,5 @@ def test_params_for_strategy_none_value_returns_empty() -> None:
 
 
 def test_params_for_strategy_wrong_type_raises() -> None:
-    with pytest.raises(ValueError, match="must be a dict"):
+    with pytest.raises(TypeError, match="must be a dict"):
         params_for_strategy({"random": "not_a_dict"}, "random")

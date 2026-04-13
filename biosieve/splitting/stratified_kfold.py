@@ -43,7 +43,7 @@ def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
         from sklearn.model_selection import StratifiedKFold
 
         return cast("_StratifiedKFoldFactory", StratifiedKFold)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -52,7 +52,7 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         from sklearn.model_selection import train_test_split
 
         return cast("_TrainTestSplitFn", train_test_split)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -91,7 +91,7 @@ class StratifiedKFoldSplitter:
     def strategy(self) -> str:
         return "stratified_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
             msg = (
@@ -171,7 +171,9 @@ class StratifiedKFoldSplitter:
                 seed_fold = int(self.seed + fold_idx)
 
                 # default: random val from train (robust)
-                assert tts is not None
+                if tts is None:
+                    msg = "val_size > 0 requires scikit-learn train_test_split."
+                    raise ImportError(msg)
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

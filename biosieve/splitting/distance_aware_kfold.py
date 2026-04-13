@@ -35,7 +35,7 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         from sklearn.model_selection import train_test_split
 
         return cast("_TrainTestSplitFn", train_test_split)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -394,7 +394,9 @@ class DistanceAwareKFoldSplitter:
             val_df: pd.DataFrame | None = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
-                assert tts is not None
+                if tts is None:
+                    msg = "val_size > 0 requires scikit-learn train_test_split."
+                    raise ImportError(msg)
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

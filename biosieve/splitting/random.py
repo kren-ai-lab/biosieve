@@ -62,8 +62,8 @@ def _index_split(
     idx = np.arange(n)
     rng.shuffle(idx)
 
-    n_test = int(round(n * test_size))
-    n_val = int(round(n * val_size)) if val_size > 0 else 0
+    n_test = round(n * test_size)
+    n_val = round(n * val_size) if val_size > 0 else 0
     n_train = n - n_test - n_val
     if n_train <= 0:
         msg = "Split sizes leave no training samples. Reduce test_size/val_size."
@@ -127,7 +127,7 @@ class RandomSplitter:
     def strategy(self) -> str:
         return "random"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pd.DataFrame, _cols: Columns) -> SplitResult:
 
         log.info(
             "random:start | test_size=%.3f | val_size=%.3f | seed=%s",

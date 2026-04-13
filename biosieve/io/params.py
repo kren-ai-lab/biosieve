@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 def _try_import_yaml() -> ModuleType | None:
     try:
         return importlib.import_module("yaml")
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -44,7 +44,7 @@ def _load_file(path: Path) -> dict[str, object]:
 
     if not isinstance(data, dict):
         msg = "Params root must be a dict. Example: {strategy_name: {param: value}}"
-        raise ValueError(msg)
+        raise TypeError(msg)
 
     return cast("dict[str, object]", data)
 
@@ -65,7 +65,7 @@ def _parse_value(raw: str) -> object:
     # try json first (handles numbers, bool, null, lists, dicts, quoted strings)
     try:
         return json.loads(raw)
-    except Exception:
+    except json.JSONDecodeError:
         # fallback: plain string
         return raw
 
@@ -102,7 +102,7 @@ def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
             cur[p] = {}
         if not isinstance(cur[p], dict):
             msg = f"Cannot set nested key under non-dict path: {p} in {dotted_key}"
-            raise ValueError(msg)
+            raise TypeError(msg)
         cur = cast("dict[str, object]", cur[p])
     cur[parts[-1]] = value
 
@@ -137,5 +137,5 @@ def params_for_strategy(all_params: Mapping[str, object], strategy_name: str) ->
         return {}
     if not isinstance(v, dict):
         msg = f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}."
-        raise ValueError(msg)
+        raise TypeError(msg)
     return cast("dict[str, object]", v)

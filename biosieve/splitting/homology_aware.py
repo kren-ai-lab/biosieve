@@ -123,16 +123,16 @@ def _run_mmseqs_easy_cluster(
     ]
 
     try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except FileNotFoundError:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
+    except FileNotFoundError as e:
         msg = f"mmseqs2 binary not found ('{mmseqs_bin}'). Install mmseqs2 or use mode='precomputed'."
         raise FileNotFoundError(
             msg
-        )
+        ) from e
     except subprocess.CalledProcessError as e:
         msg = (e.stderr or e.stdout or "").strip()
         msg_0 = f"mmseqs2 easy-cluster failed. Command: {' '.join(cmd)}\n{msg}"
-        raise RuntimeError(msg_0)
+        raise RuntimeError(msg_0) from e
 
     tsv = Path(str(out_prefix) + "_cluster.tsv")
     if not tsv.exists():
@@ -186,7 +186,13 @@ def _build_cluster_id_map(
         raise ValueError(
             msg
         )
-    return dict(zip(mapping_df[member_col].astype(str), mapping_df[cluster_col].astype(str)))
+    return dict(
+        zip(
+            mapping_df[member_col].astype(str),
+            mapping_df[cluster_col].astype(str),
+            strict=False,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -475,12 +481,9 @@ class HomologyAwareSplitter:
 
         # best-effort cleanup
         if self.mode == "mmseqs2" and not self.keep_work:
-            try:
-                import shutil
+            import shutil
 
-                shutil.rmtree(Path(self.work_dir), ignore_errors=True)
-            except Exception:
-                pass
+            shutil.rmtree(Path(self.work_dir), ignore_errors=True)
 
         return SplitResult(
             train=train,

@@ -96,8 +96,8 @@ class ExactDedupReducer:
 
         mapping = pd.DataFrame(
             {
-                "removed_id": removed[cols.id_col].astype(str).values,
-                "representative_id": removed[cols.seq_col].map(rep_by_seq).astype(str).values,
+                "removed_id": removed[cols.id_col].astype(str).to_numpy(),
+                "representative_id": removed[cols.seq_col].map(rep_by_seq).astype(str).to_numpy(),
             }
         )
 

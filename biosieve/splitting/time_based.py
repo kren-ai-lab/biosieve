@@ -124,8 +124,8 @@ class TimeSplitter:
         )
 
         n = len(work)
-        n_test = int(round(n * self.test_size))
-        n_val = int(round(n * self.val_size)) if self.val_size > 0 else 0
+        n_test = round(n * self.test_size)
+        n_val = round(n * self.val_size) if self.val_size > 0 else 0
         n_train = n - n_test - n_val
 
         if n_train <= 0:

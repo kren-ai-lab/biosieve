@@ -86,5 +86,5 @@ def test_missing_embeddings_raises(df_base: pd.DataFrame, tmp_path: Path) -> Non
         ids_path=str(tmp_path / "nonexistent_ids.csv"),
         test_size=0.2,
     )
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         splitter.run(df_base, COLS)

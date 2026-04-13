@@ -41,7 +41,7 @@ def _try_import_kfold() -> _KFoldFactory | None:
         from sklearn.model_selection import KFold
 
         return cast("_KFoldFactory", KFold)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -50,7 +50,7 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         from sklearn.model_selection import train_test_split
 
         return cast("_TrainTestSplitFn", train_test_split)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -81,7 +81,7 @@ class RandomKFoldSplitter:
     def strategy(self) -> str:
         return "random_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
         KFold = _try_import_kfold()
         if KFold is None:
             msg = (
@@ -127,7 +127,9 @@ class RandomKFoldSplitter:
             if self.val_size and self.val_size > 0:
                 # deterministic per-fold val split
                 seed_fold = int(self.seed + fold_idx)
-                assert tts is not None
+                if tts is None:
+                    msg = "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
+                    raise ImportError(msg)
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

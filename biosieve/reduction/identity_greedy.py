@@ -186,8 +186,8 @@ class IdentityGreedyReducer:
                 kmer_to_rep.setdefault(token, []).append(rep_pos)
 
         for i in range(len(work)):
-            seq = str(work.at[i, cols.seq_col])
-            cur_id = str(work.at[i, cols.id_col])
+            seq = str(work.loc[i, cols.seq_col])
+            cur_id = str(work.loc[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
                 msg = (
@@ -233,7 +233,7 @@ class IdentityGreedyReducer:
                 if jac < self.jaccard_prefilter:
                     continue
 
-                rep_seq = str(work.at[reps_idx[rep_pos], cols.seq_col])
+                rep_seq = str(work.loc[reps_idx[rep_pos], cols.seq_col])
                 ident = _approx_identity(seq, rep_seq)
 
                 if ident > best_score:
@@ -245,7 +245,7 @@ class IdentityGreedyReducer:
 
             if best_rep_pos is not None and best_score >= self.threshold:
                 rep_work_idx = reps_idx[best_rep_pos]
-                rep_id = str(work.at[rep_work_idx, cols.id_col])
+                rep_id = str(work.loc[rep_work_idx, cols.id_col])
                 removed_rows.append((cur_id, rep_id, float(best_score)))
             else:
                 add_rep(i, seq)

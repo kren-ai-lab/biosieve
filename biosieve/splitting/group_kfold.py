@@ -41,7 +41,7 @@ def _try_import_group_kfold() -> _GroupKFoldFactory | None:
         from sklearn.model_selection import GroupKFold
 
         return cast("_GroupKFoldFactory", GroupKFold)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -50,7 +50,7 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         from sklearn.model_selection import train_test_split
 
         return cast("_TrainTestSplitFn", train_test_split)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -133,7 +133,7 @@ class GroupKFoldSplitter:
     def strategy(self) -> str:
         return "group_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
             msg = (
@@ -192,7 +192,7 @@ class GroupKFoldSplitter:
         folds: list[SplitResult] = []
 
         # X can be dummy; GroupKFold uses indices + groups only
-        X_dummy = work.index.values
+        X_dummy = work.index.to_numpy()
 
         for fold_idx, (train_idx, test_idx) in enumerate(gkf.split(X_dummy, y=None, groups=g)):
             train_df = work.iloc[train_idx].copy().reset_index(drop=True)
@@ -218,7 +218,9 @@ class GroupKFoldSplitter:
 
             if self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
-                assert tts is not None
+                if tts is None:
+                    msg = "val_size > 0 requires scikit-learn train_test_split."
+                    raise ImportError(msg)
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

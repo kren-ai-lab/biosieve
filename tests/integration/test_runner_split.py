@@ -90,5 +90,5 @@ def test_split_unknown_strategy_raises(df_base: pd.DataFrame, tmp_path: Path) ->
 
 
 def test_split_missing_input_raises(tmp_path: Path) -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         run_split(str(tmp_path / "nonexistent.csv"), str(tmp_path / "out"), "random", REGISTRY)

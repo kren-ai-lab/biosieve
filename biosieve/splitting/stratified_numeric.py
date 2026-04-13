@@ -34,7 +34,7 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         from sklearn.model_selection import train_test_split
 
         return cast("_TrainTestSplitFn", train_test_split)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -123,7 +123,7 @@ def _make_bins_once(
             msg = f"qcut failed for n_bins={n_bins}. Try fewer bins or duplicates='drop'. Original error: {e}"
             raise ValueError(
                 msg
-            )
+            ) from e
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
         edges = [float(x) for x in np.asarray(bin_edges).tolist()]
@@ -179,26 +179,25 @@ def _make_bins_safe(
         attempted.append(int(b))
         try:
             bins, n_eff, edges = _make_bins_once(y, n_bins=b, binning=binning, duplicates=duplicates)
-
-            if n_eff < 2:
-                msg = f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify."
-                raise ValueError(msg)
-
-            counts = bins.value_counts(dropna=False)
-            if int(counts.min()) < min_bin_count:
-                msg = f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
-                raise ValueError(
-                    msg
-                )
-
-            if b != n_bins:
-                auto_reduced = True
-
-            return bins, n_eff, edges, attempted, auto_reduced
-
-        except Exception as e:
+        except ValueError as e:
             last_error = e
             continue
+
+        if n_eff < 2:
+            last_error = ValueError(f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify.")
+            continue
+
+        counts = bins.value_counts(dropna=False)
+        if int(counts.min()) < min_bin_count:
+            last_error = ValueError(
+                f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
+            )
+            continue
+
+        if b != n_bins:
+            auto_reduced = True
+
+        return bins, n_eff, edges, attempted, auto_reduced
 
     msg = f"Could not create valid stratification bins. Attempted bins={attempted}. Last error: {last_error}"
     raise ValueError(

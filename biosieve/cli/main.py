@@ -22,7 +22,7 @@ app = typer.Typer(
 
 @app.callback()
 def root(
-    _version: bool | None = typer.Option(  # noqa: FBT001
+    _version: bool | None = typer.Option(
         None,
         "--version",
         "-v",
@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     except (click.Abort, KeyboardInterrupt):
         typer.echo("Interrupted.", err=True)
         return 130
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         typer.echo(f"ERROR: {exc}", err=True)
         return 1
 

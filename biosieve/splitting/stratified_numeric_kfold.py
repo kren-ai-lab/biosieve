@@ -44,7 +44,7 @@ def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
         from sklearn.model_selection import StratifiedKFold
 
         return cast("_StratifiedKFoldFactory", StratifiedKFold)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -53,7 +53,7 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         from sklearn.model_selection import train_test_split
 
         return cast("_TrainTestSplitFn", train_test_split)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -163,26 +163,25 @@ def _make_bins_safe(
                 duplicates=duplicates,
                 return_edges=return_edges,
             )
-
-            if n_eff < 2:
-                msg = f"Effective bins={n_eff} (requested={b}). Cannot stratify."
-                raise ValueError(msg)
-
-            counts = bins.value_counts(dropna=False)
-            if int(counts.min()) < min_bin_count:
-                msg = f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
-                raise ValueError(
-                    msg
-                )
-
-            if b != n_bins:
-                auto_reduced = True
-
-            return bins, n_eff, edges, attempted, auto_reduced
-
-        except Exception as e:
+        except ValueError as e:
             last_error = e
             continue
+
+        if n_eff < 2:
+            last_error = ValueError(f"Effective bins={n_eff} (requested={b}). Cannot stratify.")
+            continue
+
+        counts = bins.value_counts(dropna=False)
+        if int(counts.min()) < min_bin_count:
+            last_error = ValueError(
+                f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
+            )
+            continue
+
+        if b != n_bins:
+            auto_reduced = True
+
+        return bins, n_eff, edges, attempted, auto_reduced
 
     msg = (
         "Could not create valid stratification bins for numeric kfold. "
@@ -281,7 +280,7 @@ class StratifiedNumericKFoldSplitter:
     def strategy(self) -> str:
         return "stratified_numeric_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
             msg = (
@@ -353,7 +352,7 @@ class StratifiedNumericKFoldSplitter:
                 raise ImportError(msg)
 
         folds: list[SplitResult] = []
-        X_dummy = work.index.values
+        X_dummy = work.index.to_numpy()
 
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_dummy, bins)):
             train_df = work.iloc[train_idx].copy().reset_index(drop=True)
@@ -362,7 +361,9 @@ class StratifiedNumericKFoldSplitter:
             val_df: pd.DataFrame | None = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
-                assert tts is not None
+                if tts is None:
+                    msg = "val_size > 0 requires scikit-learn train_test_split."
+                    raise ImportError(msg)
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

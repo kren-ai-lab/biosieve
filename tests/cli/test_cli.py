@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -26,8 +27,12 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[bytes]:
     """Run a biosieve CLI command via uv run; return CompletedProcess."""
-    return subprocess.run(
-        ["uv", "run", "biosieve", *args],
+    uv_bin = shutil.which("uv")
+    if uv_bin is None:
+        msg = "`uv` executable not found in PATH"
+        raise FileNotFoundError(msg)
+    return subprocess.run(  # noqa: S603
+        [uv_bin, "run", "biosieve", *args],
         capture_output=True,
         cwd=str(cwd or PROJECT_ROOT),
     )

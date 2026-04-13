@@ -336,8 +336,8 @@ class DistanceAwareSplitter:
         work = df.copy().reset_index(drop=True)
 
         n = len(work)
-        n_test = int(round(n * self.test_size))
-        n_val = int(round(n * self.val_size)) if self.val_size > 0 else 0
+        n_test = round(n * self.test_size)
+        n_val = round(n * self.val_size) if self.val_size > 0 else 0
         n_train = n - n_test - n_val
 
         if n_train <= 0:
@@ -366,7 +366,7 @@ class DistanceAwareSplitter:
         z_mu = None
         z_sd = None
         if self.feature_mode == "descriptors" and self.standardize:
-            X, z_mu, z_sd = _zscore_fit_transform(X)
+            X, z_mu, _z_sd = _zscore_fit_transform(X)
 
         # Compute distance-to-centroid for candidates with features
         dist = _distance_to_centroid(X, metric=self.metric)

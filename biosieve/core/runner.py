@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import pandas as pd
 
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-type JSONScalar = str | int | float | bool | None
-type JSONValue = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
+JSONScalar: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
 
 def _utc_timestamp() -> str:

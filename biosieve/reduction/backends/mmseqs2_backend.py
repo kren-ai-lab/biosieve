@@ -76,7 +76,7 @@ def run_mmseqs_easy_cluster(
     if extra_args:
         cmd.extend(extra_args)
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
     if proc.returncode != 0:
         msg = f"MMseqs2 failed.\nCommand: {' '.join(cmd)}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}\n"
         raise RuntimeError(

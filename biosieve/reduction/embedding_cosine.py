@@ -45,7 +45,7 @@ def _try_import_faiss() -> _FaissModule | None:
         import faiss
 
         return cast("_FaissModule", faiss)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -54,7 +54,7 @@ def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
         from sklearn.neighbors import NearestNeighbors
 
         return cast("_NearestNeighborsFactory", NearestNeighbors)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -248,7 +248,7 @@ class EmbeddingCosineReducer:
                 sims = sims[0]
                 nbrs = nbrs[0]
 
-                for sim, nbr_local in zip(sims, nbrs):
+                for sim, nbr_local in zip(sims, nbrs, strict=False):
                     if nbr_local < 0:
                         continue
                     nbr_id = present[nbr_local]
@@ -280,7 +280,7 @@ class EmbeddingCosineReducer:
                 ind = ind[0]
 
                 pairs = []
-                for d, j in zip(dist, ind):
+                for d, j in zip(dist, ind, strict=False):
                     if j == rep_local:
                         continue
                     sim = float(1.0 - d)

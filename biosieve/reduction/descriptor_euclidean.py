@@ -38,7 +38,7 @@ def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
         from sklearn.neighbors import NearestNeighbors
 
         return cast("_NearestNeighborsFactory", NearestNeighbors)
-    except Exception:
+    except ImportError:
         return None
 
 
@@ -218,7 +218,7 @@ class DescriptorEuclideanReducer:
                 ind = ind[0]
 
                 # deterministic: sort by distance asc, then by index
-                pairs = sorted(zip(dist.tolist(), ind.tolist()), key=lambda x: (x[0], x[1]))
+                pairs = sorted(zip(dist.tolist(), ind.tolist(), strict=False), key=lambda x: (x[0], x[1]))
 
                 for d, j in pairs:
                     if j == i:

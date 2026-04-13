@@ -83,7 +83,7 @@ def test_missing_clusters_path_raises(df_base: pd.DataFrame, tmp_path: Path) -> 
         member_col="id",
         cluster_col="cluster_id",
     )
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         splitter.run(df_base, COLS)
 
 
