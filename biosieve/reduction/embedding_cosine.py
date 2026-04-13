@@ -37,9 +37,7 @@ class _NearestNeighborsModel(Protocol):
 
 
 class _NearestNeighborsFactory(Protocol):
-    def __call__(
-        self, *, metric: str, algorithm: str, n_jobs: int
-    ) -> _NearestNeighborsModel: ...
+    def __call__(self, *, metric: str, algorithm: str, n_jobs: int) -> _NearestNeighborsModel: ...
 
 
 def _try_import_faiss() -> _FaissModule | None:
@@ -183,9 +181,7 @@ class EmbeddingCosineReducer:
                 f"Example dataset id: {work_ids[0] if work_ids else 'EMPTY'}, "
                 f"example embedding id: {store.ids[0] if store.ids else 'EMPTY'}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         # Subset embeddings to only rows present in dataset, keeping work order (deterministic)
         idxs = np.array([id_to_idx[sid] for sid in present], dtype=int)

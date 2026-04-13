@@ -54,9 +54,7 @@ def load_embeddings(
             f"Mismatch: ids ({len(ids)}) vs embeddings rows ({X.shape[0]}). "
             "They must align 1-to-1 in the same order."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     if dtype is not None:
         X = X.astype(dtype, copy=False)

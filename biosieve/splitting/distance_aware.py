@@ -273,9 +273,7 @@ class DistanceAwareSplitter:
 
             if len(present_idx) == 0:
                 msg = "No dataset ids found in embedding ids file. Cannot run distance-aware split."
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             X = store.X[np.asarray(emb_rows, dtype=int)]
             idx = np.asarray(present_idx, dtype=int)
@@ -367,9 +365,7 @@ class DistanceAwareSplitter:
                 f"Not enough feature-covered samples to allocate test. "
                 f"need n_test={n_test}, have n_candidates={len(ranked_df_idx)}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         test_idx = ranked_df_idx[:n_test].tolist()
 
         # Choose val indices

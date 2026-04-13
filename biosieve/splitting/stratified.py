@@ -137,12 +137,9 @@ class StratifiedSplitter:
         tts = _try_import_train_test_split()
         if tts is None:
             msg = (
-                "StratifiedSplitter requires scikit-learn. "
-                "Install: conda install -c conda-forge scikit-learn"
+                "StratifiedSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
 
         work = _validate_inputs(
             df.copy().reset_index(drop=True),

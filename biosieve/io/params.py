@@ -38,9 +38,7 @@ def _load_file(path: Path) -> dict[str, object]:
                 "YAML params requested but PyYAML is not installed. "
                 "Install with: pip install pyyaml  (or conda install -c conda-forge pyyaml)"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
         data = yaml.safe_load(text) or {}
     else:
         msg = f"Unsupported params file extension: {suffix}. Use .json or .yaml/.yml"
@@ -89,9 +87,7 @@ def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
             "Override key must include strategy and parameter, "
             f"e.g. embedding_cosine.threshold. Got: {dotted_key}"
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     cur: dict[str, object] = d
     for p in parts[:-1]:

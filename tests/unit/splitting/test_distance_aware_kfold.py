@@ -10,7 +10,6 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-
 from biosieve.splitting.distance_aware_kfold import DistanceAwareKFoldSplitter
 from biosieve.types import Columns
 

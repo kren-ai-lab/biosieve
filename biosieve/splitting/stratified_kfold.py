@@ -24,9 +24,7 @@ class _StratifiedKFold(Protocol):
 
 
 class _StratifiedKFoldFactory(Protocol):
-    def __call__(
-        self, *, n_splits: int, shuffle: bool, random_state: int
-    ) -> _StratifiedKFold: ...
+    def __call__(self, *, n_splits: int, shuffle: bool, random_state: int) -> _StratifiedKFold: ...
 
 
 class _TrainTestSplitFn(Protocol):
@@ -102,9 +100,7 @@ class StratifiedKFoldSplitter:
                 "StratifiedKFoldSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
 
         if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
@@ -150,9 +146,7 @@ class StratifiedKFoldSplitter:
                 "Some classes have fewer samples than n_splits, cannot stratify k-fold. "
                 f"n_splits={self.n_splits}. Problem classes: {too_small.to_dict()}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
 

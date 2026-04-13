@@ -92,9 +92,7 @@ class RandomKFoldSplitter:
                 "RandomKFoldSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
 
         if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
@@ -116,9 +114,7 @@ class RandomKFoldSplitter:
             tts = _try_import_train_test_split()
             if tts is None:
                 msg = "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
-                raise ImportError(
-                    msg
-                )
+                raise ImportError(msg)
 
         folds: list[SplitResult] = []
 

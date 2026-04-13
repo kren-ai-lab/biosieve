@@ -46,9 +46,7 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
     df = pd.read_csv(p)
     if id_col not in df.columns or cluster_col not in df.columns:
         msg = f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns.tolist()}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str), strict=False))
 
@@ -89,9 +87,7 @@ def _validate_inputs(
                         f"Missing cluster assignment for id={sid}. "
                         "Either provide full mapping or set assign_singletons_for_missing=true."
                     )
-                    raise ValueError(
-                        msg
-                    )
+                    raise ValueError(msg)
             assigned.append(cid)
 
         work[_INTERNAL_CLUSTER_COL] = pd.Series(assigned, index=work.index, dtype="string").astype(str)
@@ -102,9 +98,7 @@ def _validate_inputs(
             f"(i) a '{cluster_col}' column in the dataset OR "
             "(ii) cluster_map_path pointing to a CSV mapping id->cluster_id."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     n_clusters = int(work[_INTERNAL_CLUSTER_COL].astype(str).nunique(dropna=False))
     if n_clusters < MIN_CLUSTERS_FOR_SPLIT:
@@ -250,9 +244,7 @@ class ClusterAwareSplitter:
                 "Cluster leakage detected (this should never happen with group-based splitting). "
                 f"leak_train_test={leak_tt}, leak_train_val={leak_tv}, leak_val_test={leak_vt}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         # cleanup internal column before returning
         train = train.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
@@ -273,8 +265,7 @@ class ClusterAwareSplitter:
             "leak_clusters_train_val": 0,
             "leak_clusters_val_test": 0,
             "note": (
-                "cluster-aware split uses group-based splitting to prevent "
-                "cluster leakage across splits."
+                "cluster-aware split uses group-based splitting to prevent cluster leakage across splits."
             ),
         }
 

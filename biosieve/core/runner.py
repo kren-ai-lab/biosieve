@@ -78,9 +78,7 @@ def _validate_unique_ids(df: pd.DataFrame, id_col: str) -> None:
             f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
             f"BioSieve expects unique '{id_col}'."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
 
 def run_reduce(

@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     import pytest
 
 
-
 import json
 import shutil
 import subprocess

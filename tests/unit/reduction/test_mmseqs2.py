@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     import pytest
 
 
-
 import shutil
 
 import pytest

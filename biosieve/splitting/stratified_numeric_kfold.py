@@ -26,9 +26,7 @@ class _StratifiedKFold(Protocol):
 
 
 class _StratifiedKFoldFactory(Protocol):
-    def __call__(
-        self, *, n_splits: int, shuffle: bool, random_state: int
-    ) -> _StratifiedKFold: ...
+    def __call__(self, *, n_splits: int, shuffle: bool, random_state: int) -> _StratifiedKFold: ...
 
 
 class _TrainTestSplitFn(Protocol):
@@ -191,9 +189,7 @@ def _make_bins_safe(
         "Could not create valid stratification bins for numeric kfold. "
         f"Attempted bins={attempted}. Last error: {last_error}"
     )
-    raise ValueError(
-        msg
-    )
+    raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -278,9 +274,7 @@ class StratifiedNumericKFoldSplitter:
                 "StratifiedNumericKFoldSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
 
         if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
@@ -329,9 +323,7 @@ class StratifiedNumericKFoldSplitter:
                 f"n_splits={self.n_splits}, problematic bins: {too_small.to_dict()}. "
                 "Try fewer bins (n_bins) or auto_reduce_bins."
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
 

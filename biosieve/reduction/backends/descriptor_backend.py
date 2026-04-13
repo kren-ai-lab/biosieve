@@ -41,9 +41,7 @@ def infer_descriptor_columns(
             f"No descriptor columns found with prefix '{prefix}'. "
             f"Provide columns with that prefix or pass explicit_cols."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return cols
 
 
@@ -63,8 +61,6 @@ def extract_descriptor_matrix(
     if not np.isfinite(X).all():
         bad = np.argwhere(~np.isfinite(X))
         msg = f"Descriptor matrix contains non-finite values at positions (first 5): {bad[:5].tolist()}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     return DescriptorMatrix(cols=cols, X=X)

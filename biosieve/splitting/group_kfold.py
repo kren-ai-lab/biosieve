@@ -127,12 +127,9 @@ class GroupKFoldSplitter:
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
             msg = (
-                "GroupKFoldSplitter requires scikit-learn. "
-                "Install: conda install -c conda-forge scikit-learn"
+                "GroupKFoldSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
 
         if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
@@ -166,9 +163,7 @@ class GroupKFoldSplitter:
                 f"Not enough unique groups for n_splits={self.n_splits}. "
                 f"Found n_groups={n_groups}. Need at least n_splits groups."
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         gkf = GroupKFold(n_splits=self.n_splits)
 
@@ -198,9 +193,7 @@ class GroupKFoldSplitter:
                     f"Group leakage detected in fold {fold_idx}: "
                     f"train/test share {leak_tt} group(s). This should never happen."
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             val_df: pd.DataFrame | None = None
             leak_vt = 0

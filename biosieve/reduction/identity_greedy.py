@@ -196,9 +196,7 @@ class IdentityGreedyReducer:
                     f"Empty/invalid sequence for id={cur_id} in column '{cols.seq_col}'. "
                     "Clean dataset before identity_greedy reduction."
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             cur_len = len(seq)
 

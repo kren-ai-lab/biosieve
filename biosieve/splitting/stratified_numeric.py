@@ -58,9 +58,7 @@ def _validate_inputs(df: pd.DataFrame, label_col: str, test_size: float, val_siz
     _validate_sizes(test_size, val_size)
     if label_col not in df.columns:
         msg = f"Missing numeric label column '{label_col}'. Columns: {df.columns.tolist()}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
 
 def _label_stats(y: pd.Series) -> dict[str, Any]:
@@ -129,9 +127,7 @@ def _make_bins_once(
             bins, bin_edges = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True)
         except ValueError as e:
             msg = f"qcut failed for n_bins={n_bins}. Try fewer bins or duplicates='drop'. Original error: {e}"
-            raise ValueError(
-                msg
-            ) from e
+            raise ValueError(msg) from e
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
         edges = [float(x) for x in np.asarray(bin_edges).tolist()]
@@ -206,9 +202,7 @@ def _make_bins_safe(
         return bins, n_eff, edges, attempted, auto_reduced
 
     msg = f"Could not create valid stratification bins. Attempted bins={attempted}. Last error: {last_error}"
-    raise ValueError(
-        msg
-    )
+    raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -297,9 +291,7 @@ class StratifiedNumericSplitter:
                 "StratifiedNumericSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
             )
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
 
         work = df.copy().reset_index(drop=True)
         work[_INTERNAL_IDX_COL] = np.arange(len(work), dtype=int)
@@ -317,12 +309,9 @@ class StratifiedNumericSplitter:
             dropped = int(y_raw.isna().sum())
             if dropped > 0:
                 msg = (
-                    f"Found {dropped} NaN labels in '{self.label_col}'. "
-                    "Set dropna=true or clean the dataset."
+                    f"Found {dropped} NaN labels in '{self.label_col}'. Set dropna=true or clean the dataset."
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
         if len(work) < MIN_SAMPLES_AFTER_FILTER:
             msg = "Not enough samples after dropping NaNs to split."

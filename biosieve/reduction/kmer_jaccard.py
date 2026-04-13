@@ -190,9 +190,7 @@ class KmerJaccardReducer:
                     f"Empty/invalid sequence for id={cur_id} in column '{cols.seq_col}'. "
                     "Clean dataset before kmer_jaccard reduction."
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             if not reps_idx:
                 add_rep(i, seq)

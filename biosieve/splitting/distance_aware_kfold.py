@@ -104,9 +104,7 @@ def _load_embedding_ids(path: str) -> list[str]:
         "ids_path must contain a recognizable id column (id/ids/sequence_id/uniprot_id) "
         f"or be a single-column CSV. Found: {df.columns.tolist()}"
     )
-    raise ValueError(
-        msg
-    )
+    raise ValueError(msg)
 
 
 def _load_features_embeddings(
@@ -124,9 +122,7 @@ def _load_features_embeddings(
     ids = _load_embedding_ids(ids_path)
     if len(ids) != X.shape[0]:
         msg = f"Mismatch embeddings rows vs ids. embeddings.shape[0]={X.shape[0]} vs len(ids)={len(ids)}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     id_to_idx = {str(i): k for k, i in enumerate(ids)}
 
@@ -146,9 +142,7 @@ def _load_features_embeddings(
             f"Missing embeddings for {missing}/{len(df_ids)} samples. "
             "Provide full embeddings coverage or pre-filter the dataset."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     idx_arr = np.asarray(idx, dtype=int)
     return X[idx_arr, :]
@@ -180,9 +174,7 @@ def _load_features_descriptors(
     if Xdf.isna().any().any():
         bad = int(Xdf.isna().sum().sum())
         msg = f"Descriptor matrix contains NaNs after coercion ({bad} NaN cells). Clean/impute first."
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
     X = Xdf.to_numpy(dtype=float)
     if standardize:
@@ -359,9 +351,7 @@ class DistanceAwareKFoldSplitter:
             tts = _try_import_train_test_split()
             if tts is None:
                 msg = "val_size > 0 requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
-                raise ImportError(
-                    msg
-                )
+                raise ImportError(msg)
 
         folds: list[SplitResult] = []
         all_idx = np.arange(n, dtype=int)

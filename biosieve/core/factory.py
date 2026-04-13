@@ -29,9 +29,7 @@ def instantiate_strategy(cls: type[object], params: dict[str, object]) -> object
         unknown = set(params) - allowed
         if unknown:
             msg = f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
         return cls(**params)
 
     sig = inspect.signature(cls)
@@ -39,7 +37,5 @@ def instantiate_strategy(cls: type[object], params: dict[str, object]) -> object
     unknown = set(params) - allowed
     if unknown:
         msg = f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return cls(**params)

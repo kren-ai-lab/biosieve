@@ -63,9 +63,7 @@ def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
             f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
             f"BioSieve expects unique '{cols.id_col}'."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
 
 def _columns_payload(cols: Columns) -> dict[str, str | None]:

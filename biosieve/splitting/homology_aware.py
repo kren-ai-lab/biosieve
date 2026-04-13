@@ -106,9 +106,7 @@ def _run_mmseqs_easy_cluster(
         subprocess.run(cmd, check=True, capture_output=True, text=True)  # noqa: S603
     except FileNotFoundError as e:
         msg = f"mmseqs2 binary not found ('{mmseqs_bin}'). Install mmseqs2 or use mode='precomputed'."
-        raise FileNotFoundError(
-            msg
-        ) from e
+        raise FileNotFoundError(msg) from e
     except subprocess.CalledProcessError as e:
         msg = (e.stderr or e.stdout or "").strip()
         msg_0 = f"mmseqs2 easy-cluster failed. Command: {' '.join(cmd)}\n{msg}"
@@ -117,9 +115,7 @@ def _run_mmseqs_easy_cluster(
     tsv = Path(str(out_prefix) + "_cluster.tsv")
     if not tsv.exists():
         msg_0 = f"Expected mmseqs2 output not found: {tsv}. Check mmseqs2 version/output naming."
-        raise FileNotFoundError(
-            msg_0
-        )
+        raise FileNotFoundError(msg_0)
     return tsv
 
 
@@ -158,9 +154,7 @@ def _build_cluster_id_map(
             f"mapping_df must contain '{member_col}' and '{cluster_col}'. "
             f"Found: {mapping_df.columns.tolist()}"
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return dict(
         zip(
             mapping_df[member_col].astype(str),
@@ -311,9 +305,7 @@ class HomologyAwareSplitter:
                     f"Homology-aware split (mmseqs2 mode) requires sequence column '{cols.seq_col}'. "
                     f"Columns: {df.columns.tolist()}"
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             fasta = work / "input.fasta"
             _write_fasta(df, cols.id_col, cols.seq_col, fasta)
@@ -407,9 +399,7 @@ class HomologyAwareSplitter:
                 "Homology leakage detected (should not happen with group-based splitting). "
                 f"leak_train_test={leak_tt}, leak_train_val={leak_tv}, leak_val_test={leak_vt}"
             )
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         # cleanup
         train = train.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)

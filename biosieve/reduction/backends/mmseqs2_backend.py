@@ -22,9 +22,7 @@ def _which_mmseqs() -> str:
     exe = shutil.which("mmseqs")
     if not exe:
         msg = "mmseqs executable not found in PATH. Install MMseqs2 and ensure `mmseqs` is available."
-        raise FileNotFoundError(
-            msg
-        )
+        raise FileNotFoundError(msg)
     return exe
 
 
@@ -75,9 +73,7 @@ def run_mmseqs_easy_cluster(
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603
     if proc.returncode != 0:
         msg = f"MMseqs2 failed.\nCommand: {' '.join(cmd)}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}\n"
-        raise RuntimeError(
-            msg
-        )
+        raise RuntimeError(msg)
 
     # MMseqs2 naming convention for easy-cluster
     cluster_tsv = Path(str(out_prefix) + "_cluster.tsv")

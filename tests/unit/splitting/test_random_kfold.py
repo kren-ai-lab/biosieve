@@ -5,9 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-
     import pandas as pd
-
 
 
 from biosieve.splitting.random_kfold import RandomKFoldSplitter

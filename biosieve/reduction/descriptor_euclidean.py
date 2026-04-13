@@ -31,9 +31,7 @@ class _NearestNeighborsModel(Protocol):
 
 
 class _NearestNeighborsFactory(Protocol):
-    def __call__(
-        self, *, metric: str, algorithm: str, n_jobs: int
-    ) -> _NearestNeighborsModel: ...
+    def __call__(self, *, metric: str, algorithm: str, n_jobs: int) -> _NearestNeighborsModel: ...
 
 
 def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:

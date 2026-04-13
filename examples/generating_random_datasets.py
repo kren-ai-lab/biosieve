@@ -125,7 +125,9 @@ def generate_biosieve_dataset(
     # Near duplicates: mutate around an existing row; target stays close but not identical
     for _ in range(n_near_dups):
         base = rng.choice(rows)
-        seq = mutate_sequence(rng, base["sequence"], n_mut=rng.randint(1, 3))
+        base_sequence = str(base["sequence"])
+        base_label = int(base["label"])
+        seq = mutate_sequence(rng, base_sequence, n_mut=rng.randint(1, 3))
         i = len(rows) + 1
 
         # target: near-dup => close but noisy (measurement variability)
@@ -135,7 +137,7 @@ def generate_biosieve_dataset(
             {
                 "id": f"pep_{i:04d}",
                 "sequence": seq,
-                "label": base["label"] if rng.random() < 0.75 else (1 - base["label"]),
+                "label": base_label if rng.random() < 0.75 else (1 - base_label),
                 "group": base["group"] if rng.random() < 0.6 else rng.choice(group_ids),
                 "cluster_id": base["cluster_id"],
                 "source": base["source"],
@@ -150,6 +152,7 @@ def generate_biosieve_dataset(
     # Exact duplicates: identical sequence; target often identical, sometimes slight perturbation
     for _ in range(n_exact_dups):
         base = rng.choice(rows)
+        base_label = int(base["label"])
         i = len(rows) + 1
 
         # with some probability, keep exactly same target; else tiny drift
@@ -162,7 +165,7 @@ def generate_biosieve_dataset(
             {
                 "id": f"pep_{i:04d}",
                 "sequence": base["sequence"],
-                "label": base["label"] if rng.random() < 0.6 else (1 - base["label"]),
+                "label": base_label if rng.random() < 0.6 else (1 - base_label),
                 "group": base["group"] if rng.random() < 0.5 else rng.choice(group_ids),
                 "cluster_id": base["cluster_id"],
                 "source": base["source"],

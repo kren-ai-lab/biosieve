@@ -22,8 +22,10 @@ if TYPE_CHECKING:
 JSONScalar: TypeAlias = str | int | float | bool | None  # noqa: UP040
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]  # noqa: UP040
 
+
 class _RecordFn(Protocol):
     def __call__(self, *, ok: bool, msg: str) -> None: ...
+
 
 INPUT_DATA_OPTION = typer.Option(
     ...,

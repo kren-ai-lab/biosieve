@@ -24,9 +24,7 @@ class _GroupShuffleSplit(Protocol):
 
 
 class _GroupShuffleSplitFactory(Protocol):
-    def __call__(
-        self, *, n_splits: int, test_size: float, random_state: int
-    ) -> _GroupShuffleSplit: ...
+    def __call__(self, *, n_splits: int, test_size: float, random_state: int) -> _GroupShuffleSplit: ...
 
 
 def _try_import_gss() -> _GroupShuffleSplitFactory | None:
@@ -69,9 +67,7 @@ def _validate_inputs(
     n_groups = int(groups.nunique(dropna=False))
     if n_groups < MIN_GROUPS_FOR_SPLIT:
         msg = f"Need at least 2 groups to split. Found {n_groups} unique groups in '{group_col}'."
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
     return groups, n_groups
 
 
@@ -100,9 +96,7 @@ def _split_groups(
     GroupShuffleSplit = _try_import_gss()
     if GroupShuffleSplit is None:
         msg = "GroupSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
-        raise ImportError(
-            msg
-        )
+        raise ImportError(msg)
 
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
     idx = df.index.to_numpy()
@@ -207,9 +201,7 @@ class GroupSplitter:
                     f"Not enough groups left after test split to create validation. "
                     f"Groups in trainval: {tv_n_groups}. Reduce test_size/val_size."
                 )
-                raise ValueError(
-                    msg
-                )
+                raise ValueError(msg)
 
             train, val = _split_groups(trainval, tv_groups, test_size=frac, seed=self.seed)
 
