@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pandas as pd
 
 from biosieve.core.factory import instantiate_strategy
-from biosieve.splitting.base import KFoldSplitter, Splitter
+from biosieve.splitting.base import KFoldSplitter, SplitResult, Splitter
 from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
 
@@ -79,7 +79,7 @@ def _columns_payload(cols: Columns) -> dict[str, str | None]:
     }
 
 
-def _write_split_outputs(out: Path, res: Any) -> None:
+def _write_split_outputs(out: Path, res: SplitResult) -> None:
     _write_csv(out / "train.csv", res.train)
     _write_csv(out / "test.csv", res.test)
     if res.val is not None:
@@ -116,7 +116,7 @@ def _build_single_report(
     strategy: str,
     strategy_params: dict[str, object],
     cols: Columns,
-    res: Any,
+    res: SplitResult,
 ) -> dict[str, Any]:
     return {
         "schema_version": "0.1",
