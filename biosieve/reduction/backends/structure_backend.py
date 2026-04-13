@@ -21,12 +21,14 @@ def load_edges_csv(
 ) -> StructuralEdges:
     p = Path(path)
     if not p.exists():
-        raise FileNotFoundError(f"Structural edges file not found: {p}")
+        msg = f"Structural edges file not found: {p}"
+        raise FileNotFoundError(msg)
 
     df = pd.read_csv(p)
     for col in (id1_col, id2_col, value_col):
         if col not in df.columns:
-            raise ValueError(f"Missing required column '{col}' in {p}. Found: {df.columns.tolist()}")
+            msg = f"Missing required column '{col}' in {p}. Found: {df.columns.tolist()}"
+            raise ValueError(msg)
 
     adj: dict[str, list[tuple[str, float]]] = {}
     n_edges = 0

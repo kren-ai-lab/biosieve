@@ -113,16 +113,21 @@ class MMseqs2Reducer:
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         # --- basic checks ---
         if not (0.0 <= self.min_seq_id <= 1.0):
-            raise ValueError("min_seq_id must be in [0, 1]")
+            msg = "min_seq_id must be in [0, 1]"
+            raise ValueError(msg)
         if not (0.0 <= self.coverage <= 1.0):
-            raise ValueError("coverage must be in [0, 1]")
+            msg = "coverage must be in [0, 1]"
+            raise ValueError(msg)
         if self.threads < 1:
-            raise ValueError("threads must be >= 1")
+            msg = "threads must be >= 1"
+            raise ValueError(msg)
 
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
         if cols.seq_col not in df.columns:
-            raise ValueError(f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 
@@ -134,15 +139,19 @@ class MMseqs2Reducer:
             seq = str(row[cols.seq_col])
 
             if sid in seqs:
-                raise ValueError(f"Duplicate ids detected: {sid}. IDs must be unique for MMseqs2 FASTA.")
+                msg = f"Duplicate ids detected: {sid}. IDs must be unique for MMseqs2 FASTA."
+                raise ValueError(msg)
             if not seq or seq.lower() == "nan":
                 empty_seq += 1
             seqs[sid] = seq
 
         if empty_seq > 0:
-            raise ValueError(
+            msg = (
                 f"Found {empty_seq} empty/invalid sequences in column '{cols.seq_col}'. "
                 "Clean dataset before mmseqs2 reduction."
+            )
+            raise ValueError(
+                msg
             )
 
         tmp_base = self.tmp_root if self.tmp_root is not None else None

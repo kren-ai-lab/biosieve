@@ -46,12 +46,14 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
     """
     p = Path(path)
     if not p.exists():
-        raise FileNotFoundError(f"cluster_map_path not found: {p}")
+        msg = f"cluster_map_path not found: {p}"
+        raise FileNotFoundError(msg)
 
     df = pd.read_csv(p)
     if id_col not in df.columns or cluster_col not in df.columns:
+        msg = f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns.tolist()}"
         raise ValueError(
-            f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns.tolist()}"
+            msg
         )
 
     return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str)))
@@ -189,25 +191,32 @@ class ClusterAwareSplitter:
                     if self.assign_singletons_for_missing:
                         cid = f"singleton:{sid}"
                     else:
-                        raise ValueError(
+                        msg = (
                             f"Missing cluster assignment for id={sid}. "
                             f"Either provide full mapping or set assign_singletons_for_missing=true."
+                        )
+                        raise ValueError(
+                            msg
                         )
                 assigned.append(cid)
 
             work[_INTERNAL_CLUSTER_COL] = pd.Series(assigned, index=work.index, dtype="string").astype(str)
             used_source = "mapping_file"
         else:
-            raise ValueError(
+            msg = (
                 "ClusterAwareSplitter requires either: "
                 f"(i) a '{self.cluster_col}' column in the dataset OR "
                 "(ii) cluster_map_path pointing to a CSV mapping id->cluster_id."
+            )
+            raise ValueError(
+                msg
             )
 
         cluster_ids = work[_INTERNAL_CLUSTER_COL].astype(str)
         n_clusters = int(cluster_ids.nunique(dropna=False))
         if n_clusters < 2:
-            raise ValueError(f"Need at least 2 clusters to split. Found {n_clusters} unique clusters.")
+            msg = f"Need at least 2 clusters to split. Found {n_clusters} unique clusters."
+            raise ValueError(msg)
 
         # 1) split off test by clusters
         trainval, test = _split_groups(work, cluster_ids, test_size=self.test_size, seed=self.seed)
@@ -219,7 +228,8 @@ class ClusterAwareSplitter:
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
-                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+                msg = "Derived val fraction invalid. Check test_size/val_size."
+                raise ValueError(msg)
             tv_clusters = trainval[_INTERNAL_CLUSTER_COL].astype(str)
             train, val = _split_groups(trainval, tv_clusters, test_size=frac, seed=self.seed)
 
@@ -234,9 +244,12 @@ class ClusterAwareSplitter:
 
         # Enforce invariants: cluster leakage must be zero
         if leak_tt != 0 or leak_vt != 0 or leak_tv != 0:
-            raise ValueError(
+            msg = (
                 "Cluster leakage detected (this should never happen with group-based splitting). "
                 f"leak_train_test={leak_tt}, leak_train_val={leak_tv}, leak_val_test={leak_vt}"
+            )
+            raise ValueError(
+                msg
             )
 
         # cleanup internal column before returning
@@ -257,7 +270,10 @@ class ClusterAwareSplitter:
             "leak_clusters_train_test": 0,
             "leak_clusters_train_val": 0,
             "leak_clusters_val_test": 0,
-            "note": "cluster-aware split uses group-based splitting to prevent cluster leakage across splits.",
+            "note": (
+                "cluster-aware split uses group-based splitting to prevent "
+                "cluster leakage across splits."
+            ),
         }
 
         params = {

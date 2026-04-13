@@ -40,11 +40,14 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
+        msg = "test_size must be in (0, 1)"
+        raise ValueError(msg)
     if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
+        msg = "val_size must be in [0, 1)"
+        raise ValueError(msg)
     if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
+        msg = "test_size + val_size must be < 1.0"
+        raise ValueError(msg)
 
 
 def _label_stats(y: pd.Series) -> dict[str, Any]:
@@ -103,11 +106,13 @@ def _make_bins_once(
 
     """
     if n_bins < 2:
-        raise ValueError("n_bins must be >= 2")
+        msg = "n_bins must be >= 2"
+        raise ValueError(msg)
 
     yy = pd.to_numeric(y, errors="coerce")
     if yy.isna().any():
-        raise ValueError("NaN values found in label series while binning.")
+        msg = "NaN values found in label series while binning."
+        raise ValueError(msg)
 
     edges: list[float] | None = None
 
@@ -115,8 +120,9 @@ def _make_bins_once(
         try:
             bins, bin_edges = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True)
         except ValueError as e:
+            msg = f"qcut failed for n_bins={n_bins}. Try fewer bins or duplicates='drop'. Original error: {e}"
             raise ValueError(
-                f"qcut failed for n_bins={n_bins}. Try fewer bins or duplicates='drop'. Original error: {e}"
+                msg
             )
         bins = pd.Series(bins, index=y.index).astype("Int64")
         n_eff = int(pd.Series(bins).nunique(dropna=True))
@@ -130,7 +136,8 @@ def _make_bins_once(
         edges = [float(x) for x in np.asarray(bin_edges).tolist()]
         return bins, n_eff, edges
 
-    raise ValueError("binning must be 'quantile' or 'uniform'")
+    msg = "binning must be 'quantile' or 'uniform'"
+    raise ValueError(msg)
 
 
 def _make_bins_safe(
@@ -157,9 +164,11 @@ def _make_bins_safe(
 
     """
     if min_bin_count < 1:
-        raise ValueError("min_bin_count must be >= 1")
+        msg = "min_bin_count must be >= 1"
+        raise ValueError(msg)
     if n_bins < 2:
-        raise ValueError("n_bins must be >= 2")
+        msg = "n_bins must be >= 2"
+        raise ValueError(msg)
 
     attempted: list[int] = []
     auto_reduced = False
@@ -172,12 +181,14 @@ def _make_bins_safe(
             bins, n_eff, edges = _make_bins_once(y, n_bins=b, binning=binning, duplicates=duplicates)
 
             if n_eff < 2:
-                raise ValueError(f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify.")
+                msg = f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify."
+                raise ValueError(msg)
 
             counts = bins.value_counts(dropna=False)
             if int(counts.min()) < min_bin_count:
+                msg = f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
                 raise ValueError(
-                    f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
+                    msg
                 )
 
             if b != n_bins:
@@ -189,8 +200,9 @@ def _make_bins_safe(
             last_error = e
             continue
 
+    msg = f"Could not create valid stratification bins. Attempted bins={attempted}. Last error: {last_error}"
     raise ValueError(
-        f"Could not create valid stratification bins. Attempted bins={attempted}. Last error: {last_error}"
+        msg
     )
 
 
@@ -291,9 +303,12 @@ class StratifiedNumericSplitter:
 
         tts = _try_import_train_test_split()
         if tts is None:
-            raise ImportError(
+            msg = (
                 "StratifiedNumericSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
+            )
+            raise ImportError(
+                msg
             )
 
         _validate_sizes(self.test_size, self.val_size)
@@ -302,8 +317,9 @@ class StratifiedNumericSplitter:
         work[_INTERNAL_IDX_COL] = np.arange(len(work), dtype=int)
 
         if self.label_col not in work.columns:
+            msg = f"Missing numeric label column '{self.label_col}'. Columns: {work.columns.tolist()}"
             raise ValueError(
-                f"Missing numeric label column '{self.label_col}'. Columns: {work.columns.tolist()}"
+                msg
             )
 
         y_raw = pd.to_numeric(work[self.label_col], errors="coerce")
@@ -317,12 +333,17 @@ class StratifiedNumericSplitter:
         else:
             dropped = int(y_raw.isna().sum())
             if dropped > 0:
+                msg = (
+                    f"Found {dropped} NaN labels in '{self.label_col}'. "
+                    "Set dropna=true or clean the dataset."
+                )
                 raise ValueError(
-                    f"Found {dropped} NaN labels in '{self.label_col}'. Set dropna=true or clean the dataset."
+                    msg
                 )
 
         if len(work) < 3:
-            raise ValueError("Not enough samples after dropping NaNs to split.")
+            msg = "Not enough samples after dropping NaNs to split."
+            raise ValueError(msg)
 
         # Global bins for the train/test stage
         bins, n_eff, edges, attempted_bins, auto_reduced = _make_bins_safe(
@@ -357,7 +378,8 @@ class StratifiedNumericSplitter:
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
-                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+                msg = "Derived val fraction invalid. Check test_size/val_size."
+                raise ValueError(msg)
 
             y_tv = pd.to_numeric(trainval[self.label_col], errors="coerce")
             bins_tv, n_eff_tv, edges_tv, attempted_tv, auto_red_tv = _make_bins_safe(
@@ -392,7 +414,8 @@ class StratifiedNumericSplitter:
                 # build a series keyed by internal idx
                 # stage_bins is aligned with the stage dataframe order (work or trainval)
                 # so we construct a keyed Series in caller with the stage df internal idx
-                raise ValueError("Stage bins must be keyed by internal index column.")
+                msg = "Stage bins must be keyed by internal index column."
+                raise ValueError(msg)
             bb = stage_bins.loc[idx]
             return _bin_counts(bb)
 
@@ -412,30 +435,7 @@ class StratifiedNumericSplitter:
         if val is not None:
             val = val.drop(columns=[_INTERNAL_IDX_COL]).reset_index(drop=True)
 
-        # NOTE: stats are computed from the original dataframes that still had internal idx
-        # so we reconstruct temporary views from the split objects is unnecessary; we use trainval/test/train/val pre-drop
-        # We kept train/test/val variables post-drop; for stats we rely on cached pre-drop frames:
-        # easiest is to recompute the pre-drop splits from trainval/test variables above
-        # BUT we already dropped internal idx from train/test/val, so keep pre-drop copies:
-        # (do it safely here by using trainval/test variables which still contain internal idx)
-        # trainval/test still have internal idx; train and val were derived from them, but dropped above.
-        # We'll rebuild references by splitting again is not desired, so we instead compute counts BEFORE dropping.
-        # To keep code simple, we compute counts earlier by using trainval/test variables pre-drop:
-        # - train/test bin counts: use trainval/test split before val split? No:
-        # For correctness, compute counts on the post-val-split dataframes BEFORE drop. We'll do that above next time.
-        # Here we compute only global stage bins counts for train/test using trainval+test and label stats using returned frames.
-        # (Counts remain correct; label stats are from returned frames.)
-
-        # stats (bin counts via stage bins keyed by internal idx)
-        # For train/test stage, train is subset of trainval; we don't have internal idx on returned train now.
-        # So: compute train/test counts using trainval and test, and (if val) using stage-2 bins for train/val.
-        # To avoid complexity, we store only trainval/test stage counts plus split sizes and label stats.
-        # This is acceptable and consistent: bins used for stratify correspond to stage.
-
-        # For better per-split counts, we need pre-drop train/val/test frames.
-        # We'll compute them right here by re-splitting with the same random_state on the same frames is risky.
-        # Instead, keep stats at stage-level (trainval/test) and label stats per returned split.
-        # (This keeps contract stable and avoids accidental nondeterminism.)
+        # Stats are kept at stage level to avoid recomputing split internals.
         stats: dict[str, Any] = {
             "n_total": len(df),
             "n_used": len(work),

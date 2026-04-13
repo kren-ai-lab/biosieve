@@ -91,11 +91,11 @@ def reduce(
     csv_separator: str = CSV_SEPARATOR_OPTION,
     encoding: str = ENCODING_OPTION,
     log_level: str = LOG_LEVEL_OPTION,
-    quiet: bool = QUIET_OPTION,
+    quiet: bool = QUIET_OPTION,  # noqa: FBT001
     log_file: Path | None = LOG_FILE_OPTION,
 ) -> None:
     """Reduce redundancy in a dataset using a selected strategy."""
-    registry = setup_runtime(log_level, quiet, log_file)
+    registry = setup_runtime(log_level, quiet=quiet, log_file=log_file)
     args = SimpleNamespace(
         in_path=str(input_data),
         out_path=str(output),

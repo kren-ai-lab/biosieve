@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-JSONScalar: TypeAlias = str | int | float | bool | None
-JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
+type JSONScalar = str | int | float | bool | None
+type JSONValue = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
 
 def _utc_timestamp() -> str:
@@ -72,13 +72,17 @@ def _safe_jsonable(x: object) -> JSONValue:
 def _validate_unique_ids(df: pd.DataFrame, id_col: str) -> None:
     """Fail-fast check: BioSieve expects 1 row = 1 unique id."""
     if id_col not in df.columns:
-        raise ValueError(f"Missing id column '{id_col}' in input data. Columns: {df.columns.tolist()}")
+        msg = f"Missing id column '{id_col}' in input data. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
     n_in = len(df)
     unique_ids = df[id_col].astype(str).nunique()
     if unique_ids != n_in:
-        raise ValueError(
+        msg = (
             f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
             f"BioSieve expects unique '{id_col}'."
+        )
+        raise ValueError(
+            msg
         )
 
 
@@ -173,7 +177,8 @@ def run_reduce(
 
     if strategy not in registry.reducers:
         available = sorted(list(registry.reducers.keys()))
-        raise ValueError(f"Unknown reducer strategy '{strategy}'. Available: {available}")
+        msg = f"Unknown reducer strategy '{strategy}'. Available: {available}"
+        raise ValueError(msg)
 
     _ensure_parent(out_path)
     _ensure_parent(map_path)

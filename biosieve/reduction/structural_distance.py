@@ -137,17 +137,21 @@ class StructuralDistanceReducer:
             return value <= self.threshold
         if self.mode == "similarity":
             return value >= self.threshold
-        raise ValueError("mode must be 'distance' or 'similarity'")
+        msg = "mode must be 'distance' or 'similarity'"
+        raise ValueError(msg)
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         if self.mode not in {"distance", "similarity"}:
-            raise ValueError("mode must be 'distance' or 'similarity'")
+            msg = "mode must be 'distance' or 'similarity'"
+            raise ValueError(msg)
 
         if self.mode == "distance" and self.threshold < 0:
-            raise ValueError("threshold must be >= 0 for distance mode")
+            msg = "threshold must be >= 0 for distance mode"
+            raise ValueError(msg)
 
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         # deterministic ordering
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)

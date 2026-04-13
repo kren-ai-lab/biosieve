@@ -40,7 +40,8 @@ def lazy_import_class(import_path: str) -> type[Any]:
 
     """
     if ":" not in import_path:
-        raise ValueError(f"Invalid import_path '{import_path}'. Expected format 'module:ClassName'.")
+        msg = f"Invalid import_path '{import_path}'. Expected format 'module:ClassName'."
+        raise ValueError(msg)
     mod_name, cls_name = import_path.split(":", 1)
     mod = import_module(mod_name)
     cls = getattr(mod, cls_name)

@@ -21,7 +21,7 @@ LOG_LEVEL_OPTION = typer.Option(
     show_default=True,
 )
 QUIET_OPTION = typer.Option(
-    False,
+    False,  # noqa: FBT003
     "--quiet/--no-quiet",
     help="Suppress console logs.",
     show_default=True,
@@ -33,14 +33,14 @@ LOG_FILE_OPTION = typer.Option(
 )
 
 
-def version_callback(value: bool) -> None:
+def version_callback(value: bool) -> None:  # noqa: FBT001
     """Show version and exit."""
     if value:
         typer.echo(f"biosieve {biosieve.__version__}")
         raise typer.Exit()
 
 
-def setup_runtime(log_level: str, quiet: bool, log_file: Path | None) -> StrategyRegistry:
+def setup_runtime(log_level: str, *, quiet: bool, log_file: Path | None) -> StrategyRegistry:
     """Configure logging and build the strategy registry lazily per command."""
     configure_logging(
         level=log_level,

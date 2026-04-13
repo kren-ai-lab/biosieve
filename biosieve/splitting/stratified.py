@@ -37,11 +37,14 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
+        msg = "test_size must be in (0, 1)"
+        raise ValueError(msg)
     if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
+        msg = "val_size must be in [0, 1)"
+        raise ValueError(msg)
     if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
+        msg = "test_size + val_size must be < 1.0"
+        raise ValueError(msg)
 
 
 @dataclass(frozen=True)
@@ -121,15 +124,20 @@ class StratifiedSplitter:
 
         tts = _try_import_train_test_split()
         if tts is None:
+            msg = (
+                "StratifiedSplitter requires scikit-learn. "
+                "Install: conda install -c conda-forge scikit-learn"
+            )
             raise ImportError(
-                "StratifiedSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
+                msg
             )
 
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)
         if self.label_col not in work.columns:
-            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}")
+            msg = f"Missing label column '{self.label_col}'. Columns: {work.columns.tolist()}"
+            raise ValueError(msg)
 
         y = work[self.label_col]
         if y.isna().any():
@@ -138,7 +146,8 @@ class StratifiedSplitter:
                 work = work.loc[keep].reset_index(drop=True)
                 y = work[self.label_col].reset_index(drop=True)
             else:
-                raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
+                msg = f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
+                raise ValueError(msg)
 
         # 1) split off test
         trainval, test = tts(
@@ -156,7 +165,8 @@ class StratifiedSplitter:
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
-                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+                msg = "Derived val fraction invalid. Check test_size/val_size."
+                raise ValueError(msg)
 
             y_tv = trainval[self.label_col]
             train, val = tts(

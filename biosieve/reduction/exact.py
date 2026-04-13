@@ -78,9 +78,11 @@ class ExactDedupReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
         if cols.seq_col not in df.columns:
-            raise ValueError(f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 

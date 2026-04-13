@@ -96,11 +96,13 @@ def _make_bins_once(
     return_edges: bool,
 ) -> tuple[pd.Series, int, list[float] | None]:
     if n_bins < 2:
-        raise ValueError("n_bins must be >= 2")
+        msg = "n_bins must be >= 2"
+        raise ValueError(msg)
 
     yy = pd.to_numeric(y, errors="coerce")
     if yy.isna().any():
-        raise ValueError("NaN values found in label series while binning.")
+        msg = "NaN values found in label series while binning."
+        raise ValueError(msg)
 
     edges: list[float] | None = None
 
@@ -124,7 +126,8 @@ def _make_bins_once(
         n_eff = int(pd.Series(bins).nunique(dropna=True))
         return bins, n_eff, edges
 
-    raise ValueError("binning must be 'quantile' or 'uniform'")
+    msg = "binning must be 'quantile' or 'uniform'"
+    raise ValueError(msg)
 
 
 def _make_bins_safe(
@@ -138,9 +141,11 @@ def _make_bins_safe(
     return_edges: bool,
 ) -> tuple[pd.Series, int, list[float] | None, list[int], bool]:
     if min_bin_count < 1:
-        raise ValueError("min_bin_count must be >= 1")
+        msg = "min_bin_count must be >= 1"
+        raise ValueError(msg)
     if n_bins < 2:
-        raise ValueError("n_bins must be >= 2")
+        msg = "n_bins must be >= 2"
+        raise ValueError(msg)
 
     attempted: list[int] = []
     auto_reduced = False
@@ -160,12 +165,14 @@ def _make_bins_safe(
             )
 
             if n_eff < 2:
-                raise ValueError(f"Effective bins={n_eff} (requested={b}). Cannot stratify.")
+                msg = f"Effective bins={n_eff} (requested={b}). Cannot stratify."
+                raise ValueError(msg)
 
             counts = bins.value_counts(dropna=False)
             if int(counts.min()) < min_bin_count:
+                msg = f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
                 raise ValueError(
-                    f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
+                    msg
                 )
 
             if b != n_bins:
@@ -177,9 +184,12 @@ def _make_bins_safe(
             last_error = e
             continue
 
-    raise ValueError(
+    msg = (
         "Could not create valid stratification bins for numeric kfold. "
         f"Attempted bins={attempted}. Last error: {last_error}"
+    )
+    raise ValueError(
+        msg
     )
 
 
@@ -274,17 +284,23 @@ class StratifiedNumericKFoldSplitter:
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
-            raise ImportError(
+            msg = (
                 "StratifiedNumericKFoldSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
             )
+            raise ImportError(
+                msg
+            )
 
         if self.n_splits < 2:
-            raise ValueError("n_splits must be >= 2")
+            msg = "n_splits must be >= 2"
+            raise ValueError(msg)
         if not (0.0 <= self.val_size < 1.0):
-            raise ValueError("val_size must be in [0, 1)")
+            msg = "val_size must be in [0, 1)"
+            raise ValueError(msg)
         if self.label_col not in df.columns:
-            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().reset_index(drop=True)
         y_raw = pd.to_numeric(work[self.label_col], errors="coerce")
@@ -296,10 +312,12 @@ class StratifiedNumericKFoldSplitter:
             work = work.loc[keep].reset_index(drop=True)
             y_raw = y_raw.loc[keep].reset_index(drop=True)
         elif y_raw.isna().any():
-            raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
+            msg = f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
+            raise ValueError(msg)
 
         if len(work) < self.n_splits:
-            raise ValueError(f"Not enough samples (n={len(work)}) for n_splits={self.n_splits}")
+            msg = f"Not enough samples (n={len(work)}) for n_splits={self.n_splits}"
+            raise ValueError(msg)
 
         # Global bins (stable stratification target)
         bins, n_eff, edges, attempted_bins, auto_reduced = _make_bins_safe(
@@ -316,10 +334,13 @@ class StratifiedNumericKFoldSplitter:
         vc = bins.value_counts(dropna=False)
         too_small = vc[vc < self.n_splits]
         if len(too_small) > 0:
-            raise ValueError(
+            msg = (
                 "Some bins have fewer samples than n_splits; cannot stratify k-fold. "
                 f"n_splits={self.n_splits}, problematic bins: {too_small.to_dict()}. "
                 "Try fewer bins (n_bins) or auto_reduce_bins."
+            )
+            raise ValueError(
+                msg
             )
 
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
@@ -328,7 +349,8 @@ class StratifiedNumericKFoldSplitter:
         if self.val_size and self.val_size > 0:
             tts = _try_import_train_test_split()
             if tts is None:
-                raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
+                msg = "val_size > 0 requires scikit-learn train_test_split."
+                raise ImportError(msg)
 
         folds: list[SplitResult] = []
         X_dummy = work.index.values

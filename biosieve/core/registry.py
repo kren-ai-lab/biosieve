@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Union
+from typing import Any
 
 from biosieve.core.spec import StrategySpec, lazy_import_class
 
-ReducerLike = Union[type[Any], StrategySpec]
-SplitterLike = Union[type[Any], StrategySpec]
+ReducerLike = type[Any] | StrategySpec
+SplitterLike = type[Any] | StrategySpec
 
 
 @dataclass
@@ -47,7 +47,8 @@ class StrategyRegistry:
 
     def get_reducer_class(self, name: str) -> type[Any]:
         if name not in self.reducers:
-            raise KeyError(f"Unknown reducer strategy '{name}'. Available: {sorted(self.reducers)}")
+            msg = f"Unknown reducer strategy '{name}'. Available: {sorted(self.reducers)}"
+            raise KeyError(msg)
         obj = self.reducers[name]
         if isinstance(obj, StrategySpec):
             cls = lazy_import_class(obj.import_path)
@@ -58,7 +59,8 @@ class StrategyRegistry:
 
     def get_splitter_class(self, name: str) -> type[Any]:
         if name not in self.splitters:
-            raise KeyError(f"Unknown splitter strategy '{name}'. Available: {sorted(self.splitters)}")
+            msg = f"Unknown splitter strategy '{name}'. Available: {sorted(self.splitters)}"
+            raise KeyError(msg)
         obj = self.splitters[name]
         if isinstance(obj, StrategySpec):
             cls = lazy_import_class(obj.import_path)
@@ -74,6 +76,7 @@ class StrategyRegistry:
         elif kind == "splitter":
             obj = self.splitters.get(name)
         else:
-            raise ValueError("kind must be 'reducer' or 'splitter'")
+            msg = "kind must be 'reducer' or 'splitter'"
+            raise ValueError(msg)
 
         return obj if isinstance(obj, StrategySpec) else None

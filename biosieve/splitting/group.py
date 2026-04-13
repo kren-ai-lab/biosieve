@@ -37,11 +37,14 @@ def _try_import_gss() -> _GroupShuffleSplitFactory | None:
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
+        msg = "test_size must be in (0, 1)"
+        raise ValueError(msg)
     if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
+        msg = "val_size must be in [0, 1)"
+        raise ValueError(msg)
     if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
+        msg = "test_size + val_size must be < 1.0"
+        raise ValueError(msg)
 
 
 def _split_groups(
@@ -76,8 +79,9 @@ def _split_groups(
     """
     GroupShuffleSplit = _try_import_gss()
     if GroupShuffleSplit is None:
+        msg = "GroupSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
         raise ImportError(
-            "GroupSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
+            msg
         )
 
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
@@ -171,16 +175,19 @@ class GroupSplitter:
 
         work = df.copy().reset_index(drop=True)
         if self.group_col not in work.columns:
-            raise ValueError(f"Missing group column '{self.group_col}'. Columns: {work.columns.tolist()}")
+            msg = f"Missing group column '{self.group_col}'. Columns: {work.columns.tolist()}"
+            raise ValueError(msg)
 
         groups = work[self.group_col].astype(str)
         if groups.isna().any():
-            raise ValueError(f"Found NaN group ids in '{self.group_col}'. Clean dataset before splitting.")
+            msg = f"Found NaN group ids in '{self.group_col}'. Clean dataset before splitting."
+            raise ValueError(msg)
 
         n_groups = int(groups.nunique(dropna=False))
         if n_groups < 2:
+            msg = f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'."
             raise ValueError(
-                f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'."
+                msg
             )
 
         # 1) test split
@@ -193,14 +200,18 @@ class GroupSplitter:
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
-                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+                msg = "Derived val fraction invalid. Check test_size/val_size."
+                raise ValueError(msg)
 
             tv_groups = trainval[self.group_col].astype(str)
             tv_n_groups = int(tv_groups.nunique(dropna=False))
             if tv_n_groups < 2:
-                raise ValueError(
+                msg = (
                     f"Not enough groups left after test split to create validation. "
                     f"Groups in trainval: {tv_n_groups}. Reduce test_size/val_size."
+                )
+                raise ValueError(
+                    msg
                 )
 
             train, val = _split_groups(trainval, tv_groups, test_size=frac, seed=self.seed)

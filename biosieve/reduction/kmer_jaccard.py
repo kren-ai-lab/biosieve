@@ -36,7 +36,8 @@ def _kmer_set(seq: str, k: int) -> set[str]:
 
     """
     if k <= 0:
-        raise ValueError("k must be >= 1")
+        msg = "k must be >= 1"
+        raise ValueError(msg)
     if len(seq) < k:
         return {seq}
     return {seq[i : i + k] for i in range(len(seq) - k + 1)}
@@ -151,30 +152,35 @@ class KmerJaccardReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         if not (0.0 <= self.threshold <= 1.0):
-            raise ValueError("threshold must be in [0, 1]")
+            msg = "threshold must be in [0, 1]"
+            raise ValueError(msg)
         if self.k < 1:
-            raise ValueError("k must be >= 1")
+            msg = "k must be >= 1"
+            raise ValueError(msg)
         if self.max_candidates < 1:
-            raise ValueError("max_candidates must be >= 1")
+            msg = "max_candidates must be >= 1"
+            raise ValueError(msg)
 
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
         if cols.seq_col not in df.columns:
-            raise ValueError(f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 
         ids = work[cols.id_col].astype(str).tolist()
         if len(ids) != len(set(ids)):
+            msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
             raise ValueError(
-                "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+                msg
             )
 
         # Representatives are tracked by work index
         reps_idx: list[int] = []
         reps_kmers: list[set[str]] = []
 
-        # removed: (removed_id, representative_id, score)
         removed_rows: list[tuple[str, str, float]] = []
 
         # Inverted index for kmer -> rep positions
@@ -196,9 +202,12 @@ class KmerJaccardReducer:
 
             if not seq or seq.lower() == "nan":
                 empty_seq += 1
-                raise ValueError(
+                msg = (
                     f"Empty/invalid sequence for id={cur_id} in column '{cols.seq_col}'. "
                     "Clean dataset before kmer_jaccard reduction."
+                )
+                raise ValueError(
+                    msg
                 )
 
             if not reps_idx:

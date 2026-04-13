@@ -16,11 +16,14 @@ log = get_logger(__name__)
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
+        msg = "test_size must be in (0, 1)"
+        raise ValueError(msg)
     if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
+        msg = "val_size must be in [0, 1)"
+        raise ValueError(msg)
     if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
+        msg = "test_size + val_size must be < 1.0"
+        raise ValueError(msg)
 
 
 def _to_datetime(s: pd.Series, fmt: str | None) -> pd.Series:
@@ -101,12 +104,14 @@ class TimeSplitter:
 
         work = df.copy().reset_index(drop=True)
         if self.time_col not in work.columns:
-            raise ValueError(f"Missing time column '{self.time_col}'. Columns: {work.columns.tolist()}")
+            msg = f"Missing time column '{self.time_col}'. Columns: {work.columns.tolist()}"
+            raise ValueError(msg)
 
         t_raw = work[self.time_col]
 
         if t_raw.isna().any():
-            raise ValueError(f"Found NaN timestamps in '{self.time_col}'. Clean dataset before splitting.")
+            msg = f"Found NaN timestamps in '{self.time_col}'. Clean dataset before splitting."
+            raise ValueError(msg)
 
         if self.parse_datetime:
             t = _to_datetime(t_raw, self.time_format)
@@ -124,11 +129,14 @@ class TimeSplitter:
         n_train = n - n_test - n_val
 
         if n_train <= 0:
-            raise ValueError("Split sizes leave no training samples. Reduce test_size/val_size.")
+            msg = "Split sizes leave no training samples. Reduce test_size/val_size."
+            raise ValueError(msg)
         if n_test <= 0:
-            raise ValueError("test_size too small -> no test samples after rounding. Increase test_size.")
+            msg = "test_size too small -> no test samples after rounding. Increase test_size."
+            raise ValueError(msg)
         if self.val_size > 0 and n_val <= 0:
-            raise ValueError("val_size too small -> no validation samples after rounding. Increase val_size.")
+            msg = "val_size too small -> no validation samples after rounding. Increase val_size."
+            raise ValueError(msg)
 
         train = work.iloc[:n_train].drop(columns=["_biosieve_time__"]).reset_index(drop=True)
         val = (

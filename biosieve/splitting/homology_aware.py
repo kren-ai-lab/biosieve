@@ -45,7 +45,8 @@ def _write_fasta(df: pd.DataFrame, id_col: str, seq_col: str, out_fa: Path) -> N
         sid = str(row[id_col])
         seq = str(row[seq_col])
         if not seq:
-            raise ValueError(f"Empty sequence for id={sid}")
+            msg = f"Empty sequence for id={sid}"
+            raise ValueError(msg)
         lines.append(f">{sid}\n{seq}\n")
     out_fa.write_text("".join(lines), encoding="utf-8")
 
@@ -124,17 +125,20 @@ def _run_mmseqs_easy_cluster(
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except FileNotFoundError:
+        msg = f"mmseqs2 binary not found ('{mmseqs_bin}'). Install mmseqs2 or use mode='precomputed'."
         raise FileNotFoundError(
-            f"mmseqs2 binary not found ('{mmseqs_bin}'). Install mmseqs2 or use mode='precomputed'."
+            msg
         )
     except subprocess.CalledProcessError as e:
         msg = (e.stderr or e.stdout or "").strip()
-        raise RuntimeError(f"mmseqs2 easy-cluster failed. Command: {' '.join(cmd)}\n{msg}")
+        msg_0 = f"mmseqs2 easy-cluster failed. Command: {' '.join(cmd)}\n{msg}"
+        raise RuntimeError(msg_0)
 
     tsv = Path(str(out_prefix) + "_cluster.tsv")
     if not tsv.exists():
+        msg_0 = f"Expected mmseqs2 output not found: {tsv}. Check mmseqs2 version/output naming."
         raise FileNotFoundError(
-            f"Expected mmseqs2 output not found: {tsv}. Check mmseqs2 version/output naming."
+            msg_0
         )
     return tsv
 
@@ -175,8 +179,12 @@ def _build_cluster_id_map(
 
     """
     if member_col not in mapping_df.columns or cluster_col not in mapping_df.columns:
+        msg = (
+            f"mapping_df must contain '{member_col}' and '{cluster_col}'. "
+            f"Found: {mapping_df.columns.tolist()}"
+        )
         raise ValueError(
-            f"mapping_df must contain '{member_col}' and '{cluster_col}'. Found: {mapping_df.columns.tolist()}"
+            msg
         )
     return dict(zip(mapping_df[member_col].astype(str), mapping_df[cluster_col].astype(str)))
 
@@ -302,10 +310,12 @@ class HomologyAwareSplitter:
         # PRECOMPUTED
         if self.mode == "precomputed":
             if not self.clusters_path:
-                raise ValueError("mode='precomputed' requires clusters_path.")
+                msg = "mode='precomputed' requires clusters_path."
+                raise ValueError(msg)
             p = Path(self.clusters_path)
             if not p.exists():
-                raise FileNotFoundError(f"clusters_path not found: {p}")
+                msg = f"clusters_path not found: {p}"
+                raise FileNotFoundError(msg)
 
             if self.clusters_format == "mmseqs_tsv":
                 mdf = _load_mmseqs_cluster_tsv(p)
@@ -314,7 +324,8 @@ class HomologyAwareSplitter:
                 mdf = pd.read_csv(p)
                 cmap = _build_cluster_id_map(mdf, member_col=self.member_col, cluster_col=self.cluster_col)
             else:
-                raise ValueError("clusters_format must be 'mmseqs_tsv' or 'csv'")
+                msg = "clusters_format must be 'mmseqs_tsv' or 'csv'"
+                raise ValueError(msg)
 
             meta = {
                 "mode": "precomputed",
@@ -329,9 +340,12 @@ class HomologyAwareSplitter:
         # MMSEQS2
         if self.mode == "mmseqs2":
             if cols.seq_col not in df.columns:
-                raise ValueError(
+                msg = (
                     f"Homology-aware split (mmseqs2 mode) requires sequence column '{cols.seq_col}'. "
                     f"Columns: {df.columns.tolist()}"
+                )
+                raise ValueError(
+                    msg
                 )
 
             fasta = work / "input.fasta"
@@ -367,7 +381,8 @@ class HomologyAwareSplitter:
             }
             return cmap, meta
 
-        raise ValueError("mode must be 'mmseqs2' or 'precomputed'")
+        msg = "mode must be 'mmseqs2' or 'precomputed'"
+        raise ValueError(msg)
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
 
@@ -406,7 +421,8 @@ class HomologyAwareSplitter:
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
             if frac <= 0 or frac >= 1:
-                raise ValueError("Derived val fraction invalid. Check test_size/val_size.")
+                msg = "Derived val fraction invalid. Check test_size/val_size."
+                raise ValueError(msg)
             tv_groups = trainval[_INTERNAL_CLUSTER_COL].astype(str)
             train, val = _split_groups(trainval, tv_groups, test_size=frac, seed=self.seed)
 
@@ -420,9 +436,12 @@ class HomologyAwareSplitter:
         leak_vt = len(val_c & test_c) if val is not None else 0
 
         if leak_tt != 0 or leak_tv != 0 or leak_vt != 0:
-            raise ValueError(
+            msg = (
                 "Homology leakage detected (should not happen with group-based splitting). "
                 f"leak_train_test={leak_tt}, leak_train_val={leak_tv}, leak_val_test={leak_vt}"
+            )
+            raise ValueError(
+                msg
             )
 
         # cleanup

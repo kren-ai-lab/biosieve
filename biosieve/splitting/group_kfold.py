@@ -136,16 +136,23 @@ class GroupKFoldSplitter:
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
+            msg = (
+                "GroupKFoldSplitter requires scikit-learn. "
+                "Install: conda install -c conda-forge scikit-learn"
+            )
             raise ImportError(
-                "GroupKFoldSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
+                msg
             )
 
         if self.n_splits < 2:
-            raise ValueError("n_splits must be >= 2")
+            msg = "n_splits must be >= 2"
+            raise ValueError(msg)
         if not (0.0 <= self.val_size < 1.0):
-            raise ValueError("val_size must be in [0, 1)")
+            msg = "val_size must be in [0, 1)"
+            raise ValueError(msg)
         if self.group_col not in df.columns:
-            raise ValueError(f"Missing group column '{self.group_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing group column '{self.group_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().reset_index(drop=True)
         g = work[self.group_col]
@@ -158,15 +165,19 @@ class GroupKFoldSplitter:
             g = work[self.group_col].astype(str).reset_index(drop=True)
         else:
             if g.isna().any():
-                raise ValueError(f"Found NaN groups in '{self.group_col}'. Set dropna=true or clean dataset.")
+                msg = f"Found NaN groups in '{self.group_col}'. Set dropna=true or clean dataset."
+                raise ValueError(msg)
             dropped = 0
             g = g.astype(str)
 
         n_groups = int(pd.Series(g).nunique(dropna=False))
         if n_groups < self.n_splits:
-            raise ValueError(
+            msg = (
                 f"Not enough unique groups for n_splits={self.n_splits}. "
                 f"Found n_groups={n_groups}. Need at least n_splits groups."
+            )
+            raise ValueError(
+                msg
             )
 
         gkf = GroupKFold(n_splits=self.n_splits)
@@ -175,7 +186,8 @@ class GroupKFoldSplitter:
         if self.val_size > 0:
             tts = _try_import_train_test_split()
             if tts is None:
-                raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
+                msg = "val_size > 0 requires scikit-learn train_test_split."
+                raise ImportError(msg)
 
         folds: list[SplitResult] = []
 
@@ -192,9 +204,12 @@ class GroupKFoldSplitter:
             leak_tt = len(train_groups & test_groups)
 
             if leak_tt != 0:
-                raise ValueError(
+                msg = (
                     f"Group leakage detected in fold {fold_idx}: "
                     f"train/test share {leak_tt} group(s). This should never happen."
+                )
+                raise ValueError(
+                    msg
                 )
 
             val_df: pd.DataFrame | None = None

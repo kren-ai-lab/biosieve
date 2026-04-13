@@ -84,19 +84,26 @@ class RandomKFoldSplitter:
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         KFold = _try_import_kfold()
         if KFold is None:
+            msg = (
+                "RandomKFoldSplitter requires scikit-learn. "
+                "Install: conda install -c conda-forge scikit-learn"
+            )
             raise ImportError(
-                "RandomKFoldSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
+                msg
             )
 
         if self.n_splits < 2:
-            raise ValueError("n_splits must be >= 2")
+            msg = "n_splits must be >= 2"
+            raise ValueError(msg)
         if self.val_size < 0 or self.val_size >= 1:
-            raise ValueError("val_size must be in [0, 1)")
+            msg = "val_size must be in [0, 1)"
+            raise ValueError(msg)
 
         work = df.copy().reset_index(drop=True)
         n = len(work)
         if n < self.n_splits:
-            raise ValueError(f"Not enough samples (n={n}) for n_splits={self.n_splits}")
+            msg = f"Not enough samples (n={n}) for n_splits={self.n_splits}"
+            raise ValueError(msg)
 
         kf = KFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
 
@@ -104,8 +111,9 @@ class RandomKFoldSplitter:
         if self.val_size and self.val_size > 0:
             tts = _try_import_train_test_split()
             if tts is None:
+                msg = "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
                 raise ImportError(
-                    "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
+                    msg
                 )
 
         folds: list[SplitResult] = []

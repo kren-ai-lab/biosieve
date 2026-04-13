@@ -53,14 +53,18 @@ def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
 
     """
     if cols.id_col not in df.columns:
-        raise ValueError(f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}")
+        msg = f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
 
     n_in = len(df)
     unique_ids = df[cols.id_col].astype(str).nunique()
     if unique_ids != n_in:
-        raise ValueError(
+        msg = (
             f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
             f"BioSieve expects unique '{cols.id_col}'."
+        )
+        raise ValueError(
+            msg
         )
 
 
@@ -135,7 +139,8 @@ def run_split(
     # Validate strategy name early (avoid silent typos)
     if not registry.has_splitter(strategy):
         available = sorted(list(registry.list_splitters().keys()))
-        raise ValueError(f"Unknown split strategy '{strategy}'. Available: {available}")
+        msg = f"Unknown split strategy '{strategy}'. Available: {available}"
+        raise ValueError(msg)
 
     out = _ensure_dir(outdir)
 
@@ -162,9 +167,12 @@ def run_split(
         folds = splitter.run_folds(df, cols)
 
         if not isinstance(folds, list) or len(folds) == 0:
-            raise ValueError(
+            msg = (
                 f"Splitter '{strategy}' returned an invalid folds object. "
                 "Expected a non-empty list of SplitResult."
+            )
+            raise ValueError(
+                msg
             )
 
         folds_meta: list[dict[str, Any]] = []

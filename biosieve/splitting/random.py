@@ -26,11 +26,14 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
     """
     if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
+        msg = "test_size must be in (0, 1)"
+        raise ValueError(msg)
     if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
+        msg = "val_size must be in [0, 1)"
+        raise ValueError(msg)
     if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
+        msg = "test_size + val_size must be < 1.0"
+        raise ValueError(msg)
 
 
 def _index_split(
@@ -63,7 +66,8 @@ def _index_split(
     n_val = int(round(n * val_size)) if val_size > 0 else 0
     n_train = n - n_test - n_val
     if n_train <= 0:
-        raise ValueError("Split sizes leave no training samples. Reduce test_size/val_size.")
+        msg = "Split sizes leave no training samples. Reduce test_size/val_size."
+        raise ValueError(msg)
 
     train_idx = idx[:n_train]
     val_idx = idx[n_train : n_train + n_val] if n_val > 0 else None

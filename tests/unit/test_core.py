@@ -134,11 +134,6 @@ def test_full_registry_has_expected_strategies(registry: StrategyRegistry) -> No
     assert expected_splitters.issubset(registry.list_splitters())
 
 
-# ---------------------------------------------------------------------------
-# instantiate_strategy (factory)
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class _Params:
     threshold: float = 0.9
@@ -178,11 +173,6 @@ def test_instantiate_non_dataclass_unknown_param_raises() -> None:
 
     with pytest.raises(ValueError, match="Unknown parameters"):
         instantiate_strategy(_Plain, {"z": 99})
-
-
-# ---------------------------------------------------------------------------
-# lazy_import_class / StrategySpec
-# ---------------------------------------------------------------------------
 
 
 def test_lazy_import_valid_path() -> None:

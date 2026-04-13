@@ -158,22 +158,27 @@ class DescriptorEuclideanReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         if self.threshold < 0:
-            raise ValueError("threshold must be >= 0")
+            msg = "threshold must be >= 0"
+            raise ValueError(msg)
         if self.metric != "euclidean":
-            raise ValueError("v0.1 supports metric='euclidean' only")
+            msg = "v0.1 supports metric='euclidean' only"
+            raise ValueError(msg)
         if self.n_jobs < 1:
-            raise ValueError("n_jobs must be >= 1")
+            msg = "n_jobs must be >= 1"
+            raise ValueError(msg)
 
         # deterministic order
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 
         ids = work[cols.id_col].astype(str).tolist()
         if len(ids) != len(set(ids)):
+            msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
             raise ValueError(
-                "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+                msg
             )
 
         dcols = infer_descriptor_columns(

@@ -17,7 +17,8 @@ log = get_logger(__name__)
 def _kmer_set(seq: str, k: int) -> set[str]:
     """Return set of k-mers for a sequence."""
     if k <= 0:
-        raise ValueError("k must be >= 1")
+        msg = "k must be >= 1"
+        raise ValueError(msg)
     if len(seq) < k:
         return {seq}
     return {seq[i : i + k] for i in range(len(seq) - k + 1)}
@@ -134,28 +135,36 @@ class IdentityGreedyReducer:
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         # --- parameter validation ---
         if not (0.0 <= self.threshold <= 1.0):
-            raise ValueError("threshold must be in [0, 1]")
+            msg = "threshold must be in [0, 1]"
+            raise ValueError(msg)
         if self.k < 1:
-            raise ValueError("k must be >= 1")
+            msg = "k must be >= 1"
+            raise ValueError(msg)
         if not (0.0 <= self.jaccard_prefilter <= 1.0):
-            raise ValueError("jaccard_prefilter must be in [0, 1]")
+            msg = "jaccard_prefilter must be in [0, 1]"
+            raise ValueError(msg)
         if not (0.0 <= self.length_tolerance <= 1.0):
-            raise ValueError("length_tolerance must be in [0, 1]")
+            msg = "length_tolerance must be in [0, 1]"
+            raise ValueError(msg)
         if self.max_candidates < 1:
-            raise ValueError("max_candidates must be >= 1")
+            msg = "max_candidates must be >= 1"
+            raise ValueError(msg)
 
         # --- column validation ---
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
         if cols.seq_col not in df.columns:
-            raise ValueError(f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 
         ids = work[cols.id_col].astype(str).tolist()
         if len(ids) != len(set(ids)):
+            msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
             raise ValueError(
-                "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+                msg
             )
 
         reps_idx: list[int] = []
@@ -181,9 +190,12 @@ class IdentityGreedyReducer:
             cur_id = str(work.at[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
-                raise ValueError(
+                msg = (
                     f"Empty/invalid sequence for id={cur_id} in column '{cols.seq_col}'. "
                     "Clean dataset before identity_greedy reduction."
+                )
+                raise ValueError(
+                    msg
                 )
 
             cur_len = len(seq)

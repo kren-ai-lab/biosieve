@@ -33,8 +33,9 @@ def instantiate_strategy(cls: type[object], params: dict[str, object]) -> object
         allowed = {f.name for f in fields(cls)}
         unknown = set(params) - allowed
         if unknown:
+            msg = f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
             raise ValueError(
-                f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
+                msg
             )
         return cls(**params)
 
@@ -42,7 +43,8 @@ def instantiate_strategy(cls: type[object], params: dict[str, object]) -> object
     allowed = set(sig.parameters.keys())
     unknown = set(params) - allowed
     if unknown:
+        msg = f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
         raise ValueError(
-            f"Unknown parameters for {cls.__name__}: {sorted(unknown)}. Allowed: {sorted(allowed)}"
+            msg
         )
     return cls(**params)

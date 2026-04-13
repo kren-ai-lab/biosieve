@@ -21,7 +21,7 @@ KIND_OPTION = typer.Option(
     show_default=True,
 )
 SHOW_DEFAULTS_OPTION = typer.Option(
-    False,
+    False,  # noqa: FBT003
     "--show-defaults/--no-show-defaults",
     help="Show dataclass defaults (may import classes).",
     show_default=True,
@@ -39,23 +39,24 @@ def _defaults_for_cls(cls: type[object]) -> dict[str, object]:
 
 
 def _print_block(title: str, items: Mapping[str, StrategySpec | type[object]]) -> None:
-    print(f"\n{title}")
-    print("-" * len(title))
+    typer.echo(f"\n{title}")
+    typer.echo("-" * len(title))
     for name in sorted(items.keys()):
         obj = items[name]
         if isinstance(obj, StrategySpec):
-            print(f"- {name}  [{obj.import_path}]")
+            typer.echo(f"- {name}  [{obj.import_path}]")
         else:
-            print(f"- {name}  [{obj.__module__}:{obj.__name__}]")
+            typer.echo(f"- {name}  [{obj.__module__}:{obj.__name__}]")
 
 
 def info(
     kind: str = KIND_OPTION,
-    show_defaults: bool = SHOW_DEFAULTS_OPTION,
+    show_defaults: bool = SHOW_DEFAULTS_OPTION,  # noqa: FBT001
 ) -> None:
     """List available strategies and their default parameters."""
     if kind not in {"all", "reduce", "split"}:
-        raise typer.BadParameter("kind must be one of: all, reduce, split")
+        msg = "kind must be one of: all, reduce, split"
+        raise typer.BadParameter(msg)
 
     args = SimpleNamespace(kind=kind, show_defaults=show_defaults)
     _run_info(args, build_registry())
@@ -71,21 +72,21 @@ def _run_info(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     if args.show_defaults:
         # This may import classes for StrategySpec entries (still OK if environment supports deps)
         if args.kind in {"all", "reduce"}:
-            print("\nReducer defaults")
-            print("--------------")
+            typer.echo("\nReducer defaults")
+            typer.echo("--------------")
             for name in sorted(registry.list_reducers().keys()):
                 cls = registry.get_reducer_class(name)
                 d = _defaults_for_cls(cls)
-                print(f"\n{name}")
+                typer.echo(f"\n{name}")
                 for k, v in d.items():
-                    print(f"  {k}: {v}")
+                    typer.echo(f"  {k}: {v}")
 
         if args.kind in {"all", "split"}:
-            print("\nSplitter defaults")
-            print("----------------")
+            typer.echo("\nSplitter defaults")
+            typer.echo("----------------")
             for name in sorted(registry.list_splitters().keys()):
                 cls = registry.get_splitter_class(name)
                 d = _defaults_for_cls(cls)
-                print(f"\n{name}")
+                typer.echo(f"\n{name}")
                 for k, v in d.items():
-                    print(f"  {k}: {v}")
+                    typer.echo(f"  {k}: {v}")

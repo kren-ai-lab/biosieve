@@ -14,6 +14,7 @@ _LEVELS = {
 
 def configure_logging(
     level: str = "INFO",
+    *,
     quiet: bool = False,
     log_file: str | None = None,
 ) -> None:

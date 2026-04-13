@@ -94,17 +94,23 @@ class StratifiedKFoldSplitter:
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
-            raise ImportError(
+            msg = (
                 "StratifiedKFoldSplitter requires scikit-learn. "
                 "Install: conda install -c conda-forge scikit-learn"
             )
+            raise ImportError(
+                msg
+            )
 
         if self.n_splits < 2:
-            raise ValueError("n_splits must be >= 2")
+            msg = "n_splits must be >= 2"
+            raise ValueError(msg)
         if self.val_size < 0 or self.val_size >= 1:
-            raise ValueError("val_size must be in [0, 1)")
+            msg = "val_size must be in [0, 1)"
+            raise ValueError(msg)
         if self.label_col not in df.columns:
-            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         work = df.copy().reset_index(drop=True)
 
@@ -120,7 +126,8 @@ class StratifiedKFoldSplitter:
             y = work[self.label_col].reset_index(drop=True)
         else:
             if y.isna().any():
-                raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
+                msg = f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
+                raise ValueError(msg)
             dropped = 0
 
         if self.cast_to_str:
@@ -128,15 +135,19 @@ class StratifiedKFoldSplitter:
 
         n = len(work)
         if n < self.n_splits:
-            raise ValueError(f"Not enough samples (n={n}) for n_splits={self.n_splits}")
+            msg = f"Not enough samples (n={n}) for n_splits={self.n_splits}"
+            raise ValueError(msg)
 
         # sanity: each class must have at least n_splits members for StratifiedKFold
         vc = pd.Series(y).value_counts(dropna=False)
         too_small = vc[vc < self.n_splits]
         if len(too_small) > 0:
-            raise ValueError(
+            msg = (
                 "Some classes have fewer samples than n_splits, cannot stratify k-fold. "
                 f"n_splits={self.n_splits}. Problem classes: {too_small.to_dict()}"
+            )
+            raise ValueError(
+                msg
             )
 
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
@@ -145,7 +156,8 @@ class StratifiedKFoldSplitter:
         if self.val_size and self.val_size > 0:
             tts = _try_import_train_test_split()
             if tts is None:
-                raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
+                msg = "val_size > 0 requires scikit-learn train_test_split."
+                raise ImportError(msg)
 
         folds: list[SplitResult] = []
 

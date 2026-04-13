@@ -17,8 +17,9 @@ class MMseqs2ClusterPaths:
 def _which_mmseqs() -> str:
     exe = shutil.which("mmseqs")
     if not exe:
+        msg = "mmseqs executable not found in PATH. Install MMseqs2 and ensure `mmseqs` is available."
         raise FileNotFoundError(
-            "mmseqs executable not found in PATH. Install MMseqs2 and ensure `mmseqs` is available."
+            msg
         )
     return exe
 
@@ -44,7 +45,8 @@ def run_mmseqs_easy_cluster(
     extra_args: list[str] | None = None,
 ) -> MMseqs2ClusterPaths:
     """Runs:
-      mmseqs easy-cluster <input.fasta> <out_prefix> <tmp_dir> --min-seq-id ... -c ... --cov-mode ... --cluster-mode ...
+      mmseqs easy-cluster <input.fasta> <out_prefix> <tmp_dir>
+      --min-seq-id ... -c ... --cov-mode ... --cluster-mode ...
     Produces (among others):
       <out_prefix>_cluster.tsv
       <out_prefix>_rep_seq.fasta
@@ -76,8 +78,9 @@ def run_mmseqs_easy_cluster(
 
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
+        msg = f"MMseqs2 failed.\nCommand: {' '.join(cmd)}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}\n"
         raise RuntimeError(
-            f"MMseqs2 failed.\nCommand: {' '.join(cmd)}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}\n"
+            msg
         )
 
     # MMseqs2 naming convention for easy-cluster
@@ -85,9 +88,11 @@ def run_mmseqs_easy_cluster(
     rep_fasta = Path(str(out_prefix) + "_rep_seq.fasta")
 
     if not cluster_tsv.exists():
-        raise FileNotFoundError(f"Expected cluster TSV not found: {cluster_tsv}")
+        msg = f"Expected cluster TSV not found: {cluster_tsv}"
+        raise FileNotFoundError(msg)
     if not rep_fasta.exists():
-        raise FileNotFoundError(f"Expected representative FASTA not found: {rep_fasta}")
+        msg = f"Expected representative FASTA not found: {rep_fasta}"
+        raise FileNotFoundError(msg)
 
     return MMseqs2ClusterPaths(
         tmp_dir=tmp_dir,

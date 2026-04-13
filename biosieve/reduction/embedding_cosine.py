@@ -176,10 +176,12 @@ class EmbeddingCosineReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         if not (0.0 <= self.threshold <= 1.0):
-            raise ValueError("threshold must be in [0, 1]")
+            msg = "threshold must be in [0, 1]"
+            raise ValueError(msg)
 
         if cols.id_col not in df.columns:
-            raise ValueError(f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}")
+            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+            raise ValueError(msg)
 
         store = load_embeddings(
             embeddings_path=self.embeddings_path,
@@ -198,10 +200,13 @@ class EmbeddingCosineReducer:
         missing = [sid for sid in work_ids if sid not in id_to_idx]
 
         if len(present) == 0:
-            raise ValueError(
+            msg = (
                 "None of the dataset ids were found in embedding ids file. "
                 f"Example dataset id: {work_ids[0] if work_ids else 'EMPTY'}, "
                 f"example embedding id: {store.ids[0] if store.ids else 'EMPTY'}"
+            )
+            raise ValueError(
+                msg
             )
 
         # Subset embeddings to only rows present in dataset, keeping work order (deterministic)

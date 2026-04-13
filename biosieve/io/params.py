@@ -19,7 +19,8 @@ def _try_import_yaml() -> ModuleType | None:
 
 def _load_file(path: Path) -> dict[str, object]:
     if not path.exists():
-        raise FileNotFoundError(f"Params file not found: {path}")
+        msg = f"Params file not found: {path}"
+        raise FileNotFoundError(msg)
 
     suffix = path.suffix.lower()
     text = path.read_text(encoding="utf-8")
@@ -29,16 +30,21 @@ def _load_file(path: Path) -> dict[str, object]:
     elif suffix in {".yml", ".yaml"}:
         yaml = _try_import_yaml()
         if yaml is None:
-            raise ImportError(
+            msg = (
                 "YAML params requested but PyYAML is not installed. "
                 "Install with: pip install pyyaml  (or conda install -c conda-forge pyyaml)"
             )
+            raise ImportError(
+                msg
+            )
         data = yaml.safe_load(text) or {}
     else:
-        raise ValueError(f"Unsupported params file extension: {suffix}. Use .json or .yaml/.yml")
+        msg = f"Unsupported params file extension: {suffix}. Use .json or .yaml/.yml"
+        raise ValueError(msg)
 
     if not isinstance(data, dict):
-        raise ValueError("Params root must be a dict. Example: {strategy_name: {param: value}}")
+        msg = "Params root must be a dict. Example: {strategy_name: {param: value}}"
+        raise ValueError(msg)
 
     return cast("dict[str, object]", data)
 
@@ -66,11 +72,13 @@ def _parse_value(raw: str) -> object:
 
 def _split_override(s: str) -> tuple[str, object]:
     if "=" not in s:
-        raise ValueError(f"Invalid --set override (missing '='): {s}")
+        msg = f"Invalid --set override (missing '='): {s}"
+        raise ValueError(msg)
     key, raw = s.split("=", 1)
     key = key.strip()
     if not key:
-        raise ValueError(f"Invalid --set override (empty key): {s}")
+        msg = f"Invalid --set override (empty key): {s}"
+        raise ValueError(msg)
     return key, _parse_value(raw.strip())
 
 
@@ -80,8 +88,12 @@ def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
     """
     parts = dotted_key.split(".")
     if len(parts) < 2:
+        msg = (
+            "Override key must include strategy and parameter, "
+            f"e.g. embedding_cosine.threshold. Got: {dotted_key}"
+        )
         raise ValueError(
-            f"Override key must include strategy and parameter, e.g. embedding_cosine.threshold. Got: {dotted_key}"
+            msg
         )
 
     cur: dict[str, object] = d
@@ -89,7 +101,8 @@ def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
         if p not in cur:
             cur[p] = {}
         if not isinstance(cur[p], dict):
-            raise ValueError(f"Cannot set nested key under non-dict path: {p} in {dotted_key}")
+            msg = f"Cannot set nested key under non-dict path: {p} in {dotted_key}"
+            raise ValueError(msg)
         cur = cast("dict[str, object]", cur[p])
     cur[parts[-1]] = value
 
@@ -123,5 +136,6 @@ def params_for_strategy(all_params: Mapping[str, object], strategy_name: str) ->
     if v is None:
         return {}
     if not isinstance(v, dict):
-        raise ValueError(f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}.")
+        msg = f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}."
+        raise ValueError(msg)
     return cast("dict[str, object]", v)

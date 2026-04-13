@@ -20,11 +20,14 @@ log = get_logger(__name__)
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
     if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
+        msg = "test_size must be in (0, 1)"
+        raise ValueError(msg)
     if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
+        msg = "val_size must be in [0, 1)"
+        raise ValueError(msg)
     if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
+        msg = "test_size + val_size must be < 1.0"
+        raise ValueError(msg)
 
 
 def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -73,7 +76,8 @@ def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
         c = X.mean(axis=0, keepdims=True)
         dif = X - c
         return np.sqrt((dif * dif).sum(axis=1))
-    raise ValueError("metric must be 'cosine' or 'euclidean'")
+    msg = "metric must be 'cosine' or 'euclidean'"
+    raise ValueError(msg)
 
 
 def _dist_stats(d: np.ndarray) -> dict[str, Any]:
@@ -278,8 +282,9 @@ class DistanceAwareSplitter:
                 emb_rows.append(j)
 
             if len(present_idx) == 0:
+                msg = "No dataset ids found in embedding ids file. Cannot run distance-aware split."
                 raise ValueError(
-                    "No dataset ids found in embedding ids file. Cannot run distance-aware split."
+                    msg
                 )
 
             X = store.X[np.asarray(emb_rows, dtype=int)]
@@ -318,7 +323,8 @@ class DistanceAwareSplitter:
             }
             return X, idx, meta
 
-        raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")
+        msg = "feature_mode must be 'embeddings' or 'descriptors'"
+        raise ValueError(msg)
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
 
@@ -335,18 +341,24 @@ class DistanceAwareSplitter:
         n_train = n - n_test - n_val
 
         if n_train <= 0:
-            raise ValueError("Split sizes leave no training samples. Reduce test_size/val_size.")
+            msg = "Split sizes leave no training samples. Reduce test_size/val_size."
+            raise ValueError(msg)
         if n_test <= 0:
-            raise ValueError("test_size too small -> no test samples after rounding. Increase test_size.")
+            msg = "test_size too small -> no test samples after rounding. Increase test_size."
+            raise ValueError(msg)
         if self.val_size > 0 and n_val <= 0:
-            raise ValueError("val_size too small -> no validation samples after rounding. Increase val_size.")
+            msg = "val_size too small -> no validation samples after rounding. Increase val_size."
+            raise ValueError(msg)
 
         if self.test_method != "farthest":
-            raise ValueError("v0.1 supports test_method='farthest' only")
+            msg = "v0.1 supports test_method='farthest' only"
+            raise ValueError(msg)
         if self.val_method not in {"random", "farthest_next"}:
-            raise ValueError("val_method must be 'random' or 'farthest_next'")
+            msg = "val_method must be 'random' or 'farthest_next'"
+            raise ValueError(msg)
         if self.metric not in {"cosine", "euclidean"}:
-            raise ValueError("metric must be 'cosine' or 'euclidean'")
+            msg = "metric must be 'cosine' or 'euclidean'"
+            raise ValueError(msg)
 
         X, feat_idx, feat_meta = self._build_features(work, cols)
 
@@ -366,9 +378,12 @@ class DistanceAwareSplitter:
 
         # Choose test indices (only among feature-covered candidates)
         if len(ranked_df_idx) < n_test:
-            raise ValueError(
+            msg = (
                 f"Not enough feature-covered samples to allocate test. "
                 f"need n_test={n_test}, have n_candidates={len(ranked_df_idx)}"
+            )
+            raise ValueError(
+                msg
             )
         test_idx = ranked_df_idx[:n_test].tolist()
 
@@ -378,7 +393,8 @@ class DistanceAwareSplitter:
 
         if n_val > 0:
             if len(remaining_idx) < n_val:
-                raise ValueError("Not enough remaining feature-covered samples to allocate validation.")
+                msg = "Not enough remaining feature-covered samples to allocate validation."
+                raise ValueError(msg)
             if self.val_method == "farthest_next":
                 val_idx = remaining_idx[:n_val]
             else:

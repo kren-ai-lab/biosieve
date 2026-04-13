@@ -21,7 +21,8 @@ def _read_ids_csv(ids_path: Path, id_col: str = "id") -> list[str]:
         # fallback: first column
         ids = df.iloc[:, 0].astype(str).tolist()
     if len(ids) == 0:
-        raise ValueError(f"No ids found in ids file: {ids_path}")
+        msg = f"No ids found in ids file: {ids_path}"
+        raise ValueError(msg)
     return ids
 
 
@@ -35,19 +36,25 @@ def load_embeddings(
     ip = Path(ids_path)
 
     if not ep.exists():
-        raise FileNotFoundError(f"Embeddings file not found: {ep}")
+        msg = f"Embeddings file not found: {ep}"
+        raise FileNotFoundError(msg)
     if not ip.exists():
-        raise FileNotFoundError(f"Embedding ids file not found: {ip}")
+        msg = f"Embedding ids file not found: {ip}"
+        raise FileNotFoundError(msg)
 
     X = np.load(ep)
     if X.ndim != 2:
-        raise ValueError(f"Embeddings must be 2D array (N,D). Got shape {X.shape}")
+        msg = f"Embeddings must be 2D array (N,D). Got shape {X.shape}"
+        raise ValueError(msg)
 
     ids = _read_ids_csv(ip, id_col=ids_col)
     if len(ids) != X.shape[0]:
-        raise ValueError(
+        msg = (
             f"Mismatch: ids ({len(ids)}) vs embeddings rows ({X.shape[0]}). "
             "They must align 1-to-1 in the same order."
+        )
+        raise ValueError(
+            msg
         )
 
     if dtype is not None:

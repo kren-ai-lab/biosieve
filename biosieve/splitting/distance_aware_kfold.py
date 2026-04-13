@@ -86,7 +86,8 @@ def _euclidean_distance_to_centroid(X: np.ndarray) -> np.ndarray:
 def _load_embedding_ids(path: str) -> list[str]:
     p = Path(path)
     if not p.exists():
-        raise FileNotFoundError(f"ids_path not found: {p}")
+        msg = f"ids_path not found: {p}"
+        raise FileNotFoundError(msg)
 
     df = pd.read_csv(p)
     for col in ["id", "ids", "sequence_id", "uniprot_id"]:
@@ -96,9 +97,12 @@ def _load_embedding_ids(path: str) -> list[str]:
     if df.shape[1] == 1:
         return df.iloc[:, 0].astype(str).tolist()
 
-    raise ValueError(
+    msg = (
         "ids_path must contain a recognizable id column (id/ids/sequence_id/uniprot_id) "
         f"or be a single-column CSV. Found: {df.columns.tolist()}"
+    )
+    raise ValueError(
+        msg
     )
 
 
@@ -110,13 +114,15 @@ def _load_features_embeddings(
 ) -> np.ndarray:
     ep = Path(embeddings_path)
     if not ep.exists():
-        raise FileNotFoundError(f"embeddings_path not found: {ep}")
+        msg = f"embeddings_path not found: {ep}"
+        raise FileNotFoundError(msg)
 
     X = np.load(ep)  # (N, D)
     ids = _load_embedding_ids(ids_path)
     if len(ids) != X.shape[0]:
+        msg = f"Mismatch embeddings rows vs ids. embeddings.shape[0]={X.shape[0]} vs len(ids)={len(ids)}"
         raise ValueError(
-            f"Mismatch embeddings rows vs ids. embeddings.shape[0]={X.shape[0]} vs len(ids)={len(ids)}"
+            msg
         )
 
     id_to_idx = {str(i): k for k, i in enumerate(ids)}
@@ -133,9 +139,12 @@ def _load_features_embeddings(
             idx.append(k)
 
     if missing > 0:
-        raise ValueError(
+        msg = (
             f"Missing embeddings for {missing}/{len(df_ids)} samples. "
             "Provide full embeddings coverage or pre-filter the dataset."
+        )
+        raise ValueError(
+            msg
         )
 
     idx_arr = np.asarray(idx, dtype=int)
@@ -151,13 +160,15 @@ def _load_features_descriptors(
 ) -> tuple[np.ndarray, list[str]]:
     if descriptor_cols is None:
         if not descriptor_prefix:
-            raise ValueError("For descriptors mode, provide descriptor_cols or descriptor_prefix.")
+            msg = "For descriptors mode, provide descriptor_cols or descriptor_prefix."
+            raise ValueError(msg)
         cols = [c for c in df.columns if c.startswith(descriptor_prefix)]
     else:
         cols = list(descriptor_cols)
 
     if len(cols) == 0:
-        raise ValueError("No descriptor columns selected for descriptors mode.")
+        msg = "No descriptor columns selected for descriptors mode."
+        raise ValueError(msg)
 
     Xdf = df[cols].copy()
     for c in cols:
@@ -165,8 +176,9 @@ def _load_features_descriptors(
 
     if Xdf.isna().any().any():
         bad = int(Xdf.isna().sum().sum())
+        msg = f"Descriptor matrix contains NaNs after coercion ({bad} NaN cells). Clean/impute first."
         raise ValueError(
-            f"Descriptor matrix contains NaNs after coercion ({bad} NaN cells). Clean/impute first."
+            msg
         )
 
     X = Xdf.to_numpy(dtype=float)
@@ -177,7 +189,8 @@ def _load_features_descriptors(
 
 def _get_distances_for_df(df_split: pd.DataFrame, d: np.ndarray) -> np.ndarray:
     if _INTERNAL_IDX_COL not in df_split.columns:
-        raise ValueError(f"Internal index column missing: {_INTERNAL_IDX_COL}")
+        msg = f"Internal index column missing: {_INTERNAL_IDX_COL}"
+        raise ValueError(msg)
     idx = df_split[_INTERNAL_IDX_COL].to_numpy(dtype=int)
     return d[idx]
 
@@ -291,23 +304,27 @@ class DistanceAwareKFoldSplitter:
 
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         if self.n_splits < 2:
-            raise ValueError("n_splits must be >= 2")
+            msg = "n_splits must be >= 2"
+            raise ValueError(msg)
         if not (0.0 <= self.val_size < 1.0):
-            raise ValueError("val_size must be in [0, 1)")
+            msg = "val_size must be in [0, 1)"
+            raise ValueError(msg)
 
         work = df.copy().reset_index(drop=True)
         work[_INTERNAL_IDX_COL] = np.arange(len(work), dtype=int)
 
         n = len(work)
         if n < self.n_splits:
-            raise ValueError(f"Not enough samples (n={n}) for n_splits={self.n_splits}")
+            msg = f"Not enough samples (n={n}) for n_splits={self.n_splits}"
+            raise ValueError(msg)
 
         feature_info: dict[str, Any] = {"feature_mode": self.feature_mode}
 
         # --- Load features ---
         if self.feature_mode == "embeddings":
             if not self.embeddings_path or not self.ids_path:
-                raise ValueError("Embeddings mode requires embeddings_path and ids_path.")
+                msg = "Embeddings mode requires embeddings_path and ids_path."
+                raise ValueError(msg)
             X = _load_features_embeddings(work, cols, self.embeddings_path, self.ids_path)
             feature_info.update(
                 {
@@ -332,7 +349,8 @@ class DistanceAwareKFoldSplitter:
                 }
             )
         else:
-            raise ValueError("feature_mode must be 'embeddings' or 'descriptors'")
+            msg = "feature_mode must be 'embeddings' or 'descriptors'"
+            raise ValueError(msg)
 
         # --- Distances ---
         if self.metric == "cosine":
@@ -340,7 +358,8 @@ class DistanceAwareKFoldSplitter:
         elif self.metric == "euclidean":
             d = _euclidean_distance_to_centroid(X)
         else:
-            raise ValueError("metric must be 'cosine' or 'euclidean'")
+            msg = "metric must be 'cosine' or 'euclidean'"
+            raise ValueError(msg)
 
         # --- Rank samples farthest -> closest ---
         rng = np.random.default_rng(self.seed)
@@ -353,8 +372,9 @@ class DistanceAwareKFoldSplitter:
         if self.val_size and self.val_size > 0:
             tts = _try_import_train_test_split()
             if tts is None:
+                msg = "val_size > 0 requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
                 raise ImportError(
-                    "val_size > 0 requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
+                    msg
                 )
 
         folds: list[SplitResult] = []
