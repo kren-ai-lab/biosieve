@@ -144,6 +144,8 @@ class MMseqs2Reducer:
             )
 
         tmp_base = self.tmp_root if self.tmp_root is not None else None
+        if tmp_base is not None:
+            Path(tmp_base).mkdir(parents=True, exist_ok=True)
         tmpdir_obj = tempfile.TemporaryDirectory(prefix="biosieve_mmseqs2_", dir=tmp_base)
         tmpdir = Path(tmpdir_obj.name)
 
