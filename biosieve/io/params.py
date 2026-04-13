@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from types import ModuleType
 
+MIN_OVERRIDE_KEY_PARTS = 2
+
 
 def _try_import_yaml() -> ModuleType | None:
     try:
@@ -25,7 +27,7 @@ def _load_file(path: Path) -> dict[str, object]:
     suffix = path.suffix.lower()
     text = path.read_text(encoding="utf-8")
 
-    if suffix in {".json"}:
+    if suffix == ".json":
         data = json.loads(text)
     elif suffix in {".yml", ".yaml"}:
         yaml = _try_import_yaml()
@@ -87,7 +89,7 @@ def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
     Example: embedding_cosine.threshold=0.97
     """
     parts = dotted_key.split(".")
-    if len(parts) < 2:
+    if len(parts) < MIN_OVERRIDE_KEY_PARTS:
         msg = (
             "Override key must include strategy and parameter, "
             f"e.g. embedding_cosine.threshold. Got: {dotted_key}"

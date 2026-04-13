@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import shutil
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -119,9 +121,6 @@ def _load_cols(cols_arg: str | None) -> Columns:
     else:
         text = cols_arg
 
-    # Support JSON-like dict string only (fast path). YAML parsing can be added later.
-    import json
-
     d = json.loads(text)
     return Columns(**d)
 
@@ -207,7 +206,7 @@ def _check_embeddings_alignment(
 
     # Load embeddings array shape only
     X = np.load(pX, mmap_mode="r")
-    if X.ndim != 2:
+    if X.ndim != 2:  # noqa: PLR2004
         return False, f"FAIL embeddings: expected 2D array (N,D), got shape {tuple(X.shape)}"
     if len(emb_ids) != X.shape[0]:
         return False, f"FAIL embeddings: ids length {len(emb_ids)} != embeddings rows {X.shape[0]}"
@@ -272,8 +271,6 @@ def _check_edges(
 
 
 def _check_mmseqs2(binary: str) -> tuple[bool, str]:
-    import shutil
-
     path = shutil.which(binary)
     if path is None:
         return False, f"FAIL mmseqs2: binary '{binary}' not found in PATH"
@@ -296,19 +293,19 @@ def _strategy_requires(strategy: str, kind: str) -> dict[str, bool]:
         if strategy in {"kmer_jaccard", "identity_greedy", "exact"}:
             return {"sequence": True}
     if kind == "split":
-        if strategy in {"stratified"}:
+        if strategy == "stratified":
             return {"label": True}
         if strategy in {"stratified_numeric", "stratified_numeric_kfold"}:
             return {"label": True}
         if strategy in {"group", "group_kfold"}:
             return {"group": True}
-        if strategy in {"time"}:
+        if strategy == "time":
             return {"date": True}
         if strategy in {"distance_aware", "distance_aware_kfold"}:
             return {"embeddings_or_descriptors": True}
-        if strategy in {"homology_aware"}:
+        if strategy == "homology_aware":
             return {"mmseqs2": True}
-        if strategy in {"cluster_aware"}:
+        if strategy == "cluster_aware":
             return {"cluster": True}
     return {}
 
@@ -573,8 +570,6 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
             "results": results,
             "n_errors": int(errors),
         }
-        import json
-
         Path(args.report).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if errors > 0:

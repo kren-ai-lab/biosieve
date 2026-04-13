@@ -43,7 +43,7 @@ def load_embeddings(
         raise FileNotFoundError(msg)
 
     X = np.load(ep)
-    if X.ndim != 2:
+    if X.ndim != 2:  # noqa: PLR2004
         msg = f"Embeddings must be 2D array (N,D). Got shape {X.shape}"
         raise ValueError(msg)
 

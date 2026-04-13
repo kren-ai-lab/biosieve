@@ -28,7 +28,7 @@ class _TrainTestSplitFn(Protocol):
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split
+        from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
         return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:

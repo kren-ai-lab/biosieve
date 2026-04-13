@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
+MIN_BINS = 2
+MIN_SAMPLES_AFTER_FILTER = 3
 
 
 class _TrainTestSplitFn(Protocol):
@@ -31,7 +33,7 @@ class _TrainTestSplitFn(Protocol):
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split
+        from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
         return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:
@@ -105,7 +107,7 @@ def _make_bins_once(
         If NaNs are present or binning fails.
 
     """
-    if n_bins < 2:
+    if n_bins < MIN_BINS:
         msg = "n_bins must be >= 2"
         raise ValueError(msg)
 
@@ -166,7 +168,7 @@ def _make_bins_safe(
     if min_bin_count < 1:
         msg = "min_bin_count must be >= 1"
         raise ValueError(msg)
-    if n_bins < 2:
+    if n_bins < MIN_BINS:
         msg = "n_bins must be >= 2"
         raise ValueError(msg)
 
@@ -183,7 +185,7 @@ def _make_bins_safe(
             last_error = e
             continue
 
-        if n_eff < 2:
+        if n_eff < MIN_BINS:
             last_error = ValueError(f"Effective number of bins is {n_eff} (requested={b}). Cannot stratify.")
             continue
 
@@ -340,7 +342,7 @@ class StratifiedNumericSplitter:
                     msg
                 )
 
-        if len(work) < 3:
+        if len(work) < MIN_SAMPLES_AFTER_FILTER:
             msg = "Not enough samples after dropping NaNs to split."
             raise ValueError(msg)
 

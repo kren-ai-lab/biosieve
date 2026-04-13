@@ -42,7 +42,7 @@ class _NearestNeighborsFactory(Protocol):
 
 def _try_import_faiss() -> _FaissModule | None:
     try:
-        import faiss
+        import faiss  # noqa: PLC0415
 
         return cast("_FaissModule", faiss)
     except ImportError:
@@ -51,7 +51,7 @@ def _try_import_faiss() -> _FaissModule | None:
 
 def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
     try:
-        from sklearn.neighbors import NearestNeighbors
+        from sklearn.neighbors import NearestNeighbors  # noqa: PLC0415
 
         return cast("_NearestNeighborsFactory", NearestNeighbors)
     except ImportError:

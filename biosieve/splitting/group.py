@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
+MIN_GROUPS_FOR_SPLIT = 2
 
 
 class _GroupShuffleSplit(Protocol):
@@ -28,7 +29,7 @@ class _GroupShuffleSplitFactory(Protocol):
 
 def _try_import_gss() -> _GroupShuffleSplitFactory | None:
     try:
-        from sklearn.model_selection import GroupShuffleSplit
+        from sklearn.model_selection import GroupShuffleSplit  # noqa: PLC0415
 
         return cast("_GroupShuffleSplitFactory", GroupShuffleSplit)
     except ImportError:
@@ -184,7 +185,7 @@ class GroupSplitter:
             raise ValueError(msg)
 
         n_groups = int(groups.nunique(dropna=False))
-        if n_groups < 2:
+        if n_groups < MIN_GROUPS_FOR_SPLIT:
             msg = f"Need at least 2 groups to split. Found {n_groups} unique groups in '{self.group_col}'."
             raise ValueError(
                 msg
@@ -205,7 +206,7 @@ class GroupSplitter:
 
             tv_groups = trainval[self.group_col].astype(str)
             tv_n_groups = int(tv_groups.nunique(dropna=False))
-            if tv_n_groups < 2:
+            if tv_n_groups < MIN_GROUPS_FOR_SPLIT:
                 msg = (
                     f"Not enough groups left after test split to create validation. "
                     f"Groups in trainval: {tv_n_groups}. Reduce test_size/val_size."

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
+MIN_CLUSTERS_FOR_SPLIT = 2
 
 
 def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str, str]:
@@ -214,7 +215,7 @@ class ClusterAwareSplitter:
 
         cluster_ids = work[_INTERNAL_CLUSTER_COL].astype(str)
         n_clusters = int(cluster_ids.nunique(dropna=False))
-        if n_clusters < 2:
+        if n_clusters < MIN_CLUSTERS_FOR_SPLIT:
             msg = f"Need at least 2 clusters to split. Found {n_clusters} unique clusters."
             raise ValueError(msg)
 

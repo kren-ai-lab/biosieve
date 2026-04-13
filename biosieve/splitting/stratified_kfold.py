@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
+MIN_KFOLD_SPLITS = 2
 
 
 class _StratifiedKFold(Protocol):
@@ -40,7 +41,7 @@ class _TrainTestSplitFn(Protocol):
 
 def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
     try:
-        from sklearn.model_selection import StratifiedKFold
+        from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
 
         return cast("_StratifiedKFoldFactory", StratifiedKFold)
     except ImportError:
@@ -49,7 +50,7 @@ def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split
+        from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
         return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:
@@ -102,7 +103,7 @@ class StratifiedKFoldSplitter:
                 msg
             )
 
-        if self.n_splits < 2:
+        if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
             raise ValueError(msg)
         if self.val_size < 0 or self.val_size >= 1:

@@ -48,7 +48,7 @@ def extract_descriptor_matrix(
     dtype: str = "float32",
 ) -> DescriptorMatrix:
     X = df[cols].to_numpy()
-    if X.ndim != 2:
+    if X.ndim != 2:  # noqa: PLR2004
         msg = f"Descriptor matrix must be 2D. Got shape {X.shape}"
         raise ValueError(msg)
 

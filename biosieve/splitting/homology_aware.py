@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -101,8 +103,6 @@ def _run_mmseqs_easy_cluster(
         If mmseqs2 returns a non-zero code.
 
     """
-    import subprocess
-
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -481,8 +481,6 @@ class HomologyAwareSplitter:
 
         # best-effort cleanup
         if self.mode == "mmseqs2" and not self.keep_work:
-            import shutil
-
             shutil.rmtree(Path(self.work_dir), ignore_errors=True)
 
         return SplitResult(

@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
+MIN_BINS = 2
+MIN_KFOLD_SPLITS = 2
 
 
 class _StratifiedKFold(Protocol):
@@ -41,7 +43,7 @@ class _TrainTestSplitFn(Protocol):
 
 def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
     try:
-        from sklearn.model_selection import StratifiedKFold
+        from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
 
         return cast("_StratifiedKFoldFactory", StratifiedKFold)
     except ImportError:
@@ -50,7 +52,7 @@ def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split
+        from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
         return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:
@@ -95,7 +97,7 @@ def _make_bins_once(
     duplicates: Literal["drop", "raise"],
     return_edges: bool,
 ) -> tuple[pd.Series, int, list[float] | None]:
-    if n_bins < 2:
+    if n_bins < MIN_BINS:
         msg = "n_bins must be >= 2"
         raise ValueError(msg)
 
@@ -143,7 +145,7 @@ def _make_bins_safe(
     if min_bin_count < 1:
         msg = "min_bin_count must be >= 1"
         raise ValueError(msg)
-    if n_bins < 2:
+    if n_bins < MIN_BINS:
         msg = "n_bins must be >= 2"
         raise ValueError(msg)
 
@@ -167,7 +169,7 @@ def _make_bins_safe(
             last_error = e
             continue
 
-        if n_eff < 2:
+        if n_eff < MIN_BINS:
             last_error = ValueError(f"Effective bins={n_eff} (requested={b}). Cannot stratify.")
             continue
 
@@ -291,7 +293,7 @@ class StratifiedNumericKFoldSplitter:
                 msg
             )
 
-        if self.n_splits < 2:
+        if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
             raise ValueError(msg)
         if not (0.0 <= self.val_size < 1.0):

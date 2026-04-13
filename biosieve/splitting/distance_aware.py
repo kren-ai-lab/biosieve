@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
+DESCRIPTOR_PREVIEW_LIMIT = 10
 
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
@@ -316,7 +317,8 @@ class DistanceAwareSplitter:
                 "n_missing_features": 0,
                 "coverage": 1.0,
                 "descriptor_prefix": self.descriptor_prefix,
-                "descriptor_cols_used_preview": dcols[:10] + (["..."] if len(dcols) > 10 else []),
+                "descriptor_cols_used_preview": dcols[:DESCRIPTOR_PREVIEW_LIMIT]
+                + (["..."] if len(dcols) > DESCRIPTOR_PREVIEW_LIMIT else []),
                 "n_descriptors": len(dcols),
                 "standardize": bool(self.standardize),
                 "n_features": int(X.shape[1]),
@@ -364,7 +366,6 @@ class DistanceAwareSplitter:
 
         # Standardize descriptors if requested (useful mainly for euclidean)
         z_mu = None
-        z_sd = None
         if self.feature_mode == "descriptors" and self.standardize:
             X, z_mu, _z_sd = _zscore_fit_transform(X)
 
@@ -374,7 +375,6 @@ class DistanceAwareSplitter:
         # Sort candidates by distance desc
         order = np.argsort(-dist, kind="mergesort")
         ranked_df_idx = feat_idx[order]  # indices in work, sorted by farthest-first
-        ranked_dist = dist[order]
 
         # Choose test indices (only among feature-covered candidates)
         if len(ranked_df_idx) < n_test:
@@ -389,7 +389,6 @@ class DistanceAwareSplitter:
 
         # Choose val indices
         remaining_idx = ranked_df_idx[n_test:].tolist()
-        remaining_dist = ranked_dist[n_test:]
 
         if n_val > 0:
             if len(remaining_idx) < n_val:

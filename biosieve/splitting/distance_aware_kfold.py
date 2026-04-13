@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
+MIN_KFOLD_SPLITS = 2
 
 
 class _TrainTestSplitFn(Protocol):
@@ -32,7 +33,7 @@ class _TrainTestSplitFn(Protocol):
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split
+        from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
         return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:
@@ -303,7 +304,7 @@ class DistanceAwareKFoldSplitter:
         return "distance_aware_kfold"
 
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
-        if self.n_splits < 2:
+        if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
             raise ValueError(msg)
         if not (0.0 <= self.val_size < 1.0):

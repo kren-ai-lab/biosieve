@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
+DESCRIPTOR_PREVIEW_LIMIT = 10
 
 
 class _NearestNeighborsModel(Protocol):
@@ -35,7 +36,7 @@ class _NearestNeighborsFactory(Protocol):
 
 def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
     try:
-        from sklearn.neighbors import NearestNeighbors
+        from sklearn.neighbors import NearestNeighbors  # noqa: PLC0415
 
         return cast("_NearestNeighborsFactory", NearestNeighbors)
     except ImportError:
@@ -294,7 +295,8 @@ class DescriptorEuclideanReducer:
                 "n_jobs": self.n_jobs,
                 "dtype": self.dtype,
                 "n_descriptors": len(dcols),
-                "descriptor_cols_used": dcols[:10] + (["..."] if len(dcols) > 10 else []),
+                "descriptor_cols_used": dcols[:DESCRIPTOR_PREVIEW_LIMIT]
+                + (["..."] if len(dcols) > DESCRIPTOR_PREVIEW_LIMIT else []),
                 "zscore_mean_saved": bool(mu is not None),
                 "zscore_std_saved": bool(sd is not None),
                 "stats": stats,

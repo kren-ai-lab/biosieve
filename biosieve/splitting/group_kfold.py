@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
+MIN_KFOLD_SPLITS = 2
 
 
 class _GroupKFold(Protocol):
@@ -38,7 +39,7 @@ class _TrainTestSplitFn(Protocol):
 
 def _try_import_group_kfold() -> _GroupKFoldFactory | None:
     try:
-        from sklearn.model_selection import GroupKFold
+        from sklearn.model_selection import GroupKFold  # noqa: PLC0415
 
         return cast("_GroupKFoldFactory", GroupKFold)
     except ImportError:
@@ -47,7 +48,7 @@ def _try_import_group_kfold() -> _GroupKFoldFactory | None:
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split
+        from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
         return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:
@@ -144,7 +145,7 @@ class GroupKFoldSplitter:
                 msg
             )
 
-        if self.n_splits < 2:
+        if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
             raise ValueError(msg)
         if not (0.0 <= self.val_size < 1.0):
