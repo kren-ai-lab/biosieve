@@ -1,3 +1,5 @@
+"""Structural edge loading helpers for graph-based reducers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,6 +10,8 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class StructuralEdges:
+    """Undirected structural neighborhood graph."""
+
     # adjacency: id -> list of (neighbor_id, value)
     adj: dict[str, list[tuple[str, float]]]
     n_edges: int
@@ -19,6 +23,7 @@ def load_edges_csv(
     id2_col: str = "id2",
     value_col: str = "distance",
 ) -> StructuralEdges:
+    """Load an undirected edge list into adjacency form."""
     p = Path(path)
     if not p.exists():
         msg = f"Structural edges file not found: {p}"

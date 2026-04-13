@@ -1,3 +1,5 @@
+"""Stratified k-fold splitter for numeric targets via binning."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -196,68 +198,53 @@ def _make_bins_safe(
 
 @dataclass(frozen=True)
 class StratifiedNumericKFoldSplitter:
-    """Stratified K-Fold splitting for numeric labels via binning.
+    r"""Stratified K-Fold splitting for numeric labels via binning.
 
     This is the k-fold analogue of `stratified_numeric`: it enables stratified CV
     for regression by discretizing a numeric label into bins and applying
     `StratifiedKFold` on those bins.
 
-    Approach
-    --------
+    Approach:
     1) Convert the numeric label `y` into categorical bins (quantile or uniform).
        Bins are computed ONCE globally, to define a stable stratification target.
     2) Run StratifiedKFold using the bins (`y_strat=bins`).
     3) Optionally sample a validation subset from the fold's train split.
 
-    Parameters
-    ----------
-    label_col:
-        Numeric target column.
-    n_splits:
-        Number of folds.
-    shuffle, seed:
-        Controls deterministic fold generation.
-    n_bins, binning, duplicates:
-        Binning configuration.
-    auto_reduce_bins, min_bin_count:
-        Robustness controls for datasets with repeated values.
-    val_size:
-        Optional validation fraction sampled from fold train (random).
-    dropna:
-        If True, drop rows with NaN labels; else raise.
-    report_bin_edges:
-        If True, include global bin edges in each fold report.
+    Args:
+        label_col: Numeric target column.
+        n_splits: Number of folds.
+        shuffle, seed:
+            Controls deterministic fold generation.
+        n_bins, binning, duplicates:
+            Binning configuration.
+        auto_reduce_bins, min_bin_count:
+            Robustness controls for datasets with repeated values.
+        val_size: Optional validation fraction sampled from fold train (random).
+        dropna: If True, drop rows with NaN labels; else raise.
+        report_bin_edges: If True, include global bin edges in each fold report.
 
-    Returns
-    -------
-    list[SplitResult]
+    Returns:
         One SplitResult per fold. Each fold includes:
-        - train/test/val DataFrames
-        - params: effective parameters (includes fold_index)
+        - train/test/val DataFrames: - params: effective parameters (includes fold_index)
         - stats: bin counts (based on GLOBAL bins), label summary stats, and binning metadata
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not installed.
-    ValueError
-        If label column is missing, NaNs are present (dropna=False), `n_bins < 2`,
+    Raises:
+        ImportError: If scikit-learn is not installed.
+        ValueError: If label column is missing, NaNs are present (dropna=False), `n_bins < 2`,
         or stratification is impossible (e.g., some bins have < n_splits samples).
 
-    Notes
-    -----
-    - `StratifiedKFold` requires every stratum (bin) to have at least `n_splits` samples.
-      This splitter checks that condition after binning.
-    - This strategy does not prevent biological leakage (homology/structure). For leakage-aware CV,
-      prefer `group_kfold` (with clusters) or hybrid strategies.
+    Notes:
+        - `StratifiedKFold` requires every stratum (bin) to have at least `n_splits` samples.
+        This splitter checks that condition after binning.
+        - This strategy does not prevent biological leakage (homology/structure). For leakage-aware CV,
+        prefer `group_kfold` (with clusters) or hybrid strategies.
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_stratnum_kfold \\
-    ...   --strategy stratified_numeric_kfold \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_stratnum_kfold \\
+        ...   --strategy stratified_numeric_kfold \\
+        ...   --params params.yaml
 
     """
 
@@ -280,9 +267,11 @@ class StratifiedNumericKFoldSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "stratified_numeric_kfold"
 
     def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+        """Create stratified numeric k-fold splits with optional validation."""
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
             msg = (

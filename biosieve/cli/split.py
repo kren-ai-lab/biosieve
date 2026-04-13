@@ -1,3 +1,5 @@
+"""CLI command for dataset splitting runs."""
+
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003

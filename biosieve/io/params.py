@@ -1,3 +1,5 @@
+"""Parameter loading and override utilities for strategy configuration."""
+
 from __future__ import annotations
 
 import importlib
@@ -52,17 +54,9 @@ def _load_file(path: Path) -> dict[str, object]:
 
 
 def _parse_value(raw: str) -> object:
-    """Parse CLI override values.
-    Accepts JSON-like scalars: true/false/null, numbers, strings.
-    Also accepts quoted strings.
+    """Parse a CLI override value into a Python object.
 
-    Examples:
-      0.95 -> float
-      16 -> int
-      true -> bool
-      "abc" -> str
-      [1,2] -> list
-
+    The parser first tries JSON decoding, then falls back to a raw string.
     """
     # try json first (handles numbers, bool, null, lists, dicts, quoted strings)
     try:
@@ -85,8 +79,9 @@ def _split_override(s: str) -> tuple[str, object]:
 
 
 def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
-    """dotted_key format: strategy.param or strategy.sub.param (we allow nesting).
-    Example: embedding_cosine.threshold=0.97
+    """Set a nested dictionary value from a dotted key path.
+
+    Example: ``embedding_cosine.threshold=0.97``.
     """
     parts = dotted_key.split(".")
     if len(parts) < MIN_OVERRIDE_KEY_PARTS:
@@ -113,9 +108,7 @@ def load_params(
     params_path: str | None,
     overrides: list[str] | None = None,
 ) -> dict[str, object]:
-    """Load {strategy_name: {param: value}} from YAML/JSON.
-    Apply overrides like: ["embedding_cosine.threshold=0.97", "mmseqs2.threads=32"].
-    """
+    """Load strategy parameters from JSON/YAML and apply CLI overrides."""
     base: dict[str, object] = {}
     if params_path:
         base = _load_file(Path(params_path))
@@ -129,9 +122,7 @@ def load_params(
 
 
 def params_for_strategy(all_params: Mapping[str, object], strategy_name: str) -> dict[str, object]:
-    """Return parameter dict for a given strategy, or {} if not present.
-    Enforces it must be dict if present.
-    """
+    """Return the parameter mapping for one strategy, or an empty mapping."""
     if strategy_name not in all_params:
         return {}
     v = all_params[strategy_name]

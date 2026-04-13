@@ -17,7 +17,7 @@ a stable CLI + config system.
     - Param files (`--params` YAML/JSON) + overrides (`--set`)
     - Reports and mappings as artefacts.
 
-### Out of scope (for now)
+### Out of scope (for now[]())
 
 - End-to-end feature extraction (e.g., generating embeddings).
 - Full homology pipelines beyond clustering (BioSieve can run MMseqs2 in v0.1; deeper pipelines are external).

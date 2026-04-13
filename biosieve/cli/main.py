@@ -1,3 +1,5 @@
+"""Top-level BioSieve CLI application wiring."""
+
 from __future__ import annotations
 
 import click
@@ -41,6 +43,7 @@ app.command("validate", context_settings=CONTEXT_SETTINGS)(validate)
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the CLI application and return a process exit code."""
     try:
         typer.main.get_command(app).main(
             args=argv,

@@ -1,3 +1,5 @@
+"""Factory helpers for strategy instantiation."""
+
 from __future__ import annotations
 
 import inspect
@@ -9,22 +11,15 @@ def instantiate_strategy(cls: type[object], params: dict[str, object]) -> object
 
     Unknown parameter keys raise ValueError to prevent silent typos.
 
-    Parameters
-    ----------
-    cls:
-        Strategy class (dataclass preferred).
-    params:
-        Parameter dictionary.
+    Args:
+        cls: Strategy class (dataclass preferred).
+        params: Parameter dictionary.
 
-    Returns
-    -------
-    object
+    Returns:
         Instantiated strategy object.
 
-    Raises
-    ------
-    ValueError
-        If unknown keys are provided.
+    Raises:
+        ValueError: If unknown keys are provided.
 
     """
     params = params or {}

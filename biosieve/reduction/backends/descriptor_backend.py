@@ -1,3 +1,5 @@
+"""Descriptor matrix extraction helpers for reduction strategies."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +13,8 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class DescriptorMatrix:
+    """In-memory descriptor matrix aligned to selected descriptor columns."""
+
     cols: list[str]
     X: np.ndarray  # shape (N, K)
 
@@ -20,6 +24,7 @@ def infer_descriptor_columns(
     prefix: str = "desc_",
     explicit_cols: list[str] | None = None,
 ) -> list[str]:
+    """Infer descriptor columns from an explicit list or a shared prefix."""
     if explicit_cols is not None:
         missing = [c for c in explicit_cols if c not in df.columns]
         if missing:
@@ -47,6 +52,7 @@ def extract_descriptor_matrix(
     cols: list[str],
     dtype: str = "float32",
 ) -> DescriptorMatrix:
+    """Extract and validate a numeric descriptor matrix from a DataFrame."""
     X = df[cols].to_numpy()
     if X.ndim != 2:  # noqa: PLR2004
         msg = f"Descriptor matrix must be 2D. Got shape {X.shape}"

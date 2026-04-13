@@ -1,3 +1,5 @@
+"""Group-aware k-fold splitter for leakage-safe cross-validation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -61,63 +63,48 @@ def _group_set(df: pd.DataFrame, group_col: str) -> set[str]:
 
 @dataclass(frozen=True)
 class GroupKFoldSplitter:
-    """Group K-Fold splitting (leakage-aware cross-validation).
+    r"""Group K-Fold splitting (leakage-aware cross-validation).
 
     Ensures that the same group does not appear in both train and test for any fold.
 
-    Output
-    ------
+    Output:
     Produces a list of SplitResult objects, one per fold:
       - train: training subset for that fold
       - test:  held-out subset for that fold (group-disjoint from train)
       - val:   optional validation subset sampled from train (val_size > 0)
 
-    Parameters
-    ----------
-    group_col:
-        Column containing group identifiers (e.g., subject_id, cluster_id, taxid).
-    n_splits:
-        Number of folds (must be >= 2).
-    val_size:
-        Optional validation fraction sampled from each fold's *train* split.
+    Args:
+        group_col: Column containing group identifiers (e.g., subject_id, cluster_id, taxid).
+        n_splits: Number of folds (must be >= 2).
+        val_size: Optional validation fraction sampled from each fold's *train* split.
         Set to 0.0 to disable validation.
-    seed:
-        Seed used only for the optional val split inside each fold.
-    dropna:
-        If True, drop rows with NaN group ids. If False, raise when NaNs are present.
+        seed: Seed used only for the optional val split inside each fold.
+        dropna: If True, drop rows with NaN group ids. If False, raise when NaNs are present.
 
-    Returns
-    -------
-    list[SplitResult]
+    Returns:
         One SplitResult per fold. Each SplitResult includes:
         - params: effective fold parameters (includes fold_index)
         - stats: counts and leakage checks:
-            - leak_groups_train_test must be 0
-            - leak_groups_val_test should be 0 (val sampled from train)
+        - leak_groups_train_test must be 0: - leak_groups_val_test should be 0 (val sampled from train)
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not installed.
-    ValueError
-        If required columns are missing, parameter ranges are invalid, NaNs are present
+    Raises:
+        ImportError: If scikit-learn is not installed.
+        ValueError: If required columns are missing, parameter ranges are invalid, NaNs are present
         and dropna=False, or there are insufficient unique groups for n_splits.
 
-    Notes
-    -----
-    - `GroupKFold` does not support shuffling; folds are deterministic given the group
-      ordering in the input. If you require shuffled group CV, consider a future
-      `group_shuffle_kfold` strategy based on `GroupShuffleSplit`.
-    - Validation is sampled from the training fold. It may share groups with train
-      (by design), but should never include groups from the test fold.
+    Notes:
+        - `GroupKFold` does not support shuffling; folds are deterministic given the group
+        ordering in the input. If you require shuffled group CV, consider a future
+        `group_shuffle_kfold` strategy based on `GroupShuffleSplit`.
+        - Validation is sampled from the training fold. It may share groups with train
+        (by design), but should never include groups from the test fold.
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_group_kfold \\
-    ...   --strategy group_kfold \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_group_kfold \\
+        ...   --strategy group_kfold \\
+        ...   --params params.yaml
 
     """
 
@@ -132,9 +119,11 @@ class GroupKFoldSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "group_kfold"
 
     def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+        """Build group-disjoint folds with optional per-fold validation splits."""
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
             msg = (

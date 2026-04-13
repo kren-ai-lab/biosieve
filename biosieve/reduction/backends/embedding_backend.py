@@ -1,3 +1,5 @@
+"""Embedding loading helpers shared by embedding-based reducers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,6 +11,8 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class EmbeddingStore:
+    """Embedding matrix and aligned row identifiers."""
+
     ids: list[str]
     X: np.ndarray  # shape (N, D), float32/float64
 
@@ -28,6 +32,7 @@ def load_embeddings(
     ids_col: str = "id",
     dtype: str | None = None,
 ) -> EmbeddingStore:
+    """Load embeddings and aligned IDs from disk."""
     ep = Path(embeddings_path)
     ip = Path(ids_path)
 

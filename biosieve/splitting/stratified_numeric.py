@@ -1,3 +1,5 @@
+"""Stratified splitting strategy for numeric targets via binning."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -92,19 +94,14 @@ def _make_bins_once(
 ) -> tuple[pd.Series, int, list[float] | None]:
     """Create bins once (single attempt).
 
-    Returns
-    -------
-    bins:
-        Int64 categorical bin ids (0..K-1).
-    n_bins_effective:
-        Effective number of unique bins produced.
-    edges:
+    Returns:
+        bins:
+        Int64 categorical bin ids (0..K-1).: n_bins_effective:
+        Effective number of unique bins produced.: edges:
         Bin edges if available (always for qcut/cut with retbins=True).
 
-    Raises
-    ------
-    ValueError
-        If NaNs are present or binning fails.
+    Raises:
+        ValueError: If NaNs are present or binning fails.
 
     """
     if n_bins < MIN_BINS:
@@ -153,16 +150,14 @@ def _make_bins_safe(
 ) -> tuple[pd.Series, int, list[float] | None, list[int], bool]:
     """Create stratification bins robustly.
 
-    Constraints
-    -----------
+    Constraints:
     - At least 2 effective bins
     - Each bin count >= min_bin_count
 
     If auto_reduce_bins=True, tries decreasing number of bins until success.
 
-    Returns
-    -------
-    bins, n_bins_effective, edges, attempted_bins, auto_reduced
+    Returns:
+        bins, n_bins_effective, edges, attempted_bins, auto_reduced
 
     """
     if min_bin_count < 1:
@@ -209,71 +204,57 @@ def _make_bins_safe(
 
 @dataclass(frozen=True)
 class StratifiedNumericSplitter:
-    """Stratified split for numeric labels via binning.
+    r"""Stratified split for numeric labels via binning.
 
     This splitter enables stratified splitting for regression targets by discretizing a
     numeric label into categorical bins and performing stratified train/test(/val) splits.
 
-    Steps
-    -----
+    Steps:
     1) Convert numeric labels into categorical bins (quantile or uniform).
        Bins are computed ONCE globally for the train/test split stage.
     2) Use stratified train/test split over those bins.
     3) Optionally split validation from trainval (also stratified), using bins computed
        on trainval only (second stage).
 
-    Parameters
-    ----------
-    label_col:
-        Column containing numeric target values.
-    test_size, val_size:
-        Fractions for test and validation. Must satisfy test_size + val_size < 1.
-    seed:
-        Random seed for deterministic splits.
-    n_bins:
-        Requested number of bins for stratification.
-    binning:
-        "quantile" (recommended) or "uniform".
-    duplicates:
+    Args:
+        label_col: Column containing numeric target values.
+        test_size, val_size:
+            Fractions for test and validation. Must satisfy test_size + val_size < 1.
+        seed: Random seed for deterministic splits.
+        n_bins: Requested number of bins for stratification.
+        binning: "quantile" (recommended) or "uniform".
+        duplicates:
         For quantile binning only: "drop" or "raise".
-    dropna:
-        If True, rows with NaN label are dropped. If False, NaNs raise an error.
-    auto_reduce_bins:
-        If True, automatically decreases n_bins until stratification is feasible.
-    min_bin_count:
-        Minimum required count per bin to allow stratified splitting.
-    report_bin_edges:
-        If True, store bin edges used in the report.
+        dropna: If True, rows with NaN label are dropped. If False, NaNs raise an error.
+        auto_reduce_bins: If True, automatically decreases n_bins until stratification is feasible.
+        min_bin_count: Minimum required count per bin to allow stratified splitting.
+        report_bin_edges: If True, store bin edges used in the report.
 
-    Returns
-    -------
-    SplitResult
-        train/test/val DataFrames plus:
-        - params: effective parameters
-        - stats: label stats and bin counts for each split, using stage-consistent bins
+    Returns:
+        SplitResult:
+            Train/test/(optional val) dataframes plus params and stats. Stats
+            include label summaries and bin counts for each split using
+            stage-consistent bins.
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not installed.
-    ValueError
-        If label column is missing, label cannot be parsed to numeric, NaNs exist with dropna=False,
-        split sizes are invalid, or bins cannot be created for stratification.
+    Raises:
+        ImportError: If scikit-learn is not installed.
+        ValueError: If label column is missing, label cannot be parsed to
+            numeric, NaNs exist with `dropna=False`, split sizes are invalid,
+            or bins cannot be created for stratification.
 
-    Notes
-    -----
-    - Bin counts in stats correspond to the bins actually used at each stage:
-      - train/test: global bins from the full (post-dropna) dataset
-      - train/val: bins computed on trainval (second stage), if val_size > 0
-    - This strategy does not enforce leakage constraints (homology/structure/groups).
+    Notes:
+        - Bin counts in stats correspond to bins used at each stage:
+            - train/test uses global bins from the full post-dropna dataset.
+            - train/val uses bins computed on trainval (second stage), when
+              `val_size > 0`.
+        - This strategy does not enforce leakage constraints (homology/structure/groups).
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_stratified_numeric \\
-    ...   --strategy stratified_numeric \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_stratified_numeric \\
+        ...   --strategy stratified_numeric \\
+        ...   --params params.yaml
 
     """
 
@@ -295,10 +276,11 @@ class StratifiedNumericSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "stratified_numeric"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
-
+        """Create numeric-target stratified train/test/(val) partitions."""
         log.info("stratified_numeric:start | label_col=%s | n_bins=%d", cols.label_col, self.n_bins)
         log.debug("stratified_numeric:params | %s", self.__dict__)
 

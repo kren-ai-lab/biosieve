@@ -1,3 +1,5 @@
+"""Logging configuration helpers used by CLI and runners."""
+
 from __future__ import annotations
 
 import logging
@@ -20,19 +22,14 @@ def configure_logging(
 ) -> None:
     """Configure global logging for BioSieve.
 
-    Parameters
-    ----------
-    level:
-        Logging level name. One of {"DEBUG","INFO","WARNING","ERROR"}.
-    quiet:
-        If True, suppress console logs (still logs to file if log_file is set).
-    log_file:
-        Optional file path to append logs.
+    Args:
+        level: Logging level name. One of {"DEBUG","INFO","WARNING","ERROR"}.
+        quiet: If True, suppress console logs (still logs to file if log_file is set).
+        log_file: Optional file path to append logs.
 
-    Notes
-    -----
-    - Safe to call multiple times; it replaces handlers on the root logger.
-    - We configure the root logger so module loggers propagate by default.
+    Notes:
+        - Safe to call multiple times; it replaces handlers on the root logger.
+        - We configure the root logger so module loggers propagate by default.
 
     """
     lvl = _LEVELS.get(level.upper(), logging.INFO)
@@ -65,6 +62,5 @@ def configure_logging(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a module logger (propagates to root configured by configure_logging).
-    """
+    """Get a module logger (propagates to root configured by configure_logging)."""
     return logging.getLogger(name)

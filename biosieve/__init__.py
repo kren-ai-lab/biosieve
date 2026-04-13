@@ -1,3 +1,5 @@
+"""BioSieve public package exports."""
+
 from biosieve.types import Columns
 
 __all__ = ["Columns"]

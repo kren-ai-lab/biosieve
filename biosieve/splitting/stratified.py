@@ -1,3 +1,5 @@
+"""Stratified splitting strategy for classification labels."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,56 +51,42 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
 @dataclass(frozen=True)
 class StratifiedSplitter:
-    """Stratified train/test(/val) split for classification.
+    r"""Stratified train/test(/val) split for classification.
 
     This strategy preserves class proportions in the test set (and optionally the
     validation set) using scikit-learn's `train_test_split(..., stratify=y)`.
 
-    Parameters
-    ----------
-    label_col:
-        Column containing class labels.
-    test_size:
-        Fraction of samples assigned to the test set.
-    val_size:
-        Fraction of samples assigned to the validation set (0 disables validation).
+    Args:
+        label_col: Column containing class labels.
+        test_size: Fraction of samples assigned to the test set.
+        val_size: Fraction of samples assigned to the validation set (0 disables validation).
         This fraction is relative to the full dataset and is internally converted
         to a fraction of the remaining train+val set.
-    seed:
-        Random seed used by scikit-learn.
-    dropna:
-        If True, drop rows with NaN labels. If False, raise on NaNs.
+        seed: Random seed used by scikit-learn.
+        dropna: If True, drop rows with NaN labels. If False, raise on NaNs.
 
-    Returns
-    -------
-    SplitResult
+    Returns:
         A container with:
-        - train/test/val DataFrames
-        - params: {"label_col","test_size","val_size","seed","dropna"}
+        - train/test/val DataFrames: - params: {"label_col","test_size","val_size","seed","dropna"}
         - stats: counts and class distributions per split
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not available.
-    ValueError
-        If label column is missing, sizes invalid, NaNs present (dropna=False),
+    Raises:
+        ImportError: If scikit-learn is not available.
+        ValueError: If label column is missing, sizes invalid, NaNs present (dropna=False),
         or stratification cannot be performed (e.g., too few samples in a class).
 
-    Notes
-    -----
-    - Use this for classification tasks when you do not need group/leakage constraints.
-      If you have groups/clusters/homology, prefer `group`/`group_kfold` or hybrids.
-    - Stratification requires that each class has enough members to be split; otherwise
-      scikit-learn raises a ValueError.
+    Notes:
+        - Use this for classification tasks when you do not need group/leakage constraints.
+        If you have groups/clusters/homology, prefer `group`/`group_kfold` or hybrids.
+        - Stratification requires that each class has enough members to be split; otherwise
+        scikit-learn raises a ValueError.
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_stratified \\
-    ...   --strategy stratified \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_stratified \\
+        ...   --strategy stratified \\
+        ...   --params params.yaml
 
     """
 
@@ -110,10 +98,11 @@ class StratifiedSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "stratified"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
-
+        """Create stratified train/test/(val) partitions."""
         log.info(
             "stratified:start | label_col=%s | test_size=%.3f | val_size=%.3f",
             cols.label_col,

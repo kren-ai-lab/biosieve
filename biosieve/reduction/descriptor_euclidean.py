@@ -1,3 +1,5 @@
+"""Descriptor-space reduction strategy based on Euclidean neighborhood pruning."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -53,94 +55,68 @@ def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray
 
 @dataclass(frozen=True)
 class DescriptorEuclideanReducer:
-    """Greedy redundancy reduction in descriptor space using Euclidean distance.
+    r"""Greedy redundancy reduction in descriptor space using Euclidean distance.
 
     This reducer removes near-duplicate samples based on Euclidean distance between
     descriptor vectors (e.g., tabular physicochemical descriptors). It uses a deterministic
     greedy policy:
 
-    Greedy policy
-    -------------
+    Greedy policy:
     1) Sort rows by `cols.id_col` (stable).
     2) Iterate in that order. First unseen id becomes representative.
     3) Remove any samples within radius `threshold` (distance <= threshold).
 
-    Descriptor selection
-    --------------------
+    Descriptor selection:
     - If `descriptor_cols` is provided, those exact columns are used.
     - Otherwise, columns starting with `descriptor_prefix` are used.
 
-    Standardization
-    ---------------
+    Standardization:
     If `standardize=True`, descriptors are z-scored before distance calculations.
     This is recommended when descriptors have heterogeneous scales.
 
-    Backend
-    -------
+    Backend:
     - Uses sklearn `NearestNeighbors(radius_neighbors)` when available.
     - Falls back to O(N^2) brute force when sklearn is unavailable.
 
-    Parameters
-    ----------
-    threshold:
-        Euclidean radius. Samples at distance <= threshold are considered redundant.
-        Must be >= 0.
-    descriptor_prefix:
-        Prefix used to infer descriptor columns (e.g., "desc_").
-    descriptor_cols:
-        Explicit list of descriptor columns to use (overrides prefix inference).
-    standardize:
-        If True, z-score descriptors prior to distance computations.
-    metric:
-        Distance metric. v0.1 supports only "euclidean".
-    n_jobs:
-        Parallel jobs for sklearn backend. Must be >= 1 (ignored in brute-force).
-    dtype:
-        Floating dtype for descriptor matrix ("float32" recommended).
+    Args:
+        threshold:
+            Euclidean radius. Samples at distance <= threshold are considered
+            redundant. Must be >= 0.
+        descriptor_prefix: Prefix used to infer descriptor columns (e.g., "desc_").
+        descriptor_cols: Explicit list of descriptor columns to use (overrides prefix inference).
+        standardize: If True, z-score descriptors prior to distance computations.
+        metric: Distance metric. v0.1 supports only "euclidean".
+        n_jobs: Parallel jobs for sklearn backend. Must be >= 1 (ignored in brute-force).
+        dtype: Floating dtype for descriptor matrix ("float32" recommended).
 
-    Returns
-    -------
-    ReductionResult
-        - df:
-            Reduced dataframe containing representatives only.
-            Adds column `descriptor_euclidean_cluster_id` for convenience (`deuc:<rep_id>`).
-        - mapping:
-            DataFrame with columns:
-              * removed_id
-              * representative_id
-              * cluster_id (rep-based, `deuc:<rep_id>`)
-              * score (distance; smaller means closer/more similar)
-        - strategy:
-            "descriptor_euclidean"
-        - params:
-            Effective parameters plus `stats`:
-              * n_total, n_kept, n_removed, reduction_ratio, n_descriptors
+    Returns:
+        ReductionResult:
+            Result containing representative-only data, a removed-to-representative
+            mapping (with distance score), strategy name, and effective parameters.
+            The reduced dataframe includes `descriptor_euclidean_cluster_id`
+            (`deuc:<rep_id>`), and params include `stats` with
+            `n_total/n_kept/n_removed/reduction_ratio/n_descriptors`.
 
-    Raises
-    ------
-    ValueError
-        If id column is missing, ids are duplicated, threshold < 0, n_jobs < 1,
+    Raises:
+        ValueError: If id column is missing, ids are duplicated, threshold < 0, n_jobs < 1,
         descriptor columns cannot be inferred, or descriptor matrix contains NaNs/non-numerics.
-    ImportError
-        Not raised directly. If sklearn is missing, the reducer uses brute-force fallback.
+        ImportError: Not raised directly. If sklearn is missing, the reducer uses brute-force fallback.
 
-    Notes
-    -----
-    - This is a greedy algorithm: results depend on representative ordering
-      (here: sorted by id for determinism).
-    - `score` is a distance (not similarity). Lower values indicate more redundancy.
-    - This reducer does not enforce biological leakage constraints (homology/structure);
-      it only reduces redundancy in descriptor space.
+    Notes:
+        - This is a greedy algorithm: results depend on representative ordering
+        (here: sorted by id for determinism).
+        - `score` is a distance (not similarity). Lower values indicate more redundancy.
+        - This reducer does not enforce biological leakage constraints (homology/structure);
+        it only reduces redundancy in descriptor space.
 
-    Examples
-    --------
-    >>> biosieve reduce \\
-    ...   --in dataset.csv \\
-    ...   --out data_nr_desc.csv \\
-    ...   --strategy descriptor_euclidean \\
-    ...   --map map_desc.csv \\
-    ...   --report report_desc.json \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve reduce \\
+        ...   --in dataset.csv \\
+        ...   --out data_nr_desc.csv \\
+        ...   --strategy descriptor_euclidean \\
+        ...   --map map_desc.csv \\
+        ...   --report report_desc.json \\
+        ...   --params params.yaml
 
     """
 
@@ -155,9 +131,11 @@ class DescriptorEuclideanReducer:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "descriptor_euclidean"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+        """Reduce descriptor redundancy and return representatives plus mapping."""
         if cols.id_col not in df.columns:
             msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
             raise ValueError(msg)

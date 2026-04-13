@@ -1,3 +1,5 @@
+"""Random k-fold splitting baseline strategy."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -64,10 +66,9 @@ class RandomKFoldSplitter:
       - test:  held-out subset for that fold
       - val:   optional validation subset sampled from train (val_size > 0)
 
-    Notes
-    -----
-    - This is *random* KFold, not stratified.
-    - For reproducibility, each fold uses seed + fold_index for the optional val split.
+    Notes:
+        - This is *random* KFold, not stratified.
+        - For reproducibility, each fold uses seed + fold_index for the optional val split.
 
     """
 
@@ -80,9 +81,11 @@ class RandomKFoldSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "random_kfold"
 
     def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+        """Create random k-fold splits with optional per-fold validation."""
         KFold = _try_import_kfold()
         if KFold is None:
             msg = (

@@ -1,3 +1,5 @@
+"""CLI command for redundancy reduction runs."""
+
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003
@@ -113,8 +115,7 @@ def reduce(
 
 
 def _run_reduce(args: SimpleNamespace, registry: StrategyRegistry) -> None:
-    """Handler executed by main CLI.
-    """
+    """Run reduction with parsed CLI arguments."""
     cols = Columns(id_col=args.id_col, seq_col=args.seq_col)
 
     # Load and resolve params

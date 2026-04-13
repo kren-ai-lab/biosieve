@@ -1,3 +1,5 @@
+"""Default strategy registry construction."""
+
 from __future__ import annotations
 
 from biosieve.core.registry import StrategyRegistry
@@ -5,6 +7,7 @@ from biosieve.core.spec import StrategySpec
 
 
 def build_registry() -> StrategyRegistry:
+    """Build and return the default reducer/splitter registry."""
     reg = StrategyRegistry()
 
     # reducers

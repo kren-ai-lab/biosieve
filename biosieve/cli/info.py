@@ -1,3 +1,5 @@
+"""CLI command for listing registered strategies."""
+
 from __future__ import annotations
 
 from dataclasses import fields, is_dataclass

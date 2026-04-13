@@ -1,3 +1,5 @@
+"""Group-aware splitting strategy to prevent group leakage."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -56,26 +58,18 @@ def _split_groups(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Split a DataFrame into train/test using GroupShuffleSplit.
 
-    Parameters
-    ----------
-    df:
-        Input DataFrame.
-    groups:
-        Group labels aligned with `df` rows.
-    test_size:
-        Fraction of samples assigned to the test split (group-aware).
-    seed:
-        Random seed.
+    Args:
+        df: Input DataFrame.
+        groups: Group labels aligned with `df` rows.
+        test_size: Fraction of samples assigned to the test split (group-aware).
+        seed: Random seed.
 
-    Returns
-    -------
-    train, test:
+    Returns:
+        train, test:
         DataFrames with disjoint groups.
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not installed.
+    Raises:
+        ImportError: If scikit-learn is not installed.
 
     """
     GroupShuffleSplit = _try_import_gss()
@@ -96,60 +90,47 @@ def _split_groups(
 
 @dataclass(frozen=True)
 class GroupSplitter:
-    """Group-aware train/test(/val) split (leakage-aware by groups).
+    r"""Group-aware train/test(/val) split (leakage-aware by groups).
 
     This splitter ensures that a group identifier never appears in more than one
     of train/test/val. This is critical for biological datasets where samples
     are not i.i.d. (e.g., multiple proteins from the same organism, homologous
     clusters, subjects, families).
 
-    Procedure
-    ---------
+    Procedure:
     1) Split off the test set by groups (GroupShuffleSplit).
     2) Optionally split a validation set from the remaining trainval by groups.
 
-    Parameters
-    ----------
-    group_col:
-        Column defining group IDs (e.g., taxid, subject_id, cluster_id).
-    test_size:
-        Fraction of samples assigned to the test set (group-disjoint from train/val).
-    val_size:
-        Fraction of samples assigned to validation (0 disables validation).
+    Args:
+        group_col: Column defining group IDs (e.g., taxid, subject_id, cluster_id).
+        test_size: Fraction of samples assigned to the test set (group-disjoint from train/val).
+        val_size: Fraction of samples assigned to validation (0 disables validation).
         Internally converted to a fraction of the remaining trainval split.
-    seed:
-        Random seed for deterministic splitting.
+        seed: Random seed for deterministic splitting.
 
-    Returns
-    -------
-    SplitResult
+    Returns:
         Container with train/test/val DataFrames plus:
         - params: effective parameters
         - stats: counts, unique groups per split, and leakage checks
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not installed.
-    ValueError
-        If group column is missing, if there are too few groups to split, or if
+    Raises:
+        ImportError: If scikit-learn is not installed.
+        ValueError: If group column is missing, if there are too few groups to split, or if
         `test_size`/`val_size` are invalid.
 
-    Notes
-    -----
-    - Leakage contract:
-      `leak_groups_train_test == 0` and `leak_groups_val_test == 0` must hold.
-      Validation is split by groups too, so `leak_groups_train_val == 0` also holds.
-    - If your "group" is actually a homology cluster id, this is effectively
-      homology-aware splitting.
+    Notes:
+        - Leakage contract:
+        `leak_groups_train_test == 0` and `leak_groups_val_test == 0` must hold.
+        Validation is split by groups too, so `leak_groups_train_val == 0` also holds.
+        - If your "group" is actually a homology cluster id, this is effectively
+        homology-aware splitting.
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_group \\
-    ...   --strategy group \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_group \\
+        ...   --strategy group \\
+        ...   --params params.yaml
 
     """
 
@@ -160,10 +141,11 @@ class GroupSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "group"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
-
+        """Split data into group-disjoint train/test/(val) sets."""
         log.info(
             "group:start | group_col=%s | test_size=%.3f | val_size=%.3f",
             cols.group_col,

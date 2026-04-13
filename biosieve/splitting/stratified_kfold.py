@@ -1,3 +1,5 @@
+"""Stratified k-fold splitting strategy for classification tasks."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -66,12 +68,11 @@ class StratifiedKFoldSplitter:
       - test:  held-out subset for that fold
       - val:   optional validation subset sampled from train (val_size > 0)
 
-    Notes
-    -----
-    - Stratification is performed using `label_col`.
-    - If val_size > 0, validation is sampled randomly from the fold's train
-      (non-stratified by default to keep it simple and robust).
-      If you want stratified val too, we can add `val_stratify=true`.
+    Notes:
+        - Stratification is performed using `label_col`.
+        - If val_size > 0, validation is sampled randomly from the fold's train
+        (non-stratified by default to keep it simple and robust).
+        If you want stratified val too, we can add `val_stratify=true`.
 
     """
 
@@ -90,9 +91,11 @@ class StratifiedKFoldSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "stratified_kfold"
 
     def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+        """Create stratified k-fold splits with optional per-fold validation."""
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
             msg = (

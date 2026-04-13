@@ -1,3 +1,5 @@
+"""Execution runner for split workflows."""
+
 from __future__ import annotations
 
 import json
@@ -46,10 +48,8 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
     """Validate required columns and id uniqueness.
 
-    Raises
-    ------
-    ValueError
-        If id column is missing or ids are not unique.
+    Raises:
+        ValueError: If id column is missing or ids are not unique.
 
     """
     if cols.id_col not in df.columns:
@@ -81,8 +81,7 @@ def run_split(
 ) -> None:
     """Run a splitting strategy and export split artefacts to disk.
 
-    Artefact contract
-    -----------------
+    Artefact contract:
     Single split (strategies implementing `run(df, cols)`):
       - outdir/train.csv
       - outdir/test.csv
@@ -95,37 +94,26 @@ def run_split(
       - ...
       - outdir/kfold_report.json (default)
 
-    Parameters
-    ----------
-    in_path:
-        Path to input CSV file.
-    outdir:
-        Output directory where split files and reports are written.
-    strategy:
-        Split strategy name (must exist in `registry.splitters`).
-    registry:
-        Strategy registry holding available splitters (classes/specs).
-    cols:
-        Columns spec. If None, defaults to Columns(id_col="id", seq_col="sequence").
-    report_path:
-        Optional custom path for report JSON.
-        - For single split: defaults to outdir/split_report.json
-        - For k-fold: defaults to outdir/kfold_report.json
-    strategy_params:
-        Parameters to instantiate the strategy dataclass.
-        Unknown keys raise ValueError (strict contract).
-    read_csv_kwargs:
-        Extra kwargs passed to pandas.read_csv (e.g., sep, dtype, usecols).
+    Args:
+        in_path: Path to input CSV file.
+        outdir: Output directory where split files and reports are written.
+        strategy: Split strategy name (must exist in `registry.splitters`).
+        registry: Strategy registry holding available splitters (classes/specs).
+        cols: Columns spec. If None, defaults to Columns(id_col="id", seq_col="sequence").
+        report_path:
+            Optional custom path for report JSON.
+            - For single split: defaults to outdir/split_report.json
+            - For k-fold: defaults to outdir/kfold_report.json
+        strategy_params:
+            Parameters to instantiate the strategy dataclass.
+            Unknown keys raise ValueError (strict contract).
+        read_csv_kwargs: Extra kwargs passed to pandas.read_csv (e.g., sep, dtype, usecols).
 
-    Raises
-    ------
-    ValueError
-        If strategy is unknown, required columns are missing, ids are not unique,
+    Raises:
+        ValueError: If strategy is unknown, required columns are missing, ids are not unique,
         or the splitter returns invalid outputs.
-    ImportError
-        If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
-    FileNotFoundError
-        If `in_path` does not exist (raised by pandas).
+        ImportError: If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
+        FileNotFoundError: If `in_path` does not exist (raised by pandas).
 
     """
     t0 = time.time()

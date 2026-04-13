@@ -1,3 +1,5 @@
+"""Structural-edge reduction strategy based on distance or similarity thresholds."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,15 +19,14 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class StructuralDistanceReducer:
-    """Greedy redundancy reduction using precomputed structural distances or similarities.
+    r"""Greedy redundancy reduction using precomputed structural distances or similarities.
 
     This reducer removes redundant samples based on *precomputed structural relationships*
     between entities (e.g., protein structures, docking poses, folds). It consumes an
     edge list describing pairwise structural distances or similarities and applies a
     deterministic greedy selection of representatives.
 
-    Input format
-    ------------
+    Input format:
     A CSV edge list with at least three columns:
 
     - id1: first entity id
@@ -34,8 +35,7 @@ class StructuralDistanceReducer:
 
     Only edges where **both ids are present in the dataset** are considered.
 
-    Modes
-    -----
+    Modes:
     - mode="distance":
         A neighbor is considered redundant if `value <= threshold`.
         Typical examples: RMSD, TM-score distance, graph distance.
@@ -43,80 +43,57 @@ class StructuralDistanceReducer:
         A neighbor is considered redundant if `value >= threshold`.
         Typical examples: TM-score similarity, contact overlap, docking similarity.
 
-    Greedy policy
-    -------------
+    Greedy policy:
     1) Sort dataset rows by `cols.id_col` (stable, deterministic).
     2) Iterate in that order.
     3) First unseen id becomes a representative.
     4) Remove all neighbors satisfying the redundancy criterion.
 
-    Parameters
-    ----------
-    edges_path:
-        Path to CSV file containing structural edges.
-    mode:
-        Redundancy mode:
-        - "distance": redundant if value <= threshold
-        - "similarity": redundant if value >= threshold
-    threshold:
-        Distance or similarity threshold defining redundancy.
-    id1_col:
-        Column name for first id in edge list.
-    id2_col:
-        Column name for second id in edge list.
-    value_col:
-        Column name for distance/similarity value in edge list.
+    Args:
+        edges_path: Path to CSV file containing structural edges.
+        mode:
+            Redundancy mode: `"distance"` marks neighbors redundant when
+            `value <= threshold`, and `"similarity"` marks neighbors redundant
+            when `value >= threshold`.
+        threshold: Distance or similarity threshold defining redundancy.
+        id1_col: Column name for first id in edge list.
+        id2_col: Column name for second id in edge list.
+        value_col: Column name for distance/similarity value in edge list.
 
-    Returns
-    -------
-    ReductionResult
-        - df:
-            Reduced dataframe containing only structural representatives.
-            Adds column `structural_cluster_id` with values `struct:<rep_id>`.
-        - mapping:
-            DataFrame with columns:
-              * removed_id
-              * representative_id
-              * cluster_id (`struct:<rep_id>`)
-              * score (raw distance or similarity value)
-        - strategy:
-            "structural_distance"
-        - params:
-            Effective parameters plus basic statistics.
+    Returns:
+        ReductionResult:
+            Result containing structural representatives, removed-to-
+            representative mapping with edge value score, strategy name, and
+            effective parameters with basic stats. The reduced dataframe includes
+            `structural_cluster_id` (`struct:<rep_id>`).
 
-    Raises
-    ------
-    ValueError
-        If threshold is invalid for the selected mode, required columns are missing,
+    Raises:
+        ValueError: If threshold is invalid for the selected mode, required columns are missing,
         or mode is not supported.
-    FileNotFoundError
-        If `edges_path` does not exist (raised by backend).
-    RuntimeError
-        If edge list cannot be parsed correctly (raised by backend).
+        FileNotFoundError: If `edges_path` does not exist (raised by backend).
+        RuntimeError: If edge list cannot be parsed correctly (raised by backend).
 
-    Notes
-    -----
-    - This reducer **assumes structural relationships are precomputed**.
-      It does not perform any structural alignment or docking itself.
-    - Missing edges are treated as "no redundancy" (i.e., conservative).
-    - Redundancy is **not transitive** beyond greedy propagation.
-      If A~B and B~C but A~C is missing, C may survive depending on order.
-    - This strategy is ideal for:
+    Notes:
+        - This reducer **assumes structural relationships are precomputed**.
+        It does not perform any structural alignment or docking itself.
+        - Missing edges are treated as "no redundancy" (i.e., conservative).
+        - Redundancy is **not transitive** beyond greedy propagation.
+        If A~B and B~C but A~C is missing, C may survive depending on order.
+        - This strategy is ideal for:
         * pose clustering
         * fold-level deduplication
         * structure-aware dataset pruning
-    - For strict structural leakage control, consider combining this reducer
-      with `cluster_aware` or `homology_aware` splits.
+        - For strict structural leakage control, consider combining this reducer
+        with `cluster_aware` or `homology_aware` splits.
 
-    Examples
-    --------
-    >>> biosieve reduce \\
-    ...   --in dataset.csv \\
-    ...   --out data_nr_struct.csv \\
-    ...   --strategy structural_distance \\
-    ...   --map map_struct.csv \\
-    ...   --report report_struct.json \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve reduce \\
+        ...   --in dataset.csv \\
+        ...   --out data_nr_struct.csv \\
+        ...   --strategy structural_distance \\
+        ...   --map map_struct.csv \\
+        ...   --report report_struct.json \\
+        ...   --params params.yaml
 
     """
 
@@ -130,6 +107,7 @@ class StructuralDistanceReducer:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "structural_distance"
 
     def _is_redundant(self, value: float) -> bool:
@@ -141,6 +119,7 @@ class StructuralDistanceReducer:
         raise ValueError(msg)
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+        """Reduce redundancy using precomputed structural edge relationships."""
         if self.mode not in {"distance", "similarity"}:
             msg = "mode must be 'distance' or 'similarity'"
             raise ValueError(msg)

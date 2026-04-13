@@ -1,3 +1,5 @@
+"""Random splitting baseline strategy."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -19,10 +21,8 @@ log = get_logger(__name__)
 def _validate_sizes(test_size: float, val_size: float) -> None:
     """Validate split fractions.
 
-    Raises
-    ------
-    ValueError
-        If sizes are out of range or leave no samples for training.
+    Raises:
+        ValueError: If sizes are out of range or leave no samples for training.
 
     """
     if not (0.0 < test_size < 1.0):
@@ -41,21 +41,14 @@ def _index_split(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
     """Create index splits for train/test(/val) using a seeded RNG.
 
-    Parameters
-    ----------
-    n:
-        Number of rows.
-    test_size:
-        Fraction assigned to test.
-    val_size:
-        Fraction assigned to val (0 disables validation).
-    seed:
-        RNG seed.
+    Args:
+        n: Number of rows.
+        test_size: Fraction assigned to test.
+        val_size: Fraction assigned to val (0 disables validation).
+        seed: RNG seed.
 
-    Returns
-    -------
-    train_idx, test_idx, val_idx
-        Numpy arrays of indices. `val_idx` may be None.
+    Returns:
+        train_idx, test_idx, val_idx: Numpy arrays of indices. `val_idx` may be None.
 
     """
     rng = np.random.default_rng(seed)
@@ -78,44 +71,33 @@ def _index_split(
 
 @dataclass(frozen=True)
 class RandomSplitter:
-    """Random train/test(/val) split (deterministic via seed).
+    r"""Random train/test(/val) split (deterministic via seed).
 
-    Parameters
-    ----------
-    test_size:
-        Fraction of samples assigned to the test set.
-    val_size:
-        Fraction of samples assigned to the validation set (0 disables validation).
+    Args:
+        test_size: Fraction of samples assigned to the test set.
+        val_size: Fraction of samples assigned to the validation set (0 disables validation).
         This fraction is taken from the *whole dataset*, not only from train.
-    seed:
-        Random seed used to shuffle indices.
+        seed: Random seed used to shuffle indices.
 
-    Returns
-    -------
-    SplitResult
+    Returns:
         A container with:
-        - train/test/val DataFrames
-        - params: {"test_size","val_size","seed"}
+        - train/test/val DataFrames: - params: {"test_size","val_size","seed"}
         - stats: counts and effective sizes
 
-    Raises
-    ------
-    ValueError
-        If `test_size` or `val_size` are invalid or leave no samples for training.
+    Raises:
+        ValueError: If `test_size` or `val_size` are invalid or leave no samples for training.
 
-    Notes
-    -----
-    - This strategy does not consider labels, groups, homology, time, or distances.
-      It is appropriate for quick baselines but can lead to leakage in biological datasets
-      where redundancy or relatedness exists.
+    Notes:
+        - This strategy does not consider labels, groups, homology, time, or distances.
+        It is appropriate for quick baselines but can lead to leakage in biological datasets
+        where redundancy or relatedness exists.
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_random \\
-    ...   --strategy random \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_random \\
+        ...   --strategy random \\
+        ...   --params params.yaml
 
     """
 
@@ -125,10 +107,11 @@ class RandomSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "random"
 
     def run(self, df: pd.DataFrame, _cols: Columns) -> SplitResult:
-
+        """Generate deterministic random train/test/(val) splits."""
         log.info(
             "random:start | test_size=%.3f | val_size=%.3f | seed=%s",
             self.test_size,

@@ -1,3 +1,5 @@
+"""CLI command for validating input datasets and artifacts."""
+
 from __future__ import annotations
 
 import json
@@ -271,7 +273,8 @@ def _check_mmseqs2(binary: str) -> tuple[bool, str]:
 
 
 def _strategy_requires(strategy: str, kind: str) -> dict[str, bool]:
-    """Minimal requirements mapping.
+    """Return minimal artifact requirements for a strategy.
+
     Adjust as you add more strategies.
     """
     reduce_requirements: dict[str, dict[str, bool]] = {

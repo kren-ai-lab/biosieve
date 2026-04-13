@@ -1,3 +1,5 @@
+"""Greedy sequence reduction strategy using approximate identity heuristics."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -49,7 +51,7 @@ def _approx_identity(a: str, b: str) -> float:
 
 @dataclass(frozen=True)
 class IdentityGreedyReducer:
-    """Greedy redundancy reduction using an approximate identity score.
+    r"""Greedy redundancy reduction using an approximate identity score.
 
     This reducer approximates sequence identity without alignment by combining:
     1) k-mer Jaccard prefilter to shortlist candidate representatives
@@ -60,65 +62,46 @@ class IdentityGreedyReducer:
     - k-mer Jaccard >= jaccard_prefilter
     - approx_identity >= threshold
 
-    Determinism
-    ----------
+    Determinism:
     - Rows are sorted by `cols.id_col` (stable).
     - "First accepted representative" policy.
 
-    Parameters
-    ----------
-    threshold:
-        Identity threshold in [0, 1]. If approx_identity >= threshold, the sequence
-        is considered redundant.
-    k:
-        K-mer size for the Jaccard prefilter (>= 1).
-    jaccard_prefilter:
-        Jaccard cutoff in [0, 1] used to shortlist candidates.
-    length_tolerance:
-        Relative length tolerance in [0, 1]. Candidate is skipped if:
-        abs(len_a - len_b) / max(len_a, len_b) > length_tolerance
-    max_candidates:
-        Maximum number of candidate representatives evaluated per sequence (>= 1).
+    Args:
+        threshold:
+            Identity threshold in [0, 1]. If approx_identity >= threshold, the sequence
+            is considered redundant.
+        k: K-mer size for the Jaccard prefilter (>= 1).
+        jaccard_prefilter: Jaccard cutoff in [0, 1] used to shortlist candidates.
+        length_tolerance:
+            Relative length tolerance in [0, 1]. Candidate is skipped if:
+            abs(len_a - len_b) / max(len_a, len_b) > length_tolerance
+        max_candidates: Maximum number of candidate representatives evaluated per sequence (>= 1).
 
-    Returns
-    -------
-    ReductionResult
-        - df:
-            Reduced DataFrame containing representatives only.
-            Adds `identity_cluster_id` as `ident:<rep_id>` for convenience.
-        - mapping:
-            DataFrame with columns:
-              * removed_id
-              * representative_id
-              * cluster_id (`ident:<rep_id>`)
-              * score (approx identity; higher means more similar)
-        - strategy:
-            "identity_greedy"
-        - params:
-            Effective parameters plus `stats` summary.
+    Returns:
+        ReductionResult:
+            Result containing representative-only data, a removed-to-
+            representative mapping with approximate identity score, strategy name,
+            and effective parameters with summary stats. The reduced dataframe
+            includes `identity_cluster_id` (`ident:<rep_id>`).
 
-    Raises
-    ------
-    ValueError
-        If required columns are missing, ids are duplicated, sequences are empty/invalid,
+    Raises:
+        ValueError: If required columns are missing, ids are duplicated, sequences are empty/invalid,
         or parameters are out of range.
 
-    Notes
-    -----
-    - This is NOT a true alignment-based identity; it is a fast approximation.
-    - It is best used as a lightweight heuristic reducer, not as a substitute for
-      MMseqs2/CD-HIT when strict homology reduction is required.
-    - Greedy selection means ordering matters; we sort by id for reproducibility.
+    Notes:
+        - This is NOT a true alignment-based identity; it is a fast approximation.
+        - It is best used as a lightweight heuristic reducer, not as a substitute for
+        MMseqs2/CD-HIT when strict homology reduction is required.
+        - Greedy selection means ordering matters; we sort by id for reproducibility.
 
-    Examples
-    --------
-    >>> biosieve reduce \\
-    ...   --in dataset.csv \\
-    ...   --out data_nr_ident.csv \\
-    ...   --strategy identity_greedy \\
-    ...   --map map_ident.csv \\
-    ...   --report report_ident.json \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve reduce \\
+        ...   --in dataset.csv \\
+        ...   --out data_nr_ident.csv \\
+        ...   --strategy identity_greedy \\
+        ...   --map map_ident.csv \\
+        ...   --report report_ident.json \\
+        ...   --params params.yaml
 
     """
 
@@ -130,9 +113,11 @@ class IdentityGreedyReducer:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "identity_greedy"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+        """Reduce sequence redundancy with k-mer prefilter and identity scoring."""
         # --- parameter validation ---
         if not (0.0 <= self.threshold <= 1.0):
             msg = "threshold must be in [0, 1]"

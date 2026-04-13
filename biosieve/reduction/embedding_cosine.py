@@ -1,3 +1,5 @@
+"""Embedding-space reduction strategy based on cosine similarity."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -65,99 +67,71 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 
 @dataclass(frozen=True)
 class EmbeddingCosineReducer:
-    """Greedy redundancy reduction in embedding space using cosine similarity.
+    r"""Greedy redundancy reduction in embedding space using cosine similarity.
 
     This reducer removes near-duplicate samples according to cosine similarity between
     their embedding vectors. It follows a deterministic greedy policy:
 
-    Greedy policy
-    -------------
+    Greedy policy:
     1) Sort dataset rows by `cols.id_col` (stable).
     2) Iterate ids in that order. The first unseen id becomes a representative.
     3) Remove any neighbors with cosine similarity >= `threshold`.
 
-    Inputs required (embeddings mode)
-    --------------------------------
+    Inputs required (embeddings mode):
     - embeddings_path: .npy array of shape (N, D)
     - ids_path: CSV containing embedding row ids in the same order as embeddings
 
-    Neighbor search backends
-    ------------------------
+    Neighbor search backends:
     - FAISS (if available and use_faiss=True): inner-product search on normalized vectors.
     - sklearn NearestNeighbors (if available): radius neighbors with cosine distance.
     - brute-force fallback: O(M^2), safe but slow.
 
-    Missing embeddings policy
-    ------------------------
+    Missing embeddings policy:
     Dataset ids that do not exist in the embedding id list are kept as standalone
     representatives (safest default), and are never removed by this strategy.
 
-    Parameters
-    ----------
-    embeddings_path:
-        Path to embeddings .npy file (N, D).
-    ids_path:
-        Path to CSV with embedding row ids (length N).
-    ids_col:
-        Column name inside ids_path CSV containing ids. If the CSV has a single column,
-        it will be used automatically by the embedding backend.
-    threshold:
-        Cosine similarity threshold in [0, 1]. Neighbors with sim >= threshold are removed.
-    use_faiss:
-        If True, tries to use FAISS if installed; otherwise falls back to sklearn/brute-force.
-    n_jobs:
-        Number of parallel jobs for sklearn NearestNeighbors (ignored for FAISS).
-    dtype:
-        Floating dtype to load/cast embeddings (recommended: "float32").
+    Args:
+        embeddings_path: Path to embeddings .npy file (N, D).
+        ids_path: Path to CSV with embedding row ids (length N).
+        ids_col:
+            Column name inside ids_path CSV containing ids. If the CSV has a single column,
+            it will be used automatically by the embedding backend.
+        threshold: Cosine similarity threshold in [0, 1]. Neighbors with sim >= threshold are removed.
+        use_faiss: If True, tries to use FAISS if installed; otherwise falls back to sklearn/brute-force.
+        n_jobs: Number of parallel jobs for sklearn NearestNeighbors (ignored for FAISS).
+        dtype: Floating dtype to load/cast embeddings (recommended: "float32").
 
-    Returns
-    -------
-    ReductionResult
-        - df:
-            Reduced dataframe containing representatives plus any ids missing embeddings.
-            Adds a convenience column `embedding_cosine_cluster_id` where representatives
-            have `embcos:<rep_id>` and removed rows are absent from df.
-        - mapping:
-            DataFrame with columns:
-              * removed_id
-              * representative_id
-              * cluster_id (rep-based, `embcos:<rep_id>`)
-              * score (cosine similarity)
-        - strategy:
-            "embedding_cosine"
-        - params:
-            Effective parameters plus `stats` (n_total/n_kept/n_removed/coverage).
+    Returns:
+        ReductionResult:
+            Result containing representative-only data, a removed-to-representative
+            mapping (with cosine similarity score), strategy name, and effective
+            parameters. Representatives include `embedding_cosine_cluster_id`
+            (`embcos:<rep_id>`), and params include coverage and reduction stats.
 
-    Raises
-    ------
-    ValueError
-        If `threshold` is out of range, dataset id column is missing, or no dataset ids
+    Raises:
+        ValueError: If `threshold` is out of range, dataset id column is missing, or no dataset ids
         are present in the embedding ids file.
-    FileNotFoundError
-        If embeddings_path or ids_path are missing (raised by embedding backend).
-    ImportError
-        Only raised implicitly if optional dependencies are partially broken; this reducer
+        FileNotFoundError: If embeddings_path or ids_path are missing (raised by embedding backend).
+        ImportError: Only raised implicitly if optional dependencies are partially broken; this reducer
         uses safe fallbacks when FAISS/sklearn are missing.
 
-    Notes
-    -----
-    - FAISS path uses a capped top-k search (`k=min(256, M)`) for speed. This is a heuristic:
-      in extremely dense neighborhoods it may miss some neighbors above threshold.
-      For guaranteed exactness, use sklearn radius mode or brute-force.
-    - This is a greedy algorithm: results depend on the representative ordering
-      (here: sorted by id for determinism).
-    - This strategy removes redundancy in embedding space only; it does not ensure
-      biological leakage control unless embeddings encode that information.
+    Notes:
+        - FAISS path uses a capped top-k search (`k=min(256, M)`) for speed. This is a heuristic:
+        in extremely dense neighborhoods it may miss some neighbors above threshold.
+        For guaranteed exactness, use sklearn radius mode or brute-force.
+        - This is a greedy algorithm: results depend on the representative ordering
+        (here: sorted by id for determinism).
+        - This strategy removes redundancy in embedding space only; it does not ensure
+        biological leakage control unless embeddings encode that information.
 
-    Examples
-    --------
-    >>> biosieve reduce \\
-    ...   --in biosieve_example_dataset_1000.csv \\
-    ...   --out data_nr_embcos.csv \\
-    ...   --strategy embedding_cosine \\
-    ...   --map map_embcos.csv \\
-    ...   --report reduction_embcos.json \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve reduce \\
+        ...   --in biosieve_example_dataset_1000.csv \\
+        ...   --out data_nr_embcos.csv \\
+        ...   --strategy embedding_cosine \\
+        ...   --map map_embcos.csv \\
+        ...   --report reduction_embcos.json \\
+        ...   --params params.yaml
 
     """
 
@@ -172,9 +146,11 @@ class EmbeddingCosineReducer:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "embedding_cosine"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+        """Reduce embedding redundancy and return representatives plus mapping."""
         if not (0.0 <= self.threshold <= 1.0):
             msg = "threshold must be in [0, 1]"
             raise ValueError(msg)

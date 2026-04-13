@@ -1,3 +1,5 @@
+"""Time-based splitting strategy for chronological model evaluation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,51 +36,38 @@ def _to_datetime(s: pd.Series, fmt: str | None) -> pd.Series:
 
 @dataclass(frozen=True)
 class TimeSplitter:
-    """Time-based split (chronological): train is earlier, test is later.
+    r"""Time-based split (chronological): train is earlier, test is later.
 
     This strategy sorts the dataset by a time column and splits chronologically:
       train | (optional val) | test
 
-    Parameters
-    ----------
-    time_col:
-        Column containing timestamps (string datetime) or numeric time values.
-    test_size:
-        Fraction assigned to the test split (latest samples if ascending=True).
-    val_size:
-        Fraction assigned to a validation split between train and test (0 disables validation).
-    parse_datetime:
-        If True, parse `time_col` using `pandas.to_datetime`. If False, parse as numeric.
-    time_format:
-        Optional datetime format string (e.g., "%Y-%m-%d"). Only used when parse_datetime=True.
-    ascending:
-        If True, sorts from older to newer. If False, newer to older (reverses split direction).
+    Args:
+        time_col: Column containing timestamps (string datetime) or numeric time values.
+        test_size: Fraction assigned to the test split (latest samples if ascending=True).
+        val_size: Fraction assigned to a validation split between train and test (0 disables validation).
+        parse_datetime: If True, parse `time_col` using `pandas.to_datetime`. If False, parse as numeric.
+        time_format: Optional datetime format string (e.g., "%Y-%m-%d"). Only used when parse_datetime=True.
+        ascending: If True, sorts from older to newer. If False, newer to older (reverses split direction).
 
-    Returns
-    -------
-    SplitResult
+    Returns:
         Container with train/test/val DataFrames plus:
         - params: effective parameters
         - stats: counts and time ranges per split
 
-    Raises
-    ------
-    ValueError
-        If time column missing, sizes invalid, parsing fails, or rounding produces empty splits.
+    Raises:
+        ValueError: If time column missing, sizes invalid, parsing fails, or rounding produces empty splits.
 
-    Notes
-    -----
-    - No shuffling is performed.
-    - This does not enforce homology/group/structure leakage constraints by itself.
-      For time-first with leakage guardrails, consider a hybrid (future feature).
+    Notes:
+        - No shuffling is performed.
+        - This does not enforce homology/group/structure leakage constraints by itself.
+        For time-first with leakage guardrails, consider a hybrid (future feature).
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_time \\
-    ...   --strategy time \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_time \\
+        ...   --strategy time \\
+        ...   --params params.yaml
 
     """
 
@@ -92,10 +81,11 @@ class TimeSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "time"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
-
+        """Create chronological train/test/(val) partitions."""
         log.info("time:start | date_col=%s", cols.date_col)
 
         log.debug("time:params | %s", self.__dict__)

@@ -1,3 +1,5 @@
+"""Greedy sequence reduction strategy using k-mer Jaccard similarity."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,22 +19,15 @@ log = get_logger(__name__)
 def _kmer_set(seq: str, k: int) -> set[str]:
     """Convert a sequence into a set of k-mers.
 
-    Parameters
-    ----------
-    seq:
-        Input sequence string.
-    k:
-        K-mer size (>= 1).
+    Args:
+        seq: Input sequence string.
+        k: K-mer size (>= 1).
 
-    Returns
-    -------
-    set[str]
+    Returns:
         Set of unique k-mer tokens. If len(seq) < k, returns {seq}.
 
-    Raises
-    ------
-    ValueError
-        If k < 1.
+    Raises:
+        ValueError: If k < 1.
 
     """
     if k <= 0:
@@ -46,14 +41,11 @@ def _kmer_set(seq: str, k: int) -> set[str]:
 def _jaccard(a: set[str], b: set[str]) -> float:
     """Jaccard similarity between two sets.
 
-    Parameters
-    ----------
-    a, b:
-        Input sets.
+    Args:
+        a: First input set.
+        b: Second input set.
 
-    Returns
-    -------
-    float
+    Returns:
         Jaccard similarity in [0, 1]. If both empty, returns 1.0.
 
     """
@@ -66,14 +58,13 @@ def _jaccard(a: set[str], b: set[str]) -> float:
 
 @dataclass(frozen=True)
 class KmerJaccardReducer:
-    """Greedy redundancy reduction using Jaccard similarity of k-mer sets.
+    r"""Greedy redundancy reduction using Jaccard similarity of k-mer sets.
 
     This reducer approximates sequence redundancy without alignment by comparing
     k-mer token sets. A sequence is considered redundant if its Jaccard similarity
     with an existing representative is >= `threshold`.
 
-    Greedy policy
-    -------------
+    Greedy policy:
     1) Sort dataset rows by `cols.id_col` (stable, deterministic).
     2) Iterate sequences in that order.
     3) First unseen sequence becomes a representative.
@@ -83,62 +74,46 @@ class KmerJaccardReducer:
        If best >= threshold, mark as removed and map to representative; otherwise
        accept as a new representative.
 
-    Candidate pruning
-    -----------------
+    Candidate pruning:
     The inverted index provides candidate reps ordered by the count of shared k-mers.
     Only the top `max_candidates` are evaluated to cap runtime.
 
-    Parameters
-    ----------
-    threshold:
-        Jaccard similarity threshold in [0, 1]. If score >= threshold, the sequence
-        is removed as redundant.
-    k:
-        K-mer size (>= 1). Typical values: 3-7 for proteins (tradeoff speed/specificity).
-    max_candidates:
-        Maximum number of representative candidates to evaluate per sequence (>= 1).
-        Higher values are more accurate but slower.
+    Args:
+        threshold:
+            Jaccard similarity threshold in [0, 1]. If score >= threshold, the sequence
+            is removed as redundant.
+        k: K-mer size (>= 1). Typical values: 3-7 for proteins (tradeoff speed/specificity).
+        max_candidates:
+            Maximum number of representative candidates to evaluate per sequence (>= 1).
+            Higher values are more accurate but slower.
 
-    Returns
-    -------
-    ReductionResult
-        - df:
-            Reduced dataframe containing only representatives. Adds a convenience
-            column `kmer_cluster_id` with `kmer:<rep_id>`.
-        - mapping:
-            DataFrame with columns:
-              * removed_id
-              * representative_id
-              * cluster_id (`kmer:<rep_id>`)
-              * score (Jaccard similarity; higher means more similar)
-        - strategy:
-            "kmer_jaccard"
-        - params:
-            Effective parameters plus `stats` (n_total/n_kept/n_removed/reduction_ratio).
+    Returns:
+        ReductionResult:
+            Result containing representative-only data, a removed-to-
+            representative mapping with Jaccard score, strategy name, and
+            effective parameters. The reduced dataframe includes
+            `kmer_cluster_id` (`kmer:<rep_id>`) and params include reduction
+            stats.
 
-    Raises
-    ------
-    ValueError
-        If threshold is out of range, k < 1, max_candidates < 1, required columns are
+    Raises:
+        ValueError: If threshold is out of range, k < 1, max_candidates < 1, required columns are
         missing, ids are duplicated, or sequences are empty/invalid.
 
-    Notes
-    -----
-    - This is a greedy algorithm: results depend on representative ordering
-      (here: sorted by id for determinism).
-    - Jaccard(k-mer) is an approximation. It does not guarantee homology clustering
-      and may behave differently from alignment-based tools (e.g., MMseqs2).
-    - Missing edges are not applicable here; similarity is computed on-the-fly from sequences.
+    Notes:
+        - This is a greedy algorithm: results depend on representative ordering
+        (here: sorted by id for determinism).
+        - Jaccard(k-mer) is an approximation. It does not guarantee homology clustering
+        and may behave differently from alignment-based tools (e.g., MMseqs2).
+        - Missing edges are not applicable here; similarity is computed on-the-fly from sequences.
 
-    Examples
-    --------
-    >>> biosieve reduce \\
-    ...   --in dataset.csv \\
-    ...   --out data_nr_kmer.csv \\
-    ...   --strategy kmer_jaccard \\
-    ...   --map map_kmer.csv \\
-    ...   --report report_kmer.json \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve reduce \\
+        ...   --in dataset.csv \\
+        ...   --out data_nr_kmer.csv \\
+        ...   --strategy kmer_jaccard \\
+        ...   --map map_kmer.csv \\
+        ...   --report report_kmer.json \\
+        ...   --params params.yaml
 
     """
 
@@ -148,9 +123,11 @@ class KmerJaccardReducer:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "kmer_jaccard"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+        """Reduce sequence redundancy with k-mer candidate pruning."""
         if not (0.0 <= self.threshold <= 1.0):
             msg = "threshold must be in [0, 1]"
             raise ValueError(msg)

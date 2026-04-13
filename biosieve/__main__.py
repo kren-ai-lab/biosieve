@@ -1,3 +1,5 @@
+"""BioSieve package entrypoint."""
+
 from biosieve.cli.main import main
 
 if __name__ == "__main__":

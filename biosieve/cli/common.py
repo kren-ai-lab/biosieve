@@ -1,3 +1,5 @@
+"""Shared CLI options and runtime setup helpers."""
+
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003

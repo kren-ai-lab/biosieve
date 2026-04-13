@@ -1,3 +1,5 @@
+"""Homology-aware reduction strategy backed by MMseqs2 clustering."""
+
 from __future__ import annotations
 
 import shutil
@@ -25,74 +27,54 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class MMseqs2Reducer:
-    """Homology-based redundancy reduction using MMseqs2 easy-cluster.
+    r"""Homology-based redundancy reduction using MMseqs2 easy-cluster.
 
     This reducer clusters sequences by homology using MMseqs2 (`easy-cluster`) and keeps
     one representative per cluster (as determined by MMseqs2). All non-representatives
     are removed and recorded in the returned mapping.
 
-    Parameters
-    ----------
-    min_seq_id:
-        Minimum sequence identity threshold in [0, 1] (MMseqs2 `--min-seq-id`).
-    coverage:
-        Alignment coverage threshold in [0, 1] (MMseqs2 `-c`).
-    cov_mode:
-        Coverage mode (MMseqs2 `--cov-mode`).
-    cluster_mode:
-        Cluster mode (MMseqs2 `--cluster-mode`).
-    threads:
-        Number of threads for MMseqs2.
+    Args:
+        min_seq_id: Minimum sequence identity threshold in [0, 1] (MMseqs2 `--min-seq-id`).
+        coverage: Alignment coverage threshold in [0, 1] (MMseqs2 `-c`).
+        cov_mode: Coverage mode (MMseqs2 `--cov-mode`).
+        cluster_mode: Cluster mode (MMseqs2 `--cluster-mode`).
+        threads: Number of threads for MMseqs2.
+        tmp_root:
+            Optional parent directory for the temporary work directory. If None,
+            uses system temp.
+        keep_tmp:
+            If True, copies the temporary folder to
+            `./biosieve_mmseqs2_debug/` for debugging.
 
-    tmp_root:
-        Optional parent directory for the temporary work directory. If None, uses system temp.
-    keep_tmp:
-        If True, copies the temporary folder to `./biosieve_mmseqs2_debug/` for debugging.
+    Returns:
+        ReductionResult:
+            Result containing MMseqs2 representatives, removed-to-representative
+            mapping, strategy name, and effective parameters. The reduced
+            dataframe includes `mmseqs2_cluster_id`, and mapping rows contain
+            removed id, representative id, cluster id, and score (`None` in
+            easy-cluster mode).
 
-    Returns
-    -------
-    ReductionResult
-        - df:
-            DataFrame containing only MMseqs2 representatives (one per cluster).
-            A helper column `mmseqs2_cluster_id` is added to representatives.
-        - mapping:
-            DataFrame with columns:
-            * removed_id: removed member id
-            * representative_id: cluster representative id
-            * cluster_id: deterministic cluster id (rep-based)
-            * score: always None in easy-cluster mode
-        - strategy:
-            "mmseqs2"
-        - params:
-            Effective parameters used for clustering and temp handling.
-
-    Raises
-    ------
-    ValueError
-        If required columns are missing, ids are duplicated, sequences are empty,
+    Raises:
+        ValueError: If required columns are missing, ids are duplicated, sequences are empty,
         or parameter ranges are invalid.
-    FileNotFoundError
-        If the mmseqs2 binary is missing (raised by backend).
-    RuntimeError
-        If MMseqs2 returns a non-zero exit code (raised by backend).
+        FileNotFoundError: If the mmseqs2 binary is missing (raised by backend).
+        RuntimeError: If MMseqs2 returns a non-zero exit code (raised by backend).
 
-    Notes
-    -----
-    - MMseqs2 decides the representative per cluster. BioSieve treats that decision
-      as authoritative for this strategy.
-    - This strategy does not provide per-pair scores by default in `easy-cluster`.
-      Hence `score` is always None.
-    - IDs must be unique to produce a valid FASTA mapping.
+    Notes:
+        - MMseqs2 decides the representative per cluster. BioSieve treats that decision
+        as authoritative for this strategy.
+        - This strategy does not provide per-pair scores by default in `easy-cluster`.
+        Hence `score` is always None.
+        - IDs must be unique to produce a valid FASTA mapping.
 
-    Examples
-    --------
-    >>> biosieve reduce \\
-    ...   --in dataset.csv \\
-    ...   --out out_nr_mmseqs2.csv \\
-    ...   --strategy mmseqs2 \\
-    ...   --map map_mmseqs2.csv \\
-    ...   --report report_mmseqs2.json \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve reduce \\
+        ...   --in dataset.csv \\
+        ...   --out out_nr_mmseqs2.csv \\
+        ...   --strategy mmseqs2 \\
+        ...   --map map_mmseqs2.csv \\
+        ...   --report report_mmseqs2.json \\
+        ...   --params params.yaml
 
     """
 
@@ -108,9 +90,11 @@ class MMseqs2Reducer:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "mmseqs2"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+        """Run MMseqs2 clustering and return reduced data plus mapping."""
         # --- basic checks ---
         if not (0.0 <= self.min_seq_id <= 1.0):
             msg = "min_seq_id must be in [0, 1]"

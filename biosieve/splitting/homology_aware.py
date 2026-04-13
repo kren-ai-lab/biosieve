@@ -1,3 +1,5 @@
+"""Homology-aware splitting strategy using sequence clustering as grouping."""
+
 from __future__ import annotations
 
 import shutil
@@ -25,21 +27,14 @@ _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
 def _write_fasta(df: pd.DataFrame, id_col: str, seq_col: str, out_fa: Path) -> None:
     """Write a FASTA file from a DataFrame.
 
-    Parameters
-    ----------
-    df:
-        Input DataFrame.
-    id_col:
-        Column containing sequence/sample ids.
-    seq_col:
-        Column containing sequences.
-    out_fa:
-        Output FASTA path.
+    Args:
+        df: Input DataFrame.
+        id_col: Column containing sequence/sample ids.
+        seq_col: Column containing sequences.
+        out_fa: Output FASTA path.
 
-    Raises
-    ------
-    ValueError
-        If any sequence is empty.
+    Raises:
+        ValueError: If any sequence is empty.
 
     """
     lines = []
@@ -66,41 +61,26 @@ def _run_mmseqs_easy_cluster(
 ) -> Path:
     """Run mmseqs2 easy-cluster and return the produced cluster TSV path.
 
-    Command
-    -------
+    Command:
     mmseqs easy-cluster input.fasta out_prefix tmp_dir
         --min-seq-id <min_seq_id> -c <coverage> --cov-mode <cov_mode> --threads <threads>
 
-    Parameters
-    ----------
-    fasta_path:
-        Input FASTA file.
-    out_prefix:
-        Output prefix for mmseqs2.
-    tmp_dir:
-        Temporary directory for mmseqs2.
-    mmseqs_bin:
-        Path to mmseqs binary ("mmseqs" by default).
-    min_seq_id:
-        Minimum sequence identity threshold.
-    coverage:
-        Coverage threshold (-c).
-    cov_mode:
-        Coverage mode (--cov-mode).
-    threads:
-        Number of threads.
+    Args:
+        fasta_path: Input FASTA file.
+        out_prefix: Output prefix for mmseqs2.
+        tmp_dir: Temporary directory for mmseqs2.
+        mmseqs_bin: Path to mmseqs binary ("mmseqs" by default).
+        min_seq_id: Minimum sequence identity threshold.
+        coverage: Coverage threshold (-c).
+        cov_mode: Coverage mode (--cov-mode).
+        threads: Number of threads.
 
-    Returns
-    -------
-    Path
+    Returns:
         Path to the expected TSV file `{out_prefix}_cluster.tsv` containing `rep<TAB>member`.
 
-    Raises
-    ------
-    FileNotFoundError
-        If the mmseqs binary is not found or the expected output TSV is missing.
-    RuntimeError
-        If mmseqs2 returns a non-zero code.
+    Raises:
+        FileNotFoundError: If the mmseqs binary is not found or the expected output TSV is missing.
+        RuntimeError: If mmseqs2 returns a non-zero code.
 
     """
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -148,12 +128,9 @@ def _load_mmseqs_cluster_tsv(cluster_tsv: Path) -> pd.DataFrame:
 
     Expected format: rep<TAB>member
 
-    Returns
-    -------
-    pd.DataFrame
+    Returns:
         Columns:
-        - representative_id
-        - member_id
+        - representative_id: - member_id
         - cluster_id (defaults to representative_id for stable deterministic naming)
 
     """
@@ -172,10 +149,8 @@ def _build_cluster_id_map(
 ) -> dict[str, str]:
     """Build a member->cluster_id dict from a mapping DataFrame.
 
-    Raises
-    ------
-    ValueError
-        If required columns are missing.
+    Raises:
+        ValueError: If required columns are missing.
 
     """
     if member_col not in mapping_df.columns or cluster_col not in mapping_df.columns:
@@ -197,72 +172,56 @@ def _build_cluster_id_map(
 
 @dataclass(frozen=True)
 class HomologyAwareSplitter:
-    """Homology-aware split using sequence clusters as groups (no homology leakage).
+    r"""Homology-aware split using sequence clusters as groups (no homology leakage).
 
     This strategy clusters sequences by homology and then performs a group-based split
     over cluster ids, ensuring that no homology cluster appears in multiple splits.
 
-    Modes
-    -----
+    Modes:
     1) mode="mmseqs2":
        Runs `mmseqs easy-cluster` on the input dataset and derives cluster ids from
        the output mapping (rep -> member).
     2) mode="precomputed":
        Uses a precomputed mapping file with `member_id -> cluster_id`.
 
-    Missing mapping coverage
-    ------------------------
+    Missing mapping coverage:
     Any sample id not present in the mapping is assigned a safe singleton cluster:
     `singleton:<id>`, preventing accidental leakage.
 
-    Parameters
-    ----------
-    test_size, val_size, seed:
-        Split fractions and seed (group-based split is deterministic given seed).
-    mode:
-        "mmseqs2" or "precomputed".
-    clusters_path:
-        Path to precomputed clusters mapping (required if mode="precomputed").
-    clusters_format:
-        "mmseqs_tsv" (rep<TAB>member) or "csv".
-    member_col, cluster_col:
-        Column names in the precomputed mapping (csv mode).
-    mmseqs_bin, min_seq_id, coverage, cov_mode, threads:
-        mmseqs2 parameters (used only in mode="mmseqs2").
-    work_dir:
-        Directory for intermediate mmseqs2 artefacts (FASTA, tmp, TSV).
-    keep_work:
-        If False, removes `work_dir` after success (best-effort).
+    Args:
+        test_size, val_size, seed:
+            Split fractions and seed (group-based split is deterministic given seed).
+        mode: "mmseqs2" or "precomputed".
+        clusters_path: Path to precomputed clusters mapping (required if mode="precomputed").
+        clusters_format: "mmseqs_tsv" (rep<TAB>member) or "csv".
+        member_col, cluster_col:
+            Column names in the precomputed mapping (csv mode).
+        mmseqs_bin, min_seq_id, coverage, cov_mode, threads:
+            mmseqs2 parameters (used only in mode="mmseqs2").
+        work_dir: Directory for intermediate mmseqs2 artefacts (FASTA, tmp, TSV).
+        keep_work: If False, removes `work_dir` after success (best-effort).
 
-    Returns
-    -------
-    SplitResult
+    Returns:
         train/test/val splits plus:
         - params: effective configuration (including mmseqs2 options)
         - stats: cluster counts, leakage checks, and mapping metadata
 
-    Raises
-    ------
-    ValueError
-        If split sizes are invalid, mode is unknown, required inputs are missing,
+    Raises:
+        ValueError: If split sizes are invalid, mode is unknown, required inputs are missing,
         or sequence column is missing in mmseqs2 mode.
-    FileNotFoundError
-        If clusters_path is missing (precomputed) or mmseqs2 binary/output is missing.
-    RuntimeError
-        If mmseqs2 fails.
+        FileNotFoundError: If clusters_path is missing (precomputed) or mmseqs2 binary/output is missing.
+        RuntimeError: If mmseqs2 fails.
 
-    Notes
-    -----
-    - Leakage contract (must be zero):
-      leak_clusters_train_test == 0 and leak_clusters_val_test == 0.
-      If val exists, leak_clusters_train_val == 0 as well (val is group-split from trainval).
-    - This prevents homology leakage, but does not enforce label balancing.
-      For balanced yet leakage-aware splits, a hybrid cluster-level balancing strategy
-      can be added later.
+    Notes:
+        - Leakage contract (must be zero):
+        leak_clusters_train_test == 0 and leak_clusters_val_test == 0.
+        If val exists, leak_clusters_train_val == 0 as well (val is group-split from trainval).
+        - This prevents homology leakage, but does not enforce label balancing.
+        For balanced yet leakage-aware splits, a hybrid cluster-level balancing strategy
+        can be added later.
 
-    Examples
-    --------
-    mmseqs2 mode:
+    Examples:
+        mmseqs2 mode:
 
     >>> biosieve split \\
     ...   --in dataset.csv \\
@@ -307,6 +266,7 @@ class HomologyAwareSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "homology_aware"
 
     def _get_cluster_map(self, df: pd.DataFrame, cols: Columns) -> tuple[dict[str, str], dict[str, Any]]:
@@ -391,7 +351,7 @@ class HomologyAwareSplitter:
         raise ValueError(msg)
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
-
+        """Split data into homology-disjoint train/test/(val) partitions."""
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)

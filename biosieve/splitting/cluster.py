@@ -1,3 +1,5 @@
+"""Cluster-aware splitting strategy with strict cluster leakage prevention."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,27 +24,18 @@ MIN_CLUSTERS_FOR_SPLIT = 2
 def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str, str]:
     """Load a CSV mapping sample ids to cluster ids.
 
-    Parameters
-    ----------
-    path:
-        Path to the mapping CSV.
-    id_col:
-        Column name in mapping CSV containing sample ids.
-    cluster_col:
-        Column name in mapping CSV containing cluster ids.
+    Args:
+        path: Path to the mapping CSV.
+        id_col: Column name in mapping CSV containing sample ids.
+        cluster_col: Column name in mapping CSV containing cluster ids.
 
-    Returns
-    -------
-    dict[str, str]
-        Dictionary mapping sample id -> cluster id.
+    Returns:
+        dict[str, str]: Dictionary mapping sample id -> cluster id.
         If the mapping CSV contains duplicates for the same id, the last occurrence wins.
 
-    Raises
-    ------
-    FileNotFoundError
-        If `path` does not exist.
-    ValueError
-        If required columns are missing from the mapping CSV.
+    Raises:
+        FileNotFoundError: If `path` does not exist.
+        ValueError: If required columns are missing from the mapping CSV.
 
     """
     p = Path(path)
@@ -62,47 +55,34 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
 
 @dataclass(frozen=True)
 class ClusterAwareSplitter:
-    """Cluster-aware split (group-based) to prevent cluster leakage across splits.
+    r"""Cluster-aware split (group-based) to prevent cluster leakage across splits.
 
     This strategy is a thin wrapper around group-based splitting: it ensures that a
     cluster identifier never appears in more than one of train/test/val.
 
-    Cluster sources
-    ---------------
+    Cluster sources:
     1) Dataset column: if `cluster_col` exists in the dataset, it is used directly.
     2) Mapping file: if `cluster_map_path` is provided, cluster ids are joined by `cols.id_col`
        using a mapping CSV (id -> cluster_id).
 
-    Missing cluster assignments (mapping mode)
-    -----------------------------------------
+    Missing cluster assignments (mapping mode):
     If a sample id is not present in the mapping file:
     - If `assign_singletons_for_missing=True`, it is assigned to a singleton cluster `singleton:<id>`
       which is safe (does not create leakage).
     - Otherwise, an error is raised.
 
-    Parameters
-    ----------
-    test_size:
-        Fraction of samples assigned to the test split (cluster-disjoint from train/val).
-    val_size:
-        Fraction of samples assigned to validation (0 disables validation).
+    Args:
+        test_size: Fraction of samples assigned to the test split (cluster-disjoint from train/val).
+        val_size: Fraction of samples assigned to validation (0 disables validation).
         Internally converted to a fraction of the remaining trainval split.
-    seed:
-        Random seed for deterministic group splitting.
-    cluster_col:
-        Column name in the dataset containing cluster ids (used if present).
-    cluster_map_path:
-        Optional path to a CSV mapping ids to cluster ids.
-    map_id_col:
-        Column in the mapping CSV with ids (typically "id").
-    map_cluster_col:
-        Column in the mapping CSV with cluster ids (typically "cluster_id").
-    assign_singletons_for_missing:
-        If True, assign singleton clusters for missing ids in the mapping file.
+        seed: Random seed for deterministic group splitting.
+        cluster_col: Column name in the dataset containing cluster ids (used if present).
+        cluster_map_path: Optional path to a CSV mapping ids to cluster ids.
+        map_id_col: Column in the mapping CSV with ids (typically "id").
+        map_cluster_col: Column in the mapping CSV with cluster ids (typically "cluster_id").
+        assign_singletons_for_missing: If True, assign singleton clusters for missing ids in the mapping file.
 
-    Returns
-    -------
-    SplitResult
+    Returns:
         Container with train/test/val splits plus:
         - params: effective parameters and mapping configuration
         - stats: counts, number of clusters, and leakage checks
@@ -113,27 +93,21 @@ class ClusterAwareSplitter:
         And if val exists:
         - leak_clusters_train_val
 
-    Raises
-    ------
-    ImportError
-        If scikit-learn is not installed (required by group splitting backend).
-    ValueError
-        If split sizes are invalid, if no cluster info is provided, if too few clusters
+    Raises:
+        ImportError: If scikit-learn is not installed (required by group splitting backend).
+        ValueError: If split sizes are invalid, if no cluster info is provided, if too few clusters
         exist to split, or if mapping coverage is incomplete and singletons are disabled.
-    FileNotFoundError
-        If `cluster_map_path` does not exist.
+        FileNotFoundError: If `cluster_map_path` does not exist.
 
-    Notes
-    -----
-    - This splitter enforces cluster-disjoint splits, but does not guarantee balanced class
-      distributions. If you need both “no leakage” and balancing, a hybrid (future) strategy
-      is recommended (e.g., cluster-level balancing with stratified_numeric).
-    - The leakage checks are computed using an internal cluster column that is always present
-      during splitting, ensuring correctness for both dataset-column and mapping modes.
+    Notes:
+        - This splitter enforces cluster-disjoint splits, but does not guarantee balanced class
+        distributions. If you need both “no leakage” and balancing, a hybrid (future) strategy
+        is recommended (e.g., cluster-level balancing with stratified_numeric).
+        - The leakage checks are computed using an internal cluster column that is always present
+        during splitting, ensuring correctness for both dataset-column and mapping modes.
 
-    Examples
-    --------
-    Using a cluster id already present in the dataset:
+    Examples:
+        Using a cluster id already present in the dataset:
 
     >>> biosieve split \\
     ...   --in dataset.csv \\
@@ -167,9 +141,11 @@ class ClusterAwareSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "cluster_aware"
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+        """Split data by cluster assignments into disjoint partitions."""
         _validate_sizes(self.test_size, self.val_size)
 
         work = df.copy().reset_index(drop=True)

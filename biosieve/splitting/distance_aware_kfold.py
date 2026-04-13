@@ -1,3 +1,5 @@
+"""Distance-aware k-fold splitter for out-of-distribution validation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -198,85 +200,66 @@ def _get_distances_for_df(df_split: pd.DataFrame, d: np.ndarray) -> np.ndarray:
 
 @dataclass(frozen=True)
 class DistanceAwareKFoldSplitter:
-    """Distance-aware K-Fold splitting (OOD-oriented CV).
+    r"""Distance-aware K-Fold splitting (OOD-oriented CV).
 
     This splitter creates folds by ranking samples according to their distance to
     the global centroid in feature space, then partitioning that ranking into
     disjoint test folds (farthest-first).
 
-    Feature modes
-    -------------
+    Feature modes:
     - embeddings: uses an external embeddings matrix aligned by ids
     - descriptors: uses numeric columns from the input CSV
 
-    Metrics
-    -------
+    Metrics:
     - cosine: 1 - cosine_similarity(x, centroid)
     - euclidean: ||x - centroid||
 
-    Parameters
-    ----------
-    feature_mode:
-        "embeddings" or "descriptors".
-    metric:
-        "cosine" or "euclidean".
-    n_splits:
-        Number of folds (>=2). Test folds are disjoint and cover the dataset.
-    shuffle_ties:
-        If True, break distance ties using a seeded tiny jitter.
-    seed:
-        Seed used for tie-breaking and optional val sampling.
-    val_size:
-        Optional validation fraction sampled from each fold's train split.
-    drop_internal_index:
-        If True, remove internal `_biosieve_row_idx__` from exported splits.
+    Args:
+        feature_mode: "embeddings" or "descriptors".
+        metric: "cosine" or "euclidean".
+        n_splits: Number of folds (>=2). Test folds are disjoint and cover the dataset.
+        shuffle_ties: If True, break distance ties using a seeded tiny jitter.
+        seed: Seed used for tie-breaking and optional val sampling.
+        val_size: Optional validation fraction sampled from each fold's train split.
+        drop_internal_index: If True, remove internal `_biosieve_row_idx__` from exported splits.
 
-    Embeddings mode parameters
-    -------------------------
-    embeddings_path:
-        Path to .npy file with shape (N, D).
-    ids_path:
-        CSV with embedding row ids.
+    Embeddings mode parameters:
+        embeddings_path:
+            Path to .npy file with shape (N, D).
+        ids_path:
+            CSV with embedding row ids.
 
-    Descriptors mode parameters
-    ---------------------------
-    descriptor_cols:
-        Explicit descriptor columns list. If None, uses descriptor_prefix.
-    descriptor_prefix:
-        Select columns starting with this prefix (e.g., "desc_").
-    standardize_descriptors:
-        If True, z-score descriptors before distances.
+    Descriptors mode parameters:
+        descriptor_cols:
+            Explicit descriptor columns list. If None, uses descriptor_prefix.
+        descriptor_prefix:
+            Select columns starting with this prefix (e.g., "desc_").
+        standardize_descriptors:
+            If True, z-score descriptors before distances.
 
-    Returns
-    -------
-    list[SplitResult]
-        One SplitResult per fold. Each fold includes:
-        - train/test/val DataFrames
-        - stats: distance summaries for train/test/val using the *global* distance vector
-        - params: effective parameters including `fold_index`
+    Returns:
+        list[SplitResult]:
+            One result per fold, each containing train/test/(optional val)
+            dataframes, fold-specific params (including `fold_index`), and stats
+            including distance summaries computed from the global distance vector.
 
-    Raises
-    ------
-    ValueError
-        If parameters are invalid, required inputs (columns/files) are missing,
+    Raises:
+        ValueError: If parameters are invalid, required inputs (columns/files) are missing,
         embeddings do not cover all ids, or the dataset is too small for n_splits.
-    ImportError
-        If `val_size > 0` but scikit-learn is not installed.
+        ImportError: If `val_size > 0` but scikit-learn is not installed.
 
-    Notes
-    -----
-    - This is intentionally not a random CV. It creates OOD-oriented test folds
-      to evaluate robustness to distant regions of the feature space.
-    - This does not prevent biological leakage by itself. Combine with group/homology/structure
-      constraints if needed (future hybrid).
+    Notes:
+        - This is intentionally not a random CV. It creates OOD-oriented test folds
+        to evaluate robustness to distant regions of the feature space.
+        - This does not prevent biological leakage by itself. Combine with group/homology/structure
+        constraints if needed (future hybrid).
 
-    Examples
-    --------
-    >>> biosieve split \\
-    ...   --in dataset.csv \\
-    ...   --outdir runs/split_distance_aware_kfold \\
-    ...   --strategy distance_aware_kfold \\
-    ...   --params params.yaml
+    Examples:
+        >>> biosieve split \\
+        ...   --in dataset.csv \\
+        ...   --outdir runs/split_distance_aware_kfold \\
+        ...   --strategy distance_aware_kfold \\
+        ...   --params params.yaml
 
     """
 
@@ -301,9 +284,11 @@ class DistanceAwareKFoldSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "distance_aware_kfold"
 
     def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
+        """Create distance-ranked disjoint test folds with optional validation."""
         if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"
             raise ValueError(msg)

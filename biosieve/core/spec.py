@@ -1,3 +1,5 @@
+"""Lazy import metadata for strategy registration."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,16 +11,11 @@ from typing import Any
 class StrategySpec:
     """Lazy strategy specification.
 
-    Attributes
-    ----------
-    name:
-        Strategy name as used in CLI (e.g., "embedding_cosine").
-    kind:
-        "reducer" or "splitter".
-    import_path:
-        Import path in the form "module.submodule:ClassName".
-    summary:
-        Optional short description.
+    Attributes:
+        name: Strategy name as used in CLI (e.g., "embedding_cosine").
+        kind: "reducer" or "splitter".
+        import_path: Import path in the form "module.submodule:ClassName".
+        summary: Optional short description.
 
     """
 
@@ -31,12 +28,9 @@ class StrategySpec:
 def lazy_import_class(import_path: str) -> type[Any]:
     """Import a class from an import path "pkg.mod:ClassName".
 
-    Raises
-    ------
-    ValueError
-        If import_path is malformed.
-    ImportError
-        If module or attribute cannot be imported.
+    Raises:
+        ValueError: If import_path is malformed.
+        ImportError: If module or attribute cannot be imported.
 
     """
     if ":" not in import_path:

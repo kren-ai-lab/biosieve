@@ -1,3 +1,5 @@
+"""Execution runner for reduction workflows."""
+
 from __future__ import annotations
 
 import json
@@ -40,20 +42,15 @@ def _ensure_parent(path: str | None) -> None:
 def _safe_jsonable(x: object) -> JSONValue:
     """Convert objects into JSON-serializable representations (best-effort).
 
-    Parameters
-    ----------
-    x:
-        Arbitrary Python object.
+    Args:
+        x: Arbitrary Python object.
 
-    Returns
-    -------
-    JSONValue
+    Returns:
         JSON-serializable version of `x`.
 
-    Notes
-    -----
-    - Dataclasses are converted via `asdict`.
-    - Unknown objects are converted to `str(x)`.
+    Notes:
+        - Dataclasses are converted via `asdict`.
+        - Unknown objects are converted to `str(x)`.
 
     """
     if x is None:
@@ -98,10 +95,9 @@ def run_reduce(
     strategy_params: dict[str, object] | None = None,
     read_csv_kwargs: dict[str, object] | None = None,
 ) -> None:
-    """Execute redundancy reduction and export artefacts to disk.
+    r"""Execute redundancy reduction and export artefacts to disk.
 
-    Artefact contract
-    -----------------
+    Artefact contract:
     - Reduced dataset: `out_path` (CSV)
     - Optional mapping: `map_path` (CSV)
       If `map_path` is provided and the reducer returns no mapping, an empty mapping
@@ -109,46 +105,30 @@ def run_reduce(
         ["removed_id", "representative_id", "cluster_id", "score"]
     - Optional report: `report_path` (JSON)
 
-    Parameters
-    ----------
-    in_path:
-        Input CSV path.
-    out_path:
-        Output CSV path for the non-redundant dataset.
-    strategy:
-        Reducer strategy name (e.g., "mmseqs2", "embedding_cosine", "descriptor_euclidean").
-    registry:
-        StrategyRegistry holding reducer classes in `registry.reducers`.
-    cols:
-        Columns specification. If None, defaults to Columns(id_col="id", seq_col="sequence").
-    map_path:
-        Optional mapping CSV path.
-    report_path:
-        Optional JSON report path.
-    strategy_params:
-        Params used to instantiate the reducer class (unknown keys -> error).
-    read_csv_kwargs:
-        Optional kwargs passed to pandas.read_csv.
+    Args:
+        in_path: Input CSV path.
+        out_path: Output CSV path for the non-redundant dataset.
+        strategy: Reducer strategy name (e.g., "mmseqs2", "embedding_cosine", "descriptor_euclidean").
+        registry: StrategyRegistry holding reducer classes in `registry.reducers`.
+        cols: Columns specification. If None, defaults to Columns(id_col="id", seq_col="sequence").
+        map_path: Optional mapping CSV path.
+        report_path: Optional JSON report path.
+        strategy_params: Params used to instantiate the reducer class (unknown keys -> error).
+        read_csv_kwargs: Optional kwargs passed to pandas.read_csv.
 
-    Raises
-    ------
-    ValueError
-        If the reducer strategy name is unknown, the id column is missing, or ids
+    Raises:
+        ValueError: If the reducer strategy name is unknown, the id column is missing, or ids
         are not unique.
-    FileNotFoundError
-        If `in_path` does not exist (raised by pandas).
-    RuntimeError
-        If the reducer fails internally (propagated from the reducer implementation).
+        FileNotFoundError: If `in_path` does not exist (raised by pandas).
+        RuntimeError: If the reducer fails internally (propagated from the reducer implementation).
 
-    Notes
-    -----
-    - Some reducers may not require sequences. Therefore, missing `cols.seq_col` is not
-      a hard error at runner level. Reducers should validate required columns themselves.
-    - Reports attempt to be JSON-serializable and stable for downstream use (MCS-friendly).
+    Notes:
+        - Some reducers may not require sequences. Therefore, missing `cols.seq_col` is not
+        a hard error at runner level. Reducers should validate required columns themselves.
+        - Reports attempt to be JSON-serializable and stable for downstream use (MCS-friendly).
 
-    Examples
-    --------
-    Minimal usage:
+    Examples:
+        Minimal usage:
 
     >>> biosieve reduce \\
     ...   --in dataset.csv \\

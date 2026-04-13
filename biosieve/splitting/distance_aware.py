@@ -1,3 +1,5 @@
+"""Distance-aware split strategy targeting out-of-distribution evaluation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -47,24 +49,18 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
     """Compute distance to centroid for each row.
 
-    Parameters
-    ----------
-    X:
-        Feature matrix (n_samples, n_features).
-    metric:
-        Distance metric:
-        - "cosine": 1 - cosine_similarity(x, centroid) in L2-normalized space
-        - "euclidean": L2 distance to mean vector
+    Args:
+        X: Feature matrix (n_samples, n_features).
+        metric:
+            Distance metric. Supported values are `"cosine"` for
+            `1 - cosine_similarity(x, centroid)` in L2-normalized space and
+            `"euclidean"` for L2 distance to the mean vector.
 
-    Returns
-    -------
-    np.ndarray
+    Returns:
         Distance vector of shape (n_samples,).
 
-    Raises
-    ------
-    ValueError
-        If metric is not supported.
+    Raises:
+        ValueError: If metric is not supported.
 
     """
     if metric == "cosine":
@@ -107,14 +103,13 @@ def _dist_stats(d: np.ndarray) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class DistanceAwareSplitter:
-    """Distance-aware split (OOD-oriented) selecting farthest samples as test (and optional val).
+    r"""Distance-aware split (OOD-oriented) selecting farthest samples as test (and optional val).
 
     This strategy selects the test set as the samples farthest from the centroid in a
     feature space (embeddings or descriptors). Optionally, validation can be selected
     either randomly from the remaining pool or as the "next farthest" samples.
 
-    Supported feature modes
-    -----------------------
+    Supported feature modes:
     - feature_mode="embeddings":
         Uses embeddings exported as:
           - embeddings_path: .npy array (N, D)
@@ -124,73 +119,53 @@ class DistanceAwareSplitter:
         Uses numeric descriptor columns (explicit list or prefix selection).
         Distances typically use metric="euclidean", optionally after z-scoring.
 
-    Selection policies
-    ------------------
+    Selection policies:
     - test_method="farthest" (v0.1):
         Take the top `n_test` farthest samples (among those with features).
     - val_method:
         - "random": pick val uniformly from the remaining candidates
         - "farthest_next": take the next `n_val` farthest samples after test
 
-    Missing features behavior (embeddings mode)
-    -------------------------------------------
+    Missing features behavior (embeddings mode):
     If some dataset ids do not have embeddings, they are *kept in TRAIN* by default.
     This is a conservative choice that avoids accidentally evaluating on samples that
     cannot be represented.
 
-    Parameters
-    ----------
-    test_size:
-        Fraction of full dataset assigned to test.
-    val_size:
-        Fraction of full dataset assigned to validation (0 disables validation).
-    seed:
-        Seed used for random val selection (val_method="random").
-    feature_mode:
-        "embeddings" or "descriptors".
-    metric:
-        "cosine" or "euclidean".
-    embeddings_path, ids_path, ids_col:
-        Embeddings layout parameters (embeddings mode).
-    descriptor_prefix, descriptor_cols, standardize:
-        Descriptor selection and normalization (descriptors mode).
-    test_method:
-        Only "farthest" is supported in v0.1.
-    val_method:
-        "random" or "farthest_next".
-    dtype:
-        Numpy dtype used to load/cast features ("float32" default).
+    Args:
+        test_size: Fraction of full dataset assigned to test.
+        val_size: Fraction of full dataset assigned to validation (0 disables validation).
+        seed: Seed used for random val selection (val_method="random").
+        feature_mode: "embeddings" or "descriptors".
+        metric: "cosine" or "euclidean".
+        embeddings_path, ids_path, ids_col:
+            Embeddings layout parameters (embeddings mode).
+        descriptor_prefix, descriptor_cols, standardize:
+            Descriptor selection and normalization (descriptors mode).
+        test_method: Only "farthest" is supported in v0.1.
+        val_method: "random" or "farthest_next".
+        dtype: Numpy dtype used to load/cast features ("float32" default).
 
-    Returns
-    -------
-    SplitResult
-        train/test/val DataFrames plus:
-        - params: effective parameters and feature configuration
-        - stats:
-            - feature coverage
-            - distance summaries (global/train/test/val) computed over *available-feature* pool
-            - selection policy metadata
+    Returns:
+        SplitResult:
+            Train/test/(optional val) dataframes plus metadata. `params`
+            captures effective configuration, and `stats` captures feature
+            coverage, distance summaries (global/train/test/val on the
+            available-feature pool), and selection policy details.
 
-    Raises
-    ------
-    ValueError
-        If split sizes are invalid, test/val sizes become zero after rounding, feature_mode
+    Raises:
+        ValueError: If split sizes are invalid, test/val sizes become zero after rounding, feature_mode
         or metric are invalid, no features are available, or descriptors contain NaNs.
-    FileNotFoundError
-        If embeddings files are missing (embeddings mode).
-    ImportError
-        If optional backends require missing dependencies (propagated).
+        FileNotFoundError: If embeddings files are missing (embeddings mode).
+        ImportError: If optional backends require missing dependencies (propagated).
 
-    Notes
-    -----
-    - This strategy is designed for robustness/OOD evaluation: test is intentionally
-      "harder" (farthest from centroid).
-    - It does not enforce leakage constraints by itself (homology/structure/groups).
-      If you need leakage-aware OOD splitting, a hybrid strategy is recommended.
+    Notes:
+        - This strategy is designed for robustness/OOD evaluation: test is intentionally
+        "harder" (farthest from centroid).
+        - It does not enforce leakage constraints by itself (homology/structure/groups).
+        If you need leakage-aware OOD splitting, a hybrid strategy is recommended.
 
-    Examples
-    --------
-    Embeddings mode:
+    Examples:
+        Embeddings mode:
 
     >>> biosieve split \\
     ...   --in dataset.csv \\
@@ -238,6 +213,7 @@ class DistanceAwareSplitter:
 
     @property
     def strategy(self) -> str:
+        """Return the strategy identifier."""
         return "distance_aware"
 
     def _build_features(
@@ -245,19 +221,14 @@ class DistanceAwareSplitter:
     ) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
         """Build feature matrix and return aligned dataframe indices.
 
-        Returns
-        -------
-        X:
-            Feature matrix for rows that have features.
-        idx:
-            Row indices in `df` corresponding to rows in X.
-        meta:
+        Returns:
+            X:
+            Feature matrix for rows that have features.: idx:
+            Row indices in `df` corresponding to rows in X.: meta:
             Feature coverage metadata.
 
-        Raises
-        ------
-        ValueError
-            If no usable features can be constructed.
+        Raises:
+            ValueError: If no usable features can be constructed.
 
         """
         ids = df[cols.id_col].astype(str).tolist()
@@ -329,7 +300,7 @@ class DistanceAwareSplitter:
         raise ValueError(msg)
 
     def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
-
+        """Create train/test/(val) splits using centroid-distance ranking."""
         log.info("distance_aware:start | metric=%s | test_size=%.3f", self.metric, self.test_size)
         log.debug("distance_aware:params | %s", self.__dict__)
 
