@@ -1,67 +1,103 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import typer
 
+from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
 from biosieve.core.registry import StrategyRegistry
 from biosieve.types import Columns
 
-
-# -----------------------------
-# CLI wiring
-# -----------------------------
-def add_validate_subcommand(subparsers: argparse._SubParsersAction) -> None:
-    p = subparsers.add_parser(
-        "validate",
-        help="Validate dataset inputs and optional artefacts (embeddings, structural edges) before running split/reduce.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    p.add_argument("--in", dest="in_path", required=True, help="Input dataset CSV path.")
-    p.add_argument(
-        "--cols",
-        default=None,
-        help=(
-            "Optional columns JSON string or path to YAML/JSON. "
-            "If omitted, defaults to id='id', sequence='sequence'."
-        ),
-    )
-
-    # Optional checks
-    p.add_argument("--embeddings", default=None, help="Embeddings .npy path (optional).")
-    p.add_argument("--embedding-ids", default=None, help="Embedding ids CSV path (optional).")
-    p.add_argument("--embedding-ids-col", default="id", help="Column name for ids in embedding ids CSV.")
-    p.add_argument("--descriptors-prefix", default="desc_", help="Prefix for descriptor columns check.")
-    p.add_argument("--edges", default=None, help="Structural edges CSV path (optional).")
-    p.add_argument("--edges-id1-col", default="id1", help="Edges CSV id1 column.")
-    p.add_argument("--edges-id2-col", default="id2", help="Edges CSV id2 column.")
-    p.add_argument("--edges-value-col", default="distance", help="Edges CSV value column.")
-    p.add_argument("--mmseqs2-binary", default="mmseqs", help="Name/path to mmseqs binary to check.")
-
-    # Strategy-aware checks (optional)
-    p.add_argument(
-        "--strategy",
-        default=None,
-        help=(
-            "Optional strategy name to validate required artefacts for. "
-            "Example: embedding_cosine, descriptor_euclidean, structural_distance, mmseqs2."
-        ),
-    )
-    p.add_argument(
-        "--kind",
-        choices=["reduce", "split"],
-        default="reduce",
-        help="Whether --strategy refers to a reducer or a splitter.",
-    )
-
-    # Output behavior
-    p.add_argument("--fail-fast", action="store_true", help="Stop at first error.")
-    p.add_argument("--report", default=None, help="Optional JSON report output path.")
-    p.set_defaults(func=_run_validate, command="validate")
+INPUT_DATA_OPTION = typer.Option(
+    ...,
+    "--input-data",
+    "-i",
+    help="Input dataset CSV path.",
+)
+COLUMNS_OPTION = typer.Option(
+    None,
+    "--columns",
+    help="Optional columns JSON string or path to JSON. Defaults to id='id', sequence='sequence'.",
+)
+EMBEDDINGS_OPTION = typer.Option(
+    None,
+    "--embeddings",
+    help="Embeddings .npy path (optional).",
+)
+EMBEDDING_IDS_OPTION = typer.Option(
+    None,
+    "--embedding-ids",
+    help="Embedding ids CSV path (optional).",
+)
+EMBEDDING_IDS_COLUMN_OPTION = typer.Option(
+    "id",
+    "--embedding-ids-column",
+    help="Column name for ids in embedding ids CSV.",
+    show_default=True,
+)
+DESCRIPTORS_PREFIX_OPTION = typer.Option(
+    "desc_",
+    "--descriptors-prefix",
+    help="Prefix for descriptor columns check.",
+    show_default=True,
+)
+EDGES_OPTION = typer.Option(
+    None,
+    "--edges",
+    help="Structural edges CSV path (optional).",
+)
+EDGES_ID1_COLUMN_OPTION = typer.Option(
+    "id1",
+    "--edges-id1-column",
+    help="Edges CSV id1 column.",
+    show_default=True,
+)
+EDGES_ID2_COLUMN_OPTION = typer.Option(
+    "id2",
+    "--edges-id2-column",
+    help="Edges CSV id2 column.",
+    show_default=True,
+)
+EDGES_VALUE_COLUMN_OPTION = typer.Option(
+    "distance",
+    "--edges-value-column",
+    help="Edges CSV value column.",
+    show_default=True,
+)
+MMSEQS2_BINARY_OPTION = typer.Option(
+    "mmseqs",
+    "--mmseqs2-binary",
+    help="Name/path to mmseqs binary to check.",
+    show_default=True,
+)
+STRATEGY_OPTION = typer.Option(
+    None,
+    "--strategy",
+    "-s",
+    help="Optional strategy name to validate required artefacts for.",
+)
+KIND_OPTION = typer.Option(
+    "reduce",
+    "--kind",
+    help="Whether --strategy refers to a reducer or a splitter.",
+    show_default=True,
+)
+FAIL_FAST_OPTION = typer.Option(
+    False,
+    "--fail-fast/--no-fail-fast",
+    help="Stop at first error.",
+    show_default=True,
+)
+REPORT_OUTPUT_OPTION = typer.Option(
+    None,
+    "--report-output",
+    help="Optional JSON report output path.",
+)
 
 
 # -----------------------------
@@ -276,7 +312,52 @@ def _strategy_requires(strategy: str, kind: str) -> Dict[str, bool]:
 # -----------------------------
 # Main validate runner
 # -----------------------------
-def _run_validate(args: argparse.Namespace, registry: StrategyRegistry) -> None:
+def validate(
+    input_data: Path = INPUT_DATA_OPTION,
+    columns: str | None = COLUMNS_OPTION,
+    embeddings: Path | None = EMBEDDINGS_OPTION,
+    embedding_ids: Path | None = EMBEDDING_IDS_OPTION,
+    embedding_ids_column: str = EMBEDDING_IDS_COLUMN_OPTION,
+    descriptors_prefix: str = DESCRIPTORS_PREFIX_OPTION,
+    edges: Path | None = EDGES_OPTION,
+    edges_id1_column: str = EDGES_ID1_COLUMN_OPTION,
+    edges_id2_column: str = EDGES_ID2_COLUMN_OPTION,
+    edges_value_column: str = EDGES_VALUE_COLUMN_OPTION,
+    mmseqs2_binary: str = MMSEQS2_BINARY_OPTION,
+    strategy: str | None = STRATEGY_OPTION,
+    kind: str = KIND_OPTION,
+    fail_fast: bool = FAIL_FAST_OPTION,
+    report_output: Path | None = REPORT_OUTPUT_OPTION,
+    log_level: str = LOG_LEVEL_OPTION,
+    quiet: bool = QUIET_OPTION,
+    log_file: Path | None = LOG_FILE_OPTION,
+) -> None:
+    """Validate dataset inputs and optional artefacts before split/reduce runs."""
+    if kind not in {"reduce", "split"}:
+        raise typer.BadParameter("kind must be one of: reduce, split")
+
+    registry = setup_runtime(log_level, quiet, log_file)
+    args = SimpleNamespace(
+        in_path=str(input_data),
+        cols=columns,
+        embeddings=str(embeddings) if embeddings is not None else None,
+        embedding_ids=str(embedding_ids) if embedding_ids is not None else None,
+        embedding_ids_col=embedding_ids_column,
+        descriptors_prefix=descriptors_prefix,
+        edges=str(edges) if edges is not None else None,
+        edges_id1_col=edges_id1_column,
+        edges_id2_col=edges_id2_column,
+        edges_value_col=edges_value_column,
+        mmseqs2_binary=mmseqs2_binary,
+        strategy=strategy,
+        kind=kind,
+        fail_fast=fail_fast,
+        report=str(report_output) if report_output is not None else None,
+    )
+    _run_validate(args, registry)
+
+
+def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     cols = _load_cols(args.cols)
 
     results: List[Dict[str, Any]] = []
@@ -348,12 +429,14 @@ def _run_validate(args: argparse.Namespace, registry: StrategyRegistry) -> None:
         if args.kind == "reduce":
             if not registry.has_reducer(args.strategy):
                 raise ValueError(
-                    f"Unknown reducer strategy '{args.strategy}'. Available: {sorted(registry.list_reducers())}"
+                    f"Unknown reducer strategy '{args.strategy}'. "
+                    f"Available: {sorted(registry.list_reducers())}"
                 )
         else:
             if not registry.has_splitter(args.strategy):
                 raise ValueError(
-                    f"Unknown splitter strategy '{args.strategy}'. Available: {sorted(registry.list_splitters())}"
+                    f"Unknown splitter strategy '{args.strategy}'. "
+                    f"Available: {sorted(registry.list_splitters())}"
                 )
 
         req = _strategy_requires(args.strategy, args.kind)
@@ -435,7 +518,9 @@ def _run_validate(args: argparse.Namespace, registry: StrategyRegistry) -> None:
             if not (ok_emb or ok_desc):
                 record(
                     False,
-                    f"[strategy={args.strategy}] FAIL need embeddings (--embeddings + --embedding-ids) OR descriptor columns (prefix '{args.descriptors_prefix}')",
+                    f"[strategy={args.strategy}] FAIL need embeddings "
+                    f"(--embeddings + --embedding-ids) OR descriptor columns "
+                    f"(prefix '{args.descriptors_prefix}')",
                 )
             else:
                 record(True, f"[strategy={args.strategy}] OK   embeddings/descriptors requirement satisfied")

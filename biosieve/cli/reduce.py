@@ -1,64 +1,116 @@
 from __future__ import annotations
 
-import argparse
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict
 
-from biosieve.core.registry import StrategyRegistry  # ajusta si tu path es distinto
+import typer
+
+from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
+from biosieve.core.registry import StrategyRegistry
 from biosieve.core.runner import run_reduce
 from biosieve.io.params import load_params, params_for_strategy
 from biosieve.types import Columns
 
+INPUT_DATA_OPTION = typer.Option(
+    ...,
+    "--input-data",
+    "-i",
+    help="Input CSV path.",
+)
+OUTPUT_OPTION = typer.Option(
+    ...,
+    "--output",
+    "-o",
+    help="Output CSV path (non-redundant).",
+)
+STRATEGY_OPTION = typer.Option(
+    ...,
+    "--strategy",
+    "-s",
+    help="Reducer strategy name (e.g., exact, mmseqs2, embedding_cosine).",
+)
+MAPPING_OUTPUT_OPTION = typer.Option(
+    None,
+    "--mapping-output",
+    help="CSV mapping path (removed_id -> representative_id).",
+)
+REPORT_OUTPUT_OPTION = typer.Option(
+    None,
+    "--report-output",
+    help="JSON report path.",
+)
+ID_COLUMN_OPTION = typer.Option(
+    "id",
+    "--id-column",
+    help="Column name for unique sample ids.",
+    show_default=True,
+)
+SEQUENCE_COLUMN_OPTION = typer.Option(
+    "sequence",
+    "--sequence-column",
+    help="Column name for sequences.",
+    show_default=True,
+)
+PARAMS_OPTION = typer.Option(
+    None,
+    "--params",
+    help="YAML/JSON file with strategy parameters. Format: {strategy_name: {param: value}}.",
+)
+SET_VALUES_OPTION = typer.Option(
+    None,
+    "--set",
+    help="Override params. Example: --set embedding_cosine.threshold=0.97",
+)
+CSV_SEPARATOR_OPTION = typer.Option(
+    ",",
+    "--csv-separator",
+    help="CSV delimiter used to read input.",
+    show_default=True,
+)
+ENCODING_OPTION = typer.Option(
+    "utf-8",
+    "--encoding",
+    help="CSV encoding used to read input.",
+    show_default=True,
+)
 
-def add_reduce_subcommand(subparsers: argparse._SubParsersAction) -> None:
-    """
-    Register `biosieve reduce` subcommand.
-    """
-    p = subparsers.add_parser(
-        "reduce",
-        help="Reduce redundancy in a dataset using a selected strategy.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+
+def reduce(
+    input_data: Path = INPUT_DATA_OPTION,
+    output: Path = OUTPUT_OPTION,
+    strategy: str = STRATEGY_OPTION,
+    mapping_output: Path | None = MAPPING_OUTPUT_OPTION,
+    report_output: Path | None = REPORT_OUTPUT_OPTION,
+    id_column: str = ID_COLUMN_OPTION,
+    sequence_column: str = SEQUENCE_COLUMN_OPTION,
+    params: Path | None = PARAMS_OPTION,
+    set_values: list[str] | None = SET_VALUES_OPTION,
+    csv_separator: str = CSV_SEPARATOR_OPTION,
+    encoding: str = ENCODING_OPTION,
+    log_level: str = LOG_LEVEL_OPTION,
+    quiet: bool = QUIET_OPTION,
+    log_file: Path | None = LOG_FILE_OPTION,
+) -> None:
+    """Reduce redundancy in a dataset using a selected strategy."""
+    registry = setup_runtime(log_level, quiet, log_file)
+    args = SimpleNamespace(
+        in_path=str(input_data),
+        out_path=str(output),
+        strategy=strategy,
+        map_path=str(mapping_output) if mapping_output is not None else None,
+        report_path=str(report_output) if report_output is not None else None,
+        id_col=id_column,
+        seq_col=sequence_column,
+        params_path=str(params) if params is not None else None,
+        overrides=list(set_values or []),
+        sep=csv_separator,
+        encoding=encoding,
     )
-
-    # Required
-    p.add_argument("--in", dest="in_path", required=True, help="Input CSV path.")
-    p.add_argument("--out", dest="out_path", required=True, help="Output CSV path (non-redundant).")
-    p.add_argument(
-        "--strategy", required=True, help="Reducer strategy name (e.g., exact, mmseqs2, embedding_cosine)."
-    )
-
-    # Optional outputs
-    p.add_argument(
-        "--map", dest="map_path", default=None, help="CSV mapping path (removed_id -> representative_id)."
-    )
-    p.add_argument("--report", dest="report_path", default=None, help="JSON report path.")
-
-    # Column config
-    p.add_argument("--id-col", default="id", help="Column name for unique sample ids.")
-    p.add_argument("--seq-col", default="sequence", help="Column name for sequences (if applicable).")
-
-    # Params system
-    p.add_argument(
-        "--params",
-        dest="params_path",
-        default=None,
-        help="YAML/JSON file with strategy parameters. Format: {strategy_name: {param: value}}",
-    )
-    p.add_argument(
-        "--set",
-        dest="overrides",
-        action="append",
-        default=[],
-        help="Override params. Example: --set embedding_cosine.threshold=0.97",
-    )
-
-    # CSV reading kwargs (lightweight)
-    p.add_argument("--sep", default=",", help="CSV delimiter used to read input.")
-    p.add_argument("--encoding", default="utf-8", help="CSV encoding used to read input.")
-
-    p.set_defaults(func=_run_reduce)
+    _run_reduce(args, registry)
 
 
-def _run_reduce(args: argparse.Namespace, registry: StrategyRegistry) -> None:
+def _run_reduce(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     """
     Handler executed by main CLI.
     """

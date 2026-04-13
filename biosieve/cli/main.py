@@ -1,74 +1,63 @@
 from __future__ import annotations
 
-import argparse
-import sys
 from typing import Optional
 
-from biosieve.cli.info import add_info_subcommand
-from biosieve.cli.reduce import add_reduce_subcommand
-from biosieve.cli.split import add_split_subcommand
-from biosieve.cli.validate import add_validate_subcommand
-from biosieve.core.strategies import build_registry
-from biosieve.utils.logging import configure_logging, get_logger
+import click
+import typer
 
-log = get_logger("biosieve")
+from biosieve.cli.common import version_callback
+from biosieve.cli.info import info
+from biosieve.cli.reduce import reduce
+from biosieve.cli.split import split
+from biosieve.cli.validate import validate
+
+CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
+
+app = typer.Typer(
+    name="biosieve",
+    add_completion=False,
+    no_args_is_help=True,
+    context_settings=CONTEXT_SETTINGS,
+    help="BioSieve: dataset splitting and redundancy reduction toolkit.",
+)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="biosieve",
-        description="BioSieve: dataset splitting and redundancy reduction toolkit.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    parser.add_argument(
+@app.callback()
+def root(
+    _version: bool | None = typer.Option(
+        None,
         "--version",
-        action="version",
-        version="biosieve 0.1.0",
+        "-v",
+        callback=version_callback,
+        is_eager=True,
         help="Show version and exit.",
-    )
+    ),
+) -> None:
+    """BioSieve CLI root."""
+    pass
 
-    subparsers = parser.add_subparsers(
-        title="commands",
-        dest="command",
-        metavar="",
-    )
 
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO")
-
-    parser.add_argument("--quiet", action="store_true")
-
-    parser.add_argument("--log-file", default=None)
-
-    add_reduce_subcommand(subparsers)
-    add_split_subcommand(subparsers)
-    add_info_subcommand(subparsers)
-    add_validate_subcommand(subparsers)
-
-    return parser
+app.command("reduce", context_settings=CONTEXT_SETTINGS)(reduce)
+app.command("split", context_settings=CONTEXT_SETTINGS)(split)
+app.command("info", context_settings=CONTEXT_SETTINGS)(info)
+app.command("validate", context_settings=CONTEXT_SETTINGS)(validate)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    configure_logging(level=args.log_level, quiet=args.quiet, log_file=args.log_file)
-    log.debug("CLI started | command=%s", getattr(args, "command", None))
-
-    if not hasattr(args, "func"):
-        parser.print_help(sys.stderr)
-        return 2
-
-    registry = build_registry()
-
     try:
-        args.func(args, registry)
-    except KeyboardInterrupt:
-        print("\nInterrupted.", file=sys.stderr)
-        return 130  # standard for SIGINT
-    except Exception as e:
-        # Later we'll route this through logger + --log-level/--quiet
-        print(f"ERROR: {e}", file=sys.stderr)
+        typer.main.get_command(app).main(
+            args=argv,
+            prog_name="biosieve",
+            standalone_mode=False,
+        )
+    except click.ClickException as exc:
+        exc.show()
+        return exc.exit_code
+    except (click.Abort, KeyboardInterrupt):
+        typer.echo("Interrupted.", err=True)
+        return 130
+    except Exception as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
         return 1
 
     return 0

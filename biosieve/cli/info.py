@@ -1,24 +1,27 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import fields, is_dataclass
+from types import SimpleNamespace
 from typing import Any, Dict
+
+import typer
 
 from biosieve.core.registry import StrategyRegistry
 from biosieve.core.spec import StrategySpec
+from biosieve.core.strategies import build_registry
 
-
-def add_info_subcommand(subparsers: argparse._SubParsersAction) -> None:
-    p = subparsers.add_parser(
-        "info",
-        help="List available strategies and their default parameters (safe, lazy).",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-    p.add_argument("--kind", choices=["all", "reduce", "split"], default="all", help="Filter by kind.")
-    p.add_argument(
-        "--show-defaults", action="store_true", help="Show dataclass defaults (may import classes)."
-    )
-    p.set_defaults(func=_run_info)
+KIND_OPTION = typer.Option(
+    "all",
+    "--kind",
+    help="Filter by kind. One of: all, reduce, split.",
+    show_default=True,
+)
+SHOW_DEFAULTS_OPTION = typer.Option(
+    False,
+    "--show-defaults/--no-show-defaults",
+    help="Show dataclass defaults (may import classes).",
+    show_default=True,
+)
 
 
 def _defaults_for_cls(cls: Any) -> Dict[str, Any]:
@@ -42,7 +45,19 @@ def _print_block(title: str, items: Dict[str, Any]) -> None:
             print(f"- {name}  [{obj.__module__}:{obj.__name__}]")
 
 
-def _run_info(args: argparse.Namespace, registry: StrategyRegistry) -> None:
+def info(
+    kind: str = KIND_OPTION,
+    show_defaults: bool = SHOW_DEFAULTS_OPTION,
+) -> None:
+    """List available strategies and their default parameters."""
+    if kind not in {"all", "reduce", "split"}:
+        raise typer.BadParameter("kind must be one of: all, reduce, split")
+
+    args = SimpleNamespace(kind=kind, show_defaults=show_defaults)
+    _run_info(args, build_registry())
+
+
+def _run_info(args: Any, registry: StrategyRegistry) -> None:
     if args.kind in {"all", "reduce"}:
         _print_block("Reducers", registry.list_reducers())
 

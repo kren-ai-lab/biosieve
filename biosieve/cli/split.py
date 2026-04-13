@@ -1,43 +1,109 @@
 from __future__ import annotations
 
-import argparse
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict
 
+import typer
+
+from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
 from biosieve.core.registry import StrategyRegistry
 from biosieve.core.split_runner import run_split
 from biosieve.io.params import load_params, params_for_strategy
 from biosieve.types import Columns
 
+INPUT_DATA_OPTION = typer.Option(
+    ...,
+    "--input-data",
+    "-i",
+    help="Input CSV path.",
+)
+OUTPUT_DIR_OPTION = typer.Option(
+    ...,
+    "--output-dir",
+    "-o",
+    help="Output directory for split CSVs.",
+)
+STRATEGY_OPTION = typer.Option(
+    ...,
+    "--strategy",
+    "-s",
+    help="Split strategy name (e.g., random, stratified, cluster_aware).",
+)
+REPORT_OUTPUT_OPTION = typer.Option(
+    None,
+    "--report-output",
+    help="Optional JSON report path.",
+)
+ID_COLUMN_OPTION = typer.Option(
+    "id",
+    "--id-column",
+    help="Column name for unique sample ids.",
+    show_default=True,
+)
+SEQUENCE_COLUMN_OPTION = typer.Option(
+    "sequence",
+    "--sequence-column",
+    help="Column name for sequences.",
+    show_default=True,
+)
+PARAMS_OPTION = typer.Option(
+    None,
+    "--params",
+    help="YAML/JSON file with strategy parameters.",
+)
+SET_VALUES_OPTION = typer.Option(
+    None,
+    "--set",
+    help="Override params. Example: --set random.seed=13",
+)
+CSV_SEPARATOR_OPTION = typer.Option(
+    ",",
+    "--csv-separator",
+    help="CSV delimiter used to read input.",
+    show_default=True,
+)
+ENCODING_OPTION = typer.Option(
+    "utf-8",
+    "--encoding",
+    help="CSV encoding used to read input.",
+    show_default=True,
+)
 
-def add_split_subcommand(subparsers: argparse._SubParsersAction) -> None:
-    p = subparsers.add_parser(
-        "split",
-        help="Split a dataset into train/test(/val) using a selected strategy.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+
+def split(
+    input_data: Path = INPUT_DATA_OPTION,
+    output_dir: Path = OUTPUT_DIR_OPTION,
+    strategy: str = STRATEGY_OPTION,
+    report_output: Path | None = REPORT_OUTPUT_OPTION,
+    id_column: str = ID_COLUMN_OPTION,
+    sequence_column: str = SEQUENCE_COLUMN_OPTION,
+    params: Path | None = PARAMS_OPTION,
+    set_values: list[str] | None = SET_VALUES_OPTION,
+    csv_separator: str = CSV_SEPARATOR_OPTION,
+    encoding: str = ENCODING_OPTION,
+    log_level: str = LOG_LEVEL_OPTION,
+    quiet: bool = QUIET_OPTION,
+    log_file: Path | None = LOG_FILE_OPTION,
+) -> None:
+    """Split a dataset into train/test(/val) using a selected strategy."""
+    registry = setup_runtime(log_level, quiet, log_file)
+    args = SimpleNamespace(
+        in_path=str(input_data),
+        outdir=str(output_dir),
+        strategy=strategy,
+        report_path=str(report_output) if report_output is not None else None,
+        id_col=id_column,
+        seq_col=sequence_column,
+        params_path=str(params) if params is not None else None,
+        overrides=list(set_values or []),
+        sep=csv_separator,
+        encoding=encoding,
     )
-
-    p.add_argument("--in", dest="in_path", required=True, help="Input CSV path.")
-    p.add_argument("--outdir", required=True, help="Output directory for split CSVs.")
-    p.add_argument("--strategy", required=True, help="Split strategy name (random, stratified).")
-    p.add_argument("--report", dest="report_path", default=None, help="Optional JSON report path.")
-
-    p.add_argument("--id-col", default="id", help="Column name for unique sample ids.")
-    p.add_argument("--seq-col", default="sequence", help="Column name for sequences (if applicable).")
-
-    p.add_argument(
-        "--params", dest="params_path", default=None, help="YAML/JSON file with strategy parameters."
-    )
-    p.add_argument(
-        "--set", dest="overrides", action="append", default=[], help="Override params: --set random.seed=13"
-    )
-
-    p.add_argument("--sep", default=",", help="CSV delimiter used to read input.")
-    p.add_argument("--encoding", default="utf-8", help="CSV encoding used to read input.")
-
-    p.set_defaults(func=_run_split)
+    _run_split(args, registry)
 
 
-def _run_split(args: argparse.Namespace, registry: StrategyRegistry) -> None:
+def _run_split(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     cols = Columns(id_col=args.id_col, seq_col=args.seq_col)
 
     all_params = load_params(args.params_path, overrides=args.overrides)

@@ -9,6 +9,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+import biosieve
+
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
@@ -44,7 +46,7 @@ def csv_file(tmp_path_factory):
 def test_cli_version():
     r = _run("--version")
     assert r.returncode == 0
-    assert b"0.1.0" in r.stdout
+    assert biosieve.__version__.encode() in r.stdout
 
 
 def test_cli_help():
@@ -79,7 +81,7 @@ def test_cli_info_split_only():
 
 def test_cli_reduce_exact(csv_file, tmp_path):
     out = tmp_path / "out.csv"
-    r = _run("reduce", "--in", str(csv_file), "--out", str(out), "--strategy", "exact")
+    r = _run("reduce", "--input-data", str(csv_file), "--output", str(out), "--strategy", "exact")
     assert r.returncode == 0, r.stderr.decode()
     assert out.exists()
     df_out = pd.read_csv(out)
@@ -92,15 +94,15 @@ def test_cli_reduce_with_map_and_report(csv_file, tmp_path):
     report_out = tmp_path / "report.json"
     r = _run(
         "reduce",
-        "--in",
+        "--input-data",
         str(csv_file),
-        "--out",
+        "--output",
         str(out),
         "--strategy",
         "exact",
-        "--map",
+        "--mapping-output",
         str(map_out),
-        "--report",
+        "--report-output",
         str(report_out),
     )
     assert r.returncode == 0, r.stderr.decode()
@@ -111,16 +113,24 @@ def test_cli_reduce_with_map_and_report(csv_file, tmp_path):
 
 
 def test_cli_reduce_unknown_strategy_exits_nonzero(csv_file, tmp_path):
-    r = _run("reduce", "--in", str(csv_file), "--out", str(tmp_path / "out.csv"), "--strategy", "NOPE")
+    r = _run(
+        "reduce",
+        "--input-data",
+        str(csv_file),
+        "--output",
+        str(tmp_path / "out.csv"),
+        "--strategy",
+        "NOPE",
+    )
     assert r.returncode != 0
 
 
 def test_cli_reduce_missing_input_exits_nonzero(tmp_path):
     r = _run(
         "reduce",
-        "--in",
+        "--input-data",
         str(tmp_path / "nonexistent.csv"),
-        "--out",
+        "--output",
         str(tmp_path / "out.csv"),
         "--strategy",
         "exact",
@@ -135,7 +145,7 @@ def test_cli_reduce_missing_input_exits_nonzero(tmp_path):
 
 def test_cli_split_random(csv_file, tmp_path):
     outdir = tmp_path / "splits"
-    r = _run("split", "--in", str(csv_file), "--outdir", str(outdir), "--strategy", "random")
+    r = _run("split", "--input-data", str(csv_file), "--output-dir", str(outdir), "--strategy", "random")
     assert r.returncode == 0, r.stderr.decode()
     assert (outdir / "train.csv").exists()
     assert (outdir / "test.csv").exists()
@@ -145,9 +155,9 @@ def test_cli_split_kfold(csv_file, tmp_path):
     outdir = tmp_path / "splits"
     r = _run(
         "split",
-        "--in",
+        "--input-data",
         str(csv_file),
-        "--outdir",
+        "--output-dir",
         str(outdir),
         "--strategy",
         "random_kfold",
@@ -160,7 +170,15 @@ def test_cli_split_kfold(csv_file, tmp_path):
 
 
 def test_cli_split_unknown_strategy_exits_nonzero(csv_file, tmp_path):
-    r = _run("split", "--in", str(csv_file), "--outdir", str(tmp_path / "out"), "--strategy", "NOPE")
+    r = _run(
+        "split",
+        "--input-data",
+        str(csv_file),
+        "--output-dir",
+        str(tmp_path / "out"),
+        "--strategy",
+        "NOPE",
+    )
     assert r.returncode != 0
 
 
@@ -170,7 +188,7 @@ def test_cli_split_unknown_strategy_exits_nonzero(csv_file, tmp_path):
 
 
 def test_cli_validate_basic(csv_file):
-    r = _run("validate", "--in", str(csv_file))
+    r = _run("validate", "--input-data", str(csv_file))
     # validate exits 0 if no hard errors found
     # (mmseqs2 check may be informational only)
     assert r.returncode in (0, 1)  # 1 only if mmseqs2 not found and it's a required check
@@ -178,5 +196,5 @@ def test_cli_validate_basic(csv_file):
 
 
 def test_cli_validate_missing_input_exits_nonzero(tmp_path):
-    r = _run("validate", "--in", str(tmp_path / "nonexistent.csv"))
+    r = _run("validate", "--input-data", str(tmp_path / "nonexistent.csv"))
     assert r.returncode != 0

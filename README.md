@@ -10,10 +10,10 @@ pip install -e ".[dev]"
 
 ## CLI
 ### Redundancy reduction
-biosieve reduce --in data.csv --out data_nr.csv --strategy exact --id-col id --seq-col sequence
+biosieve reduce --input-data data.csv --output data_nr.csv --strategy exact --id-column id --sequence-column sequence
 
 ### Splits
-biosieve split --in data_nr.csv --outdir splits --strategy stratified --label-col label --seed 13
+biosieve split --input-data data_nr.csv --output-dir splits --strategy stratified
 
 ## Philosophy
 - stable contracts (same outputs across strategies)
