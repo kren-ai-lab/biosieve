@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 _LEVELS = {
     "DEBUG": logging.DEBUG,
@@ -16,10 +15,9 @@ _LEVELS = {
 def configure_logging(
     level: str = "INFO",
     quiet: bool = False,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> None:
-    """
-    Configure global logging for BioSieve.
+    """Configure global logging for BioSieve.
 
     Parameters
     ----------
@@ -34,6 +32,7 @@ def configure_logging(
     -----
     - Safe to call multiple times; it replaces handlers on the root logger.
     - We configure the root logger so module loggers propagate by default.
+
     """
     lvl = _LEVELS.get(level.upper(), logging.INFO)
 
@@ -65,7 +64,6 @@ def configure_logging(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Get a module logger (propagates to root configured by configure_logging).
+    """Get a module logger (propagates to root configured by configure_logging).
     """
     return logging.getLogger(name)

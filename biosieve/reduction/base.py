@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 
 from biosieve.types import Columns
 
-__all__ = ["ReductionResult", "Reducer"]
+__all__ = ["Reducer", "ReductionResult"]
 
 
 @dataclass(frozen=True, slots=True)
 class ReductionResult:
-    """
-    Container for redundancy-reduction outputs.
+    """Container for redundancy-reduction outputs.
 
     Parameters
     ----------
@@ -47,19 +46,19 @@ class ReductionResult:
     --------
     >>> res = reducer.run(df, cols)
     >>> res.df.shape
+
     """
 
     df: pd.DataFrame
-    mapping: Optional[pd.DataFrame]
+    mapping: pd.DataFrame | None
     strategy: str
-    params: Dict[str, Any]
-    stats: Optional[Dict[str, Any]] = None
+    params: dict[str, Any]
+    stats: dict[str, Any] | None = None
 
 
 @runtime_checkable
 class Reducer(Protocol):
-    """
-    Protocol for redundancy-reduction strategies.
+    """Protocol for redundancy-reduction strategies.
 
     Required interface
     ------------------

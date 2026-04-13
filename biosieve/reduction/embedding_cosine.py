@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -39,8 +39,7 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 
 @dataclass(frozen=True)
 class EmbeddingCosineReducer:
-    """
-    Greedy redundancy reduction in embedding space using cosine similarity.
+    """Greedy redundancy reduction in embedding space using cosine similarity.
 
     This reducer removes near-duplicate samples according to cosine similarity between
     their embedding vectors. It follows a deterministic greedy policy:
@@ -133,6 +132,7 @@ class EmbeddingCosineReducer:
     ...   --map map_embcos.csv \\
     ...   --report reduction_embcos.json \\
     ...   --params params.yaml
+
     """
 
     embeddings_path: str = "embeddings.npy"
@@ -163,7 +163,7 @@ class EmbeddingCosineReducer:
         )
 
         # Map dataset ids -> embedding row index
-        id_to_idx: Dict[str, int] = {str(sid): i for i, sid in enumerate(store.ids)}
+        id_to_idx: dict[str, int] = {str(sid): i for i, sid in enumerate(store.ids)}
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
         work_ids = work[cols.id_col].astype(str).tolist()
@@ -195,8 +195,8 @@ class EmbeddingCosineReducer:
         present_id_to_local = {sid: i for i, sid in enumerate(present)}
 
         removed: set[str] = set()
-        representative_of: Dict[str, str] = {}
-        score_of: Dict[str, float] = {}
+        representative_of: dict[str, str] = {}
+        score_of: dict[str, float] = {}
 
         # Backend A: FAISS (inner product)
         if faiss is not None:
@@ -291,7 +291,7 @@ class EmbeddingCosineReducer:
         # Build kept ids:
         # - keep all missing ids (no embeddings) as standalone reps
         # - keep all present ids that were not removed
-        keep_ids: List[str] = []
+        keep_ids: list[str] = []
         for sid in work_ids:
             if sid in present_set:
                 if sid not in removed:
@@ -312,7 +312,7 @@ class EmbeddingCosineReducer:
                     "removed_id": rid,
                     "representative_id": rep,
                     "cluster_id": f"embcos:{rep}",
-                    "score": score_of.get(rid, None),
+                    "score": score_of.get(rid),
                 }
             )
         mapping = pd.DataFrame(
@@ -332,13 +332,13 @@ class EmbeddingCosineReducer:
             )
         )
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_present_embeddings": int(len(present)),
-            "n_missing_embeddings": int(len(missing)),
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_present_embeddings": len(present),
+            "n_missing_embeddings": len(missing),
             "coverage_embeddings": float(len(present) / len(work)) if len(work) else 0.0,
-            "n_kept": int(len(kept_df)),
-            "n_removed": int(len(mapping)),
+            "n_kept": len(kept_df),
+            "n_removed": len(mapping),
             "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
         }
 

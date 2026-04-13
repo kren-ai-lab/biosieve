@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -35,9 +35,8 @@ def _split_groups(
     groups: pd.Series,
     test_size: float,
     seed: int,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Split a DataFrame into train/test using GroupShuffleSplit.
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split a DataFrame into train/test using GroupShuffleSplit.
 
     Parameters
     ----------
@@ -59,6 +58,7 @@ def _split_groups(
     ------
     ImportError
         If scikit-learn is not installed.
+
     """
     GroupShuffleSplit = _try_import_gss()
     if GroupShuffleSplit is None:
@@ -77,8 +77,7 @@ def _split_groups(
 
 @dataclass(frozen=True)
 class GroupSplitter:
-    """
-    Group-aware train/test(/val) split (leakage-aware by groups).
+    """Group-aware train/test(/val) split (leakage-aware by groups).
 
     This splitter ensures that a group identifier never appears in more than one
     of train/test/val. This is critical for biological datasets where samples
@@ -132,6 +131,7 @@ class GroupSplitter:
     ...   --outdir runs/split_group \\
     ...   --strategy group \\
     ...   --params params.yaml
+
     """
 
     group_col: str = "group"
@@ -209,16 +209,16 @@ class GroupSplitter:
         leak_tv = len(train_g & val_g)
         leak_vt = len(val_g & test_g)
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "group_col": self.group_col,
             "n_groups_total": int(n_groups),
-            "n_groups_train": int(len(train_g)),
-            "n_groups_test": int(len(test_g)),
-            "n_groups_val": int(len(val_g)) if val is not None else 0,
+            "n_groups_train": len(train_g),
+            "n_groups_test": len(test_g),
+            "n_groups_val": len(val_g) if val is not None else 0,
             "leak_groups_train_test": int(leak_tt),
             "leak_groups_train_val": int(leak_tv),
             "leak_groups_val_test": int(leak_vt),

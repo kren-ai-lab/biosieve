@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -21,7 +21,7 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError("test_size + val_size must be < 1.0")
 
 
-def _to_datetime(s: pd.Series, fmt: Optional[str]) -> pd.Series:
+def _to_datetime(s: pd.Series, fmt: str | None) -> pd.Series:
     if fmt:
         return pd.to_datetime(s, format=fmt, errors="raise")
     return pd.to_datetime(s, errors="raise")
@@ -29,8 +29,7 @@ def _to_datetime(s: pd.Series, fmt: Optional[str]) -> pd.Series:
 
 @dataclass(frozen=True)
 class TimeSplitter:
-    """
-    Time-based split (chronological): train is earlier, test is later.
+    """Time-based split (chronological): train is earlier, test is later.
 
     This strategy sorts the dataset by a time column and splits chronologically:
       train | (optional val) | test
@@ -75,6 +74,7 @@ class TimeSplitter:
     ...   --outdir runs/split_time \\
     ...   --strategy time \\
     ...   --params params.yaml
+
     """
 
     time_col: str = "time"
@@ -82,7 +82,7 @@ class TimeSplitter:
     val_size: float = 0.0
 
     parse_datetime: bool = True
-    time_format: Optional[str] = None
+    time_format: str | None = None
     ascending: bool = True
 
     @property
@@ -136,7 +136,7 @@ class TimeSplitter:
         )
         test = work.iloc[n_train + n_val :].drop(columns=["_biosieve_time__"]).reset_index(drop=True)
 
-        def _range(x: pd.DataFrame) -> Dict[str, Any]:
+        def _range(x: pd.DataFrame) -> dict[str, Any]:
             if len(x) == 0:
                 return {"min": None, "max": None}
             tt = x[self.time_col]
@@ -144,11 +144,11 @@ class TimeSplitter:
                 tt = pd.to_datetime(tt, format=self.time_format, errors="coerce")
             return {"min": str(tt.min()), "max": str(tt.max())}
 
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "n_total": int(n),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "time_col": self.time_col,
             "ascending": bool(self.ascending),
             "parse_datetime": bool(self.parse_datetime),

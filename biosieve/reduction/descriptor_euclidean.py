@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ def _try_import_sklearn_nn():
         return None
 
 
-def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     mu = X.mean(axis=0)
     sd = X.std(axis=0)
     sd = np.where(sd < eps, 1.0, sd)
@@ -36,8 +36,7 @@ def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> Tuple[np.ndarray
 
 @dataclass(frozen=True)
 class DescriptorEuclideanReducer:
-    """
-    Greedy redundancy reduction in descriptor space using Euclidean distance.
+    """Greedy redundancy reduction in descriptor space using Euclidean distance.
 
     This reducer removes near-duplicate samples based on Euclidean distance between
     descriptor vectors (e.g., tabular physicochemical descriptors). It uses a deterministic
@@ -125,11 +124,12 @@ class DescriptorEuclideanReducer:
     ...   --map map_desc.csv \\
     ...   --report report_desc.json \\
     ...   --params params.yaml
+
     """
 
     threshold: float = 1.0
     descriptor_prefix: str = "desc_"
-    descriptor_cols: Optional[List[str]] = None
+    descriptor_cols: list[str] | None = None
 
     standardize: bool = True
     metric: str = "euclidean"  # v0.1: euclidean only
@@ -177,9 +177,9 @@ class DescriptorEuclideanReducer:
         NearestNeighbors = _try_import_sklearn_nn()
 
         removed: set[str] = set()
-        rep_of: Dict[str, str] = {}
-        score_of: Dict[str, float] = {}  # distance (lower = closer)
-        cluster_of: Dict[str, str] = {}
+        rep_of: dict[str, str] = {}
+        score_of: dict[str, float] = {}  # distance (lower = closer)
+        cluster_of: dict[str, str] = {}
 
         if NearestNeighbors is not None:
             nn = NearestNeighbors(metric="euclidean", algorithm="auto", n_jobs=self.n_jobs)
@@ -243,7 +243,7 @@ class DescriptorEuclideanReducer:
                     "removed_id": rid,
                     "representative_id": rep,
                     "cluster_id": cluster_of.get(rid, f"deuc:{rep}"),
-                    "score": score_of.get(rid, None),  # distance
+                    "score": score_of.get(rid),  # distance
                 }
             )
         mapping = pd.DataFrame(rows, columns=["removed_id", "representative_id", "cluster_id", "score"])
@@ -252,12 +252,12 @@ class DescriptorEuclideanReducer:
             kept_df[cols.id_col].astype(str).apply(lambda x: f"deuc:{x}")
         )
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_kept": int(len(kept_df)),
-            "n_removed": int(len(mapping)),
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_kept": len(kept_df),
+            "n_removed": len(mapping),
             "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
-            "n_descriptors": int(len(dcols)),
+            "n_descriptors": len(dcols),
         }
 
         return ReductionResult(

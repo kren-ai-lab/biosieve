@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 def _try_import_yaml():
@@ -14,7 +14,7 @@ def _try_import_yaml():
         return None
 
 
-def _load_file(path: Path) -> Dict[str, Any]:
+def _load_file(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Params file not found: {path}")
 
@@ -41,8 +41,7 @@ def _load_file(path: Path) -> Dict[str, Any]:
 
 
 def _parse_value(raw: str) -> Any:
-    """
-    Parse CLI override values.
+    """Parse CLI override values.
     Accepts JSON-like scalars: true/false/null, numbers, strings.
     Also accepts quoted strings.
 
@@ -52,6 +51,7 @@ def _parse_value(raw: str) -> Any:
       true -> bool
       "abc" -> str
       [1,2] -> list
+
     """
     # try json first (handles numbers, bool, null, lists, dicts, quoted strings)
     try:
@@ -61,7 +61,7 @@ def _parse_value(raw: str) -> Any:
         return raw
 
 
-def _split_override(s: str) -> Tuple[str, Any]:
+def _split_override(s: str) -> tuple[str, Any]:
     if "=" not in s:
         raise ValueError(f"Invalid --set override (missing '='): {s}")
     key, raw = s.split("=", 1)
@@ -71,9 +71,8 @@ def _split_override(s: str) -> Tuple[str, Any]:
     return key, _parse_value(raw.strip())
 
 
-def _set_nested(d: Dict[str, Any], dotted_key: str, value: Any) -> None:
-    """
-    dotted_key format: strategy.param or strategy.sub.param (we allow nesting).
+def _set_nested(d: dict[str, Any], dotted_key: str, value: Any) -> None:
+    """dotted_key format: strategy.param or strategy.sub.param (we allow nesting).
     Example: embedding_cosine.threshold=0.97
     """
     parts = dotted_key.split(".")
@@ -82,7 +81,7 @@ def _set_nested(d: Dict[str, Any], dotted_key: str, value: Any) -> None:
             f"Override key must include strategy and parameter, e.g. embedding_cosine.threshold. Got: {dotted_key}"
         )
 
-    cur: Dict[str, Any] = d
+    cur: dict[str, Any] = d
     for p in parts[:-1]:
         if p not in cur:
             cur[p] = {}
@@ -93,14 +92,13 @@ def _set_nested(d: Dict[str, Any], dotted_key: str, value: Any) -> None:
 
 
 def load_params(
-    params_path: Optional[str],
-    overrides: Optional[List[str]] = None,
-) -> Dict[str, Any]:
-    """
-    Load {strategy_name: {param: value}} from YAML/JSON.
+    params_path: str | None,
+    overrides: list[str] | None = None,
+) -> dict[str, Any]:
+    """Load {strategy_name: {param: value}} from YAML/JSON.
     Apply overrides like: ["embedding_cosine.threshold=0.97", "mmseqs2.threads=32"].
     """
-    base: Dict[str, Any] = {}
+    base: dict[str, Any] = {}
     if params_path:
         base = _load_file(Path(params_path))
 
@@ -112,9 +110,8 @@ def load_params(
     return base
 
 
-def params_for_strategy(all_params: Dict[str, Any], strategy_name: str) -> Dict[str, Any]:
-    """
-    Return parameter dict for a given strategy, or {} if not present.
+def params_for_strategy(all_params: dict[str, Any], strategy_name: str) -> dict[str, Any]:
+    """Return parameter dict for a given strategy, or {} if not present.
     Enforces it must be dict if present.
     """
     if strategy_name not in all_params:

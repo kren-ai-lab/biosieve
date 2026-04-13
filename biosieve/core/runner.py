@@ -5,7 +5,7 @@ import time
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -22,7 +22,7 @@ def _utc_timestamp() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _ensure_parent(path: Optional[str]) -> None:
+def _ensure_parent(path: str | None) -> None:
     """Create parent directory for a file path if needed."""
     if not path:
         return
@@ -32,8 +32,7 @@ def _ensure_parent(path: Optional[str]) -> None:
 
 
 def _safe_jsonable(x: Any) -> Any:
-    """
-    Convert objects into JSON-serializable representations (best-effort).
+    """Convert objects into JSON-serializable representations (best-effort).
 
     Parameters
     ----------
@@ -49,6 +48,7 @@ def _safe_jsonable(x: Any) -> Any:
     -----
     - Dataclasses are converted via `asdict`.
     - Unknown objects are converted to `str(x)`.
+
     """
     if x is None:
         return None
@@ -82,14 +82,13 @@ def run_reduce(
     strategy: str,
     registry: StrategyRegistry,
     *,
-    cols: Optional[Columns] = None,
-    map_path: Optional[str] = None,
-    report_path: Optional[str] = None,
-    strategy_params: Optional[Dict[str, Any]] = None,
-    read_csv_kwargs: Optional[Dict[str, Any]] = None,
+    cols: Columns | None = None,
+    map_path: str | None = None,
+    report_path: str | None = None,
+    strategy_params: dict[str, Any] | None = None,
+    read_csv_kwargs: dict[str, Any] | None = None,
 ) -> None:
-    """
-    Execute redundancy reduction and export artefacts to disk.
+    """Execute redundancy reduction and export artefacts to disk.
 
     Artefact contract
     -----------------
@@ -148,6 +147,7 @@ def run_reduce(
     ...   --params params.yaml \\
     ...   --map mapping.csv \\
     ...   --report reduction.json
+
     """
     t0 = time.time()
     log.info(
@@ -201,11 +201,11 @@ def run_reduce(
 
     # --- report ---
     if report_path is not None:
-        n_in = int(len(df))
-        n_out = int(len(res.df))
+        n_in = len(df)
+        n_out = len(res.df)
         n_removed = int(n_in - n_out)
 
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "schema_version": "0.1",
             "timestamp": _utc_timestamp(),
             "in_path": str(in_path),
@@ -219,7 +219,7 @@ def run_reduce(
                 "n_out": n_out,
                 "n_removed": n_removed,
                 "fraction_removed": float(n_removed / n_in) if n_in else 0.0,
-                "n_mapped_removed": int(len(res.mapping)) if res.mapping is not None else 0,
+                "n_mapped_removed": len(res.mapping) if res.mapping is not None else 0,
             },
             "columns": _safe_jsonable(cols),
         }

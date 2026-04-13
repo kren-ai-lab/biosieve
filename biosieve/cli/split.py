@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any
 
 import typer
 
@@ -107,7 +107,7 @@ def _run_split(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     cols = Columns(id_col=args.id_col, seq_col=args.seq_col)
 
     all_params = load_params(args.params_path, overrides=args.overrides)
-    strat_params: Dict[str, Any] = params_for_strategy(all_params, args.strategy)
+    strat_params: dict[str, Any] = params_for_strategy(all_params, args.strategy)
 
     read_csv_kwargs = {"sep": args.sep, "encoding": args.encoding}
 

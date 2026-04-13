@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import pandas as pd
 
@@ -10,7 +9,7 @@ import pandas as pd
 @dataclass(frozen=True)
 class StructuralEdges:
     # adjacency: id -> list of (neighbor_id, value)
-    adj: Dict[str, List[Tuple[str, float]]]
+    adj: dict[str, list[tuple[str, float]]]
     n_edges: int
 
 
@@ -29,7 +28,7 @@ def load_edges_csv(
         if col not in df.columns:
             raise ValueError(f"Missing required column '{col}' in {p}. Found: {df.columns.tolist()}")
 
-    adj: Dict[str, List[Tuple[str, float]]] = {}
+    adj: dict[str, list[tuple[str, float]]] = {}
     n_edges = 0
 
     for _, row in df.iterrows():

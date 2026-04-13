@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -16,9 +16,8 @@ log = get_logger(__name__)
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
 
 
-def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> Dict[str, str]:
-    """
-    Load a CSV mapping sample ids to cluster ids.
+def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str, str]:
+    """Load a CSV mapping sample ids to cluster ids.
 
     Parameters
     ----------
@@ -41,6 +40,7 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> Dict[str,
         If `path` does not exist.
     ValueError
         If required columns are missing from the mapping CSV.
+
     """
     p = Path(path)
     if not p.exists():
@@ -57,8 +57,7 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> Dict[str,
 
 @dataclass(frozen=True)
 class ClusterAwareSplitter:
-    """
-    Cluster-aware split (group-based) to prevent cluster leakage across splits.
+    """Cluster-aware split (group-based) to prevent cluster leakage across splits.
 
     This strategy is a thin wrapper around group-based splitting: it ensures that a
     cluster identifier never appears in more than one of train/test/val.
@@ -144,6 +143,7 @@ class ClusterAwareSplitter:
     ...   --outdir runs/split_cluster_aware_map \\
     ...   --strategy cluster_aware \\
     ...   --params params.yaml
+
     """
 
     # sizes
@@ -153,7 +153,7 @@ class ClusterAwareSplitter:
 
     # cluster source
     cluster_col: str = "cluster_id"  # if present in dataset
-    cluster_map_path: Optional[str] = None  # optional mapping file id->cluster_id
+    cluster_map_path: str | None = None  # optional mapping file id->cluster_id
     map_id_col: str = "id"
     map_cluster_col: str = "cluster_id"
 
@@ -243,11 +243,11 @@ class ClusterAwareSplitter:
         if val is not None:
             val = val.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "cluster_col": self.cluster_col,
             "n_clusters_total": int(n_clusters),
             "cluster_source": used_source,

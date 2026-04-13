@@ -4,7 +4,6 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 @dataclass(frozen=True)
@@ -24,9 +23,8 @@ def _which_mmseqs() -> str:
     return exe
 
 
-def write_fasta(seqs: Dict[str, str], fasta_path: Path) -> None:
-    """
-    Write dict of {id: sequence} as FASTA.
+def write_fasta(seqs: dict[str, str], fasta_path: Path) -> None:
+    """Write dict of {id: sequence} as FASTA.
     IDs are used as FASTA headers, must be unique.
     """
     with fasta_path.open("w", encoding="utf-8") as f:
@@ -43,10 +41,9 @@ def run_mmseqs_easy_cluster(
     cov_mode: int = 0,
     cluster_mode: int = 0,
     threads: int = 4,
-    extra_args: Optional[List[str]] = None,
+    extra_args: list[str] | None = None,
 ) -> MMseqs2ClusterPaths:
-    """
-    Runs:
+    """Runs:
       mmseqs easy-cluster <input.fasta> <out_prefix> <tmp_dir> --min-seq-id ... -c ... --cov-mode ... --cluster-mode ...
     Produces (among others):
       <out_prefix>_cluster.tsv
@@ -100,14 +97,13 @@ def run_mmseqs_easy_cluster(
     )
 
 
-def parse_cluster_tsv(cluster_tsv: Path) -> Dict[str, str]:
-    """
-    MMseqs2 *_cluster.tsv format (2 columns):
+def parse_cluster_tsv(cluster_tsv: Path) -> dict[str, str]:
+    """MMseqs2 *_cluster.tsv format (2 columns):
       representative_id <tab> member_id
 
     Returns: member_id -> representative_id
     """
-    mapping: Dict[str, str] = {}
+    mapping: dict[str, str] = {}
     with cluster_tsv.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -118,9 +114,8 @@ def parse_cluster_tsv(cluster_tsv: Path) -> Dict[str, str]:
     return mapping
 
 
-def build_cluster_ids(member_to_rep: Dict[str, str]) -> Dict[str, str]:
-    """
-    Assigns a stable cluster_id for each member based on representative id.
+def build_cluster_ids(member_to_rep: dict[str, str]) -> dict[str, str]:
+    """Assigns a stable cluster_id for each member based on representative id.
     cluster_id = "mmseqs2:<rep_id>"
     """
     return {member: f"mmseqs2:{rep}" for member, rep in member_to_rep.items()}

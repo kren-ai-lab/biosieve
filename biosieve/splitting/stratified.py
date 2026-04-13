@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -32,8 +32,7 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
 @dataclass(frozen=True)
 class StratifiedSplitter:
-    """
-    Stratified train/test(/val) split for classification.
+    """Stratified train/test(/val) split for classification.
 
     This strategy preserves class proportions in the test set (and optionally the
     validation set) using scikit-learn's `train_test_split(..., stratify=y)`.
@@ -83,6 +82,7 @@ class StratifiedSplitter:
     ...   --outdir runs/split_stratified \\
     ...   --strategy stratified \\
     ...   --params params.yaml
+
     """
 
     label_col: str = "label"
@@ -159,11 +159,11 @@ class StratifiedSplitter:
         if val is not None:
             val = val.reset_index(drop=True)
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "label_col": self.label_col,
             "seed": int(self.seed),
             "test_size": float(self.test_size),
@@ -174,9 +174,9 @@ class StratifiedSplitter:
 
         log.info(
             "stratified:stats | train=%d | val=%d | test=%d",
-            int(len(train)),
+            len(train),
             int(len(val) if val is not None else 0),
-            int(len(test)),
+            len(test),
         )
 
         if val is not None:

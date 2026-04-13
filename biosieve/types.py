@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 __all__ = ["Columns"]
 
 
 @dataclass(frozen=True, slots=True)
 class Columns:
-    """
-    Column specification for BioSieve datasets.
+    """Column specification for BioSieve datasets.
 
     BioSieve works with tabular datasets (typically CSV) that contain at minimum a
     unique identifier column and (optionally) sequence/label/grouping fields.
@@ -54,11 +52,12 @@ class Columns:
     ...     group_col="taxid",
     ...     date_col="collection_date",
     ... )
+
     """
 
     id_col: str = "id"
     seq_col: str = "sequence"
-    label_col: Optional[str] = "label"
-    group_col: Optional[str] = None
-    cluster_col: Optional[str] = None
-    date_col: Optional[str] = None
+    label_col: str | None = "label"
+    group_col: str | None = None
+    cluster_col: str | None = None
+    date_col: str | None = None

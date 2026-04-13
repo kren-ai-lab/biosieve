@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -10,11 +9,11 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class EmbeddingStore:
-    ids: List[str]
+    ids: list[str]
     X: np.ndarray  # shape (N, D), float32/float64
 
 
-def _read_ids_csv(ids_path: Path, id_col: str = "id") -> List[str]:
+def _read_ids_csv(ids_path: Path, id_col: str = "id") -> list[str]:
     df = pd.read_csv(ids_path)
     if id_col in df.columns:
         ids = df[id_col].astype(str).tolist()
@@ -30,7 +29,7 @@ def load_embeddings(
     embeddings_path: str,
     ids_path: str,
     ids_col: str = "id",
-    dtype: Optional[str] = None,
+    dtype: str | None = None,
 ) -> EmbeddingStore:
     ep = Path(embeddings_path)
     ip = Path(ids_path)

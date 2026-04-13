@@ -4,7 +4,7 @@ import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -34,20 +34,20 @@ def _write_csv(path: Path, df: pd.DataFrame) -> None:
     path.write_text(df.to_csv(index=False), encoding="utf-8")
 
 
-def _write_json(path: Path, payload: Dict[str, Any]) -> None:
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
     """Write a dict to JSON (UTF-8, pretty)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
-    """
-    Validate required columns and id uniqueness.
+    """Validate required columns and id uniqueness.
 
     Raises
     ------
     ValueError
         If id column is missing or ids are not unique.
+
     """
     if cols.id_col not in df.columns:
         raise ValueError(f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}")
@@ -67,13 +67,12 @@ def run_split(
     strategy: str,
     registry: StrategyRegistry,
     *,
-    cols: Optional[Columns] = None,
-    report_path: Optional[str] = None,
-    strategy_params: Optional[Dict[str, Any]] = None,
-    read_csv_kwargs: Optional[Dict[str, Any]] = None,
+    cols: Columns | None = None,
+    report_path: str | None = None,
+    strategy_params: dict[str, Any] | None = None,
+    read_csv_kwargs: dict[str, Any] | None = None,
 ) -> None:
-    """
-    Run a splitting strategy and export split artefacts to disk.
+    """Run a splitting strategy and export split artefacts to disk.
 
     Artefact contract
     -----------------
@@ -120,6 +119,7 @@ def run_split(
         If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
     FileNotFoundError
         If `in_path` does not exist (raised by pandas).
+
     """
     t0 = time.time()
 
@@ -154,7 +154,7 @@ def run_split(
     # ----------------------------
     # K-fold mode: splitter.run_folds
     # ----------------------------
-    if hasattr(splitter, "run_folds") and callable(getattr(splitter, "run_folds")):
+    if hasattr(splitter, "run_folds") and callable(splitter.run_folds):
         log.info("split:mode | kfold")
         folds = splitter.run_folds(df, cols)  # type: ignore[attr-defined]
 
@@ -164,7 +164,7 @@ def run_split(
                 "Expected a non-empty list of SplitResult."
             )
 
-        folds_meta: List[Dict[str, Any]] = []
+        folds_meta: list[dict[str, Any]] = []
         for i, res in enumerate(folds):
             fold_idx = int(res.stats.get("fold_index", i)) if isinstance(res.stats, dict) else i
 

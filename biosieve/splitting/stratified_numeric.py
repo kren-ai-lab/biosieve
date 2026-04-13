@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -33,7 +33,7 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError("test_size + val_size must be < 1.0")
 
 
-def _label_stats(y: pd.Series) -> Dict[str, Any]:
+def _label_stats(y: pd.Series) -> dict[str, Any]:
     yy = pd.to_numeric(y, errors="coerce").dropna()
     if len(yy) == 0:
         return {
@@ -48,7 +48,7 @@ def _label_stats(y: pd.Series) -> Dict[str, Any]:
         }
 
     return {
-        "n": int(len(yy)),
+        "n": len(yy),
         "min": float(yy.min()),
         "max": float(yy.max()),
         "mean": float(yy.mean()),
@@ -59,7 +59,7 @@ def _label_stats(y: pd.Series) -> Dict[str, Any]:
     }
 
 
-def _bin_counts(bins: pd.Series) -> Dict[str, int]:
+def _bin_counts(bins: pd.Series) -> dict[str, int]:
     vc = bins.value_counts(dropna=False).sort_index()
     return {str(k): int(v) for k, v in vc.to_dict().items()}
 
@@ -70,9 +70,8 @@ def _make_bins_once(
     n_bins: int,
     binning: str,
     duplicates: str,
-) -> Tuple[pd.Series, int, Optional[List[float]]]:
-    """
-    Create bins once (single attempt).
+) -> tuple[pd.Series, int, list[float] | None]:
+    """Create bins once (single attempt).
 
     Returns
     -------
@@ -87,6 +86,7 @@ def _make_bins_once(
     ------
     ValueError
         If NaNs are present or binning fails.
+
     """
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
@@ -95,7 +95,7 @@ def _make_bins_once(
     if yy.isna().any():
         raise ValueError("NaN values found in label series while binning.")
 
-    edges: Optional[List[float]] = None
+    edges: list[float] | None = None
 
     if binning == "quantile":
         try:
@@ -127,9 +127,8 @@ def _make_bins_safe(
     duplicates: str,
     min_bin_count: int,
     auto_reduce_bins: bool,
-) -> Tuple[pd.Series, int, Optional[List[float]], List[int], bool]:
-    """
-    Create stratification bins robustly.
+) -> tuple[pd.Series, int, list[float] | None, list[int], bool]:
+    """Create stratification bins robustly.
 
     Constraints
     -----------
@@ -141,16 +140,17 @@ def _make_bins_safe(
     Returns
     -------
     bins, n_bins_effective, edges, attempted_bins, auto_reduced
+
     """
     if min_bin_count < 1:
         raise ValueError("min_bin_count must be >= 1")
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
 
-    attempted: List[int] = []
+    attempted: list[int] = []
     auto_reduced = False
     candidates = list(range(n_bins, 1, -1)) if auto_reduce_bins else [n_bins]
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for b in candidates:
         attempted.append(int(b))
@@ -182,8 +182,7 @@ def _make_bins_safe(
 
 @dataclass(frozen=True)
 class StratifiedNumericSplitter:
-    """
-    Stratified split for numeric labels via binning.
+    """Stratified split for numeric labels via binning.
 
     This splitter enables stratified splitting for regression targets by discretizing a
     numeric label into categorical bins and performing stratified train/test(/val) splits.
@@ -248,6 +247,7 @@ class StratifiedNumericSplitter:
     ...   --outdir runs/split_stratified_numeric \\
     ...   --strategy stratified_numeric \\
     ...   --params params.yaml
+
     """
 
     label_col: str = "y"
@@ -333,12 +333,12 @@ class StratifiedNumericSplitter:
         train = trainval
 
         # Optional val split from trainval (stage-2 bins computed on trainval)
-        val_attempted_bins: Optional[List[int]] = None
-        val_auto_reduced: Optional[bool] = None
-        val_edges: Optional[List[float]] = None
-        val_n_eff: Optional[int] = None
+        val_attempted_bins: list[int] | None = None
+        val_auto_reduced: bool | None = None
+        val_edges: list[float] | None = None
+        val_n_eff: int | None = None
 
-        bins_tv: Optional[pd.Series] = None
+        bins_tv: pd.Series | None = None
 
         if self.val_size and self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
@@ -369,7 +369,7 @@ class StratifiedNumericSplitter:
             val_n_eff = n_eff_tv
 
         # helper: bin counts using stage-consistent bins via internal idx
-        def _counts_from_stage_bins(split_df: pd.DataFrame, stage_bins: pd.Series) -> Dict[str, int]:
+        def _counts_from_stage_bins(split_df: pd.DataFrame, stage_bins: pd.Series) -> dict[str, int]:
             idx = split_df[_INTERNAL_IDX_COL].to_numpy(dtype=int)
             # stage_bins aligns with stage dataframe index order; so we need a map by internal idx
             # create map internal_idx -> bin
@@ -422,13 +422,13 @@ class StratifiedNumericSplitter:
         # We'll compute them right here by re-splitting with the same random_state on the same frames is risky.
         # Instead, keep stats at stage-level (trainval/test) and label stats per returned split.
         # (This keeps contract stable and avoids accidental nondeterminism.)
-        stats: Dict[str, Any] = {
-            "n_total": int(len(df)),
-            "n_used": int(len(work)),
+        stats: dict[str, Any] = {
+            "n_total": len(df),
+            "n_used": len(work),
             "n_dropped_nan": int(dropped),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "label_col": self.label_col,
             "binning": self.binning,
             "duplicates": self.duplicates,

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import click
 import typer
 
@@ -34,7 +32,6 @@ def root(
     ),
 ) -> None:
     """BioSieve CLI root."""
-    pass
 
 
 app.command("reduce", context_settings=CONTEXT_SETTINGS)(reduce)
@@ -43,7 +40,7 @@ app.command("info", context_settings=CONTEXT_SETTINGS)(info)
 app.command("validate", context_settings=CONTEXT_SETTINGS)(validate)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     try:
         typer.main.get_command(app).main(
             args=argv,

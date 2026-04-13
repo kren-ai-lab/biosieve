@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -15,8 +15,7 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class StructuralDistanceReducer:
-    """
-    Greedy redundancy reduction using precomputed structural distances or similarities.
+    """Greedy redundancy reduction using precomputed structural distances or similarities.
 
     This reducer removes redundant samples based on *precomputed structural relationships*
     between entities (e.g., protein structures, docking poses, folds). It consumes an
@@ -116,6 +115,7 @@ class StructuralDistanceReducer:
     ...   --map map_struct.csv \\
     ...   --report report_struct.json \\
     ...   --params params.yaml
+
     """
 
     edges_path: str = "struct_edges.csv"
@@ -160,9 +160,9 @@ class StructuralDistanceReducer:
         )
 
         removed: set[str] = set()
-        rep_of: Dict[str, str] = {}
-        score_of: Dict[str, float] = {}
-        cluster_of: Dict[str, str] = {}
+        rep_of: dict[str, str] = {}
+        score_of: dict[str, float] = {}
+        cluster_of: dict[str, str] = {}
 
         # Greedy representative selection
         for rep_id in ids:
@@ -196,7 +196,7 @@ class StructuralDistanceReducer:
                     "removed_id": rid,
                     "representative_id": rep,
                     "cluster_id": cluster_of.get(rid, f"struct:{rep}"),
-                    "score": score_of.get(rid, None),
+                    "score": score_of.get(rid),
                 }
             )
         mapping = pd.DataFrame(
@@ -206,10 +206,10 @@ class StructuralDistanceReducer:
 
         kept_df["structural_cluster_id"] = kept_df[cols.id_col].astype(str).apply(lambda x: f"struct:{x}")
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_kept": int(len(kept_df)),
-            "n_removed": int(len(mapping)),
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_kept": len(kept_df),
+            "n_removed": len(mapping),
             "n_edges_loaded": int(edges.n_edges),
             "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
             "mode": self.mode,

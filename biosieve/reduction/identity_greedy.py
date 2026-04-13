@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -31,8 +31,7 @@ def _jaccard(a: set[str], b: set[str]) -> float:
 
 
 def _approx_identity(a: str, b: str) -> float:
-    """
-    Approximate identity without alignment.
+    """Approximate identity without alignment.
 
     Compares positions up to min length and normalizes by max length
     to penalize length differences.
@@ -47,8 +46,7 @@ def _approx_identity(a: str, b: str) -> float:
 
 @dataclass(frozen=True)
 class IdentityGreedyReducer:
-    """
-    Greedy redundancy reduction using an approximate identity score.
+    """Greedy redundancy reduction using an approximate identity score.
 
     This reducer approximates sequence identity without alignment by combining:
     1) k-mer Jaccard prefilter to shortlist candidate representatives
@@ -118,6 +116,7 @@ class IdentityGreedyReducer:
     ...   --map map_ident.csv \\
     ...   --report report_ident.json \\
     ...   --params params.yaml
+
     """
 
     threshold: float = 0.9
@@ -157,14 +156,14 @@ class IdentityGreedyReducer:
                 "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
             )
 
-        reps_idx: List[int] = []
-        reps_kmers: List[set[str]] = []
-        reps_len: List[int] = []
+        reps_idx: list[int] = []
+        reps_kmers: list[set[str]] = []
+        reps_len: list[int] = []
 
-        removed_rows: List[Tuple[str, str, float]] = []
+        removed_rows: list[tuple[str, str, float]] = []
 
         # inverted index: kmer -> rep positions
-        kmer_to_rep: Dict[str, List[int]] = {}
+        kmer_to_rep: dict[str, list[int]] = {}
 
         def add_rep(rep_index_in_work: int, rep_seq: str) -> None:
             reps_idx.append(rep_index_in_work)
@@ -194,7 +193,7 @@ class IdentityGreedyReducer:
             km_cur = _kmer_set(seq, self.k)
 
             # candidates via shared kmers (counts)
-            cand_counts: Dict[int, int] = {}
+            cand_counts: dict[int, int] = {}
             for token in km_cur:
                 for rep_pos in kmer_to_rep.get(token, []):
                     cand_counts[rep_pos] = cand_counts.get(rep_pos, 0) + 1
@@ -248,10 +247,10 @@ class IdentityGreedyReducer:
 
         kept["identity_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"ident:{x}")
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_kept": int(len(kept)),
-            "n_removed": int(len(mapping)),
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_kept": len(kept),
+            "n_removed": len(mapping),
             "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
             "threshold": float(self.threshold),
             "k": int(self.k),

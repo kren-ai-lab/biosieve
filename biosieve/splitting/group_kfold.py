@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 import pandas as pd
 
@@ -36,8 +35,7 @@ def _group_set(df: pd.DataFrame, group_col: str) -> set[str]:
 
 @dataclass(frozen=True)
 class GroupKFoldSplitter:
-    """
-    Group K-Fold splitting (leakage-aware cross-validation).
+    """Group K-Fold splitting (leakage-aware cross-validation).
 
     Ensures that the same group does not appear in both train and test for any fold.
 
@@ -94,6 +92,7 @@ class GroupKFoldSplitter:
     ...   --outdir runs/split_group_kfold \\
     ...   --strategy group_kfold \\
     ...   --params params.yaml
+
     """
 
     group_col: str = "group"
@@ -109,7 +108,7 @@ class GroupKFoldSplitter:
     def strategy(self) -> str:
         return "group_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> List[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
             raise ImportError(
@@ -153,7 +152,7 @@ class GroupKFoldSplitter:
             if tts is None:
                 raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
 
-        folds: List[SplitResult] = []
+        folds: list[SplitResult] = []
 
         # X can be dummy; GroupKFold uses indices + groups only
         X_dummy = work.index.values
@@ -173,7 +172,7 @@ class GroupKFoldSplitter:
                     f"train/test share {leak_tt} group(s). This should never happen."
                 )
 
-            val_df: Optional[pd.DataFrame] = None
+            val_df: pd.DataFrame | None = None
             leak_vt = 0
             leak_vr = 0
 
@@ -210,15 +209,15 @@ class GroupKFoldSplitter:
                     },
                     stats={
                         "fold_index": int(fold_idx),
-                        "n_total": int(len(df)),
-                        "n_used": int(len(work)),
+                        "n_total": len(df),
+                        "n_used": len(work),
                         "n_dropped_nan": int(dropped),
-                        "n_train": int(len(train_df)),
-                        "n_test": int(len(test_df)),
-                        "n_val": int(len(val_df)) if val_df is not None else 0,
+                        "n_train": len(train_df),
+                        "n_test": len(test_df),
+                        "n_val": len(val_df) if val_df is not None else 0,
                         "n_groups_total": int(n_groups),
-                        "n_groups_train": int(len(train_groups)),
-                        "n_groups_test": int(len(test_groups)),
+                        "n_groups_train": len(train_groups),
+                        "n_groups_test": len(test_groups),
                         "leak_groups_train_test": int(leak_tt),  # must be 0
                         "leak_groups_val_train": int(leak_vr),  # may be >0 (by design)
                         "leak_groups_val_test": int(leak_vt),  # should be 0

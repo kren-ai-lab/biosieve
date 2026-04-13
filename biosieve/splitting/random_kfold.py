@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 import pandas as pd
 
@@ -32,8 +31,7 @@ def _try_import_train_test_split():
 
 @dataclass(frozen=True)
 class RandomKFoldSplitter:
-    """
-    Random K-Fold splitting.
+    """Random K-Fold splitting.
 
     Produces a list of SplitResult objects, one per fold:
       - train: training subset for that fold
@@ -44,6 +42,7 @@ class RandomKFoldSplitter:
     -----
     - This is *random* KFold, not stratified.
     - For reproducibility, each fold uses seed + fold_index for the optional val split.
+
     """
 
     n_splits: int = 5
@@ -57,7 +56,7 @@ class RandomKFoldSplitter:
     def strategy(self) -> str:
         return "random_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> List[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         KFold = _try_import_kfold()
         if KFold is None:
             raise ImportError(
@@ -84,13 +83,13 @@ class RandomKFoldSplitter:
                     "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
                 )
 
-        folds: List[SplitResult] = []
+        folds: list[SplitResult] = []
 
         for fold_idx, (train_idx, test_idx) in enumerate(kf.split(work)):
             train_df = work.iloc[train_idx].copy().reset_index(drop=True)
             test_df = work.iloc[test_idx].copy().reset_index(drop=True)
 
-            val_df: Optional[pd.DataFrame] = None
+            val_df: pd.DataFrame | None = None
 
             if self.val_size and self.val_size > 0:
                 # deterministic per-fold val split
@@ -121,9 +120,9 @@ class RandomKFoldSplitter:
                     stats={
                         "fold_index": int(fold_idx),
                         "n_total": int(n),
-                        "n_train": int(len(train_df)),
-                        "n_test": int(len(test_df)),
-                        "n_val": int(len(val_df)) if val_df is not None else 0,
+                        "n_train": len(train_df),
+                        "n_test": len(test_df),
+                        "n_val": len(val_df) if val_df is not None else 0,
                     },
                 )
             )

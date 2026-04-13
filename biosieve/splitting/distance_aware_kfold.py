@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ def _try_import_train_test_split():
         return None
 
 
-def _label_stats_from_array(x: np.ndarray) -> Dict[str, Any]:
+def _label_stats_from_array(x: np.ndarray) -> dict[str, Any]:
     if x.size == 0:
         return {
             "n": 0,
@@ -69,7 +69,7 @@ def _euclidean_distance_to_centroid(X: np.ndarray) -> np.ndarray:
     return np.linalg.norm(X - c, axis=1)
 
 
-def _load_embedding_ids(path: str) -> List[str]:
+def _load_embedding_ids(path: str) -> list[str]:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"ids_path not found: {p}")
@@ -131,10 +131,10 @@ def _load_features_embeddings(
 def _load_features_descriptors(
     df: pd.DataFrame,
     *,
-    descriptor_cols: Optional[List[str]],
-    descriptor_prefix: Optional[str],
+    descriptor_cols: list[str] | None,
+    descriptor_prefix: str | None,
     standardize: bool,
-) -> Tuple[np.ndarray, List[str]]:
+) -> tuple[np.ndarray, list[str]]:
     if descriptor_cols is None:
         if not descriptor_prefix:
             raise ValueError("For descriptors mode, provide descriptor_cols or descriptor_prefix.")
@@ -170,8 +170,7 @@ def _get_distances_for_df(df_split: pd.DataFrame, d: np.ndarray) -> np.ndarray:
 
 @dataclass(frozen=True)
 class DistanceAwareKFoldSplitter:
-    """
-    Distance-aware K-Fold splitting (OOD-oriented CV).
+    """Distance-aware K-Fold splitting (OOD-oriented CV).
 
     This splitter creates folds by ranking samples according to their distance to
     the global centroid in feature space, then partitioning that ranking into
@@ -250,6 +249,7 @@ class DistanceAwareKFoldSplitter:
     ...   --outdir runs/split_distance_aware_kfold \\
     ...   --strategy distance_aware_kfold \\
     ...   --params params.yaml
+
     """
 
     feature_mode: str = "embeddings"  # "embeddings" | "descriptors"
@@ -263,19 +263,19 @@ class DistanceAwareKFoldSplitter:
     drop_internal_index: bool = True
 
     # embeddings
-    embeddings_path: Optional[str] = None
-    ids_path: Optional[str] = None
+    embeddings_path: str | None = None
+    ids_path: str | None = None
 
     # descriptors
-    descriptor_cols: Optional[List[str]] = None
-    descriptor_prefix: Optional[str] = "desc_"
+    descriptor_cols: list[str] | None = None
+    descriptor_prefix: str | None = "desc_"
     standardize_descriptors: bool = True
 
     @property
     def strategy(self) -> str:
         return "distance_aware_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> List[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         if self.n_splits < 2:
             raise ValueError("n_splits must be >= 2")
         if not (0.0 <= self.val_size < 1.0):
@@ -288,7 +288,7 @@ class DistanceAwareKFoldSplitter:
         if n < self.n_splits:
             raise ValueError(f"Not enough samples (n={n}) for n_splits={self.n_splits}")
 
-        feature_info: Dict[str, Any] = {"feature_mode": self.feature_mode}
+        feature_info: dict[str, Any] = {"feature_mode": self.feature_mode}
 
         # --- Load features ---
         if self.feature_mode == "embeddings":
@@ -343,7 +343,7 @@ class DistanceAwareKFoldSplitter:
                     "val_size > 0 requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
                 )
 
-        folds: List[SplitResult] = []
+        folds: list[SplitResult] = []
         all_idx = np.arange(n, dtype=int)
 
         for fold_idx, test_idx in enumerate(test_slices):
@@ -357,7 +357,7 @@ class DistanceAwareKFoldSplitter:
             test_df = work.iloc[test_idx].copy()
 
             # optional val sampled from fold train
-            val_df: Optional[pd.DataFrame] = None
+            val_df: pd.DataFrame | None = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
                 train_df, val_df = tts(
@@ -373,13 +373,13 @@ class DistanceAwareKFoldSplitter:
             d_test = _get_distances_for_df(test_df, d)
             d_val = _get_distances_for_df(val_df, d) if val_df is not None else None
 
-            stats: Dict[str, Any] = {
+            stats: dict[str, Any] = {
                 "fold_index": int(fold_idx),
-                "n_total": int(len(df)),
+                "n_total": len(df),
                 "n_used": int(n),
-                "n_train": int(len(train_df)),
-                "n_test": int(len(test_df)),
-                "n_val": int(len(val_df)) if val_df is not None else 0,
+                "n_train": len(train_df),
+                "n_test": len(test_df),
+                "n_val": len(val_df) if val_df is not None else 0,
                 "metric": self.metric,
                 "distance_stats_global": _label_stats_from_array(d),
                 "distance_stats_train": _label_stats_from_array(d_train),

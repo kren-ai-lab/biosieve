@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 import pandas as pd
 
@@ -32,8 +31,7 @@ def _try_import_train_test_split():
 
 @dataclass(frozen=True)
 class StratifiedKFoldSplitter:
-    """
-    Stratified K-Fold splitting for classification labels.
+    """Stratified K-Fold splitting for classification labels.
 
     Produces a list of SplitResult objects, one per fold:
       - train: training subset for that fold
@@ -46,6 +44,7 @@ class StratifiedKFoldSplitter:
     - If val_size > 0, validation is sampled randomly from the fold's train
       (non-stratified by default to keep it simple and robust).
       If you want stratified val too, we can add `val_stratify=true`.
+
     """
 
     label_col: str = "label"
@@ -65,7 +64,7 @@ class StratifiedKFoldSplitter:
     def strategy(self) -> str:
         return "stratified_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> List[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
             raise ImportError(
@@ -121,13 +120,13 @@ class StratifiedKFoldSplitter:
             if tts is None:
                 raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
 
-        folds: List[SplitResult] = []
+        folds: list[SplitResult] = []
 
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(work, y)):
             train_df = work.iloc[train_idx].copy().reset_index(drop=True)
             test_df = work.iloc[test_idx].copy().reset_index(drop=True)
 
-            val_df: Optional[pd.DataFrame] = None
+            val_df: pd.DataFrame | None = None
 
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
@@ -161,12 +160,12 @@ class StratifiedKFoldSplitter:
                     },
                     stats={
                         "fold_index": int(fold_idx),
-                        "n_total": int(len(df)),
+                        "n_total": len(df),
                         "n_used": int(n),
                         "n_dropped_nan": int(dropped),
-                        "n_train": int(len(train_df)),
-                        "n_test": int(len(test_df)),
-                        "n_val": int(len(val_df)) if val_df is not None else 0,
+                        "n_train": len(train_df),
+                        "n_test": len(test_df),
+                        "n_val": len(val_df) if val_df is not None else 0,
                         "train_label_counts": train_df[self.label_col].astype(str).value_counts().to_dict(),
                         "test_label_counts": test_df[self.label_col].astype(str).value_counts().to_dict(),
                     },

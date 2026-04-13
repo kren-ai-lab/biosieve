@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -14,8 +14,7 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class ExactDedupReducer:
-    """
-    Exact redundancy reduction by identical sequences (exact match).
+    """Exact redundancy reduction by identical sequences (exact match).
 
     This reducer removes duplicates where sequences are exactly identical (string match)
     based on `cols.seq_col`. The first occurrence (after deterministic sorting by id) is
@@ -68,6 +67,7 @@ class ExactDedupReducer:
     ...   --strategy exact \\
     ...   --map map_exact.csv \\
     ...   --report report_exact.json
+
     """
 
     @property
@@ -106,10 +106,10 @@ class ExactDedupReducer:
 
         kept["exact_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"exact:{x}")
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_kept": int(len(kept)),
-            "n_removed": int(len(mapping)),
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_kept": len(kept),
+            "n_removed": len(mapping),
             "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
             "note": "Exact sequence duplicates removed (string equality).",
         }

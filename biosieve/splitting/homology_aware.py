@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -19,8 +19,7 @@ _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
 
 
 def _write_fasta(df: pd.DataFrame, id_col: str, seq_col: str, out_fa: Path) -> None:
-    """
-    Write a FASTA file from a DataFrame.
+    """Write a FASTA file from a DataFrame.
 
     Parameters
     ----------
@@ -37,6 +36,7 @@ def _write_fasta(df: pd.DataFrame, id_col: str, seq_col: str, out_fa: Path) -> N
     ------
     ValueError
         If any sequence is empty.
+
     """
     lines = []
     for _, row in df.iterrows():
@@ -59,8 +59,7 @@ def _run_mmseqs_easy_cluster(
     cov_mode: int = 0,
     threads: int = 8,
 ) -> Path:
-    """
-    Run mmseqs2 easy-cluster and return the produced cluster TSV path.
+    """Run mmseqs2 easy-cluster and return the produced cluster TSV path.
 
     Command
     -------
@@ -97,6 +96,7 @@ def _run_mmseqs_easy_cluster(
         If the mmseqs binary is not found or the expected output TSV is missing.
     RuntimeError
         If mmseqs2 returns a non-zero code.
+
     """
     import subprocess
 
@@ -138,8 +138,7 @@ def _run_mmseqs_easy_cluster(
 
 
 def _load_mmseqs_cluster_tsv(cluster_tsv: Path) -> pd.DataFrame:
-    """
-    Load mmseqs2 easy-cluster mapping TSV.
+    """Load mmseqs2 easy-cluster mapping TSV.
 
     Expected format: rep<TAB>member
 
@@ -150,6 +149,7 @@ def _load_mmseqs_cluster_tsv(cluster_tsv: Path) -> pd.DataFrame:
         - representative_id
         - member_id
         - cluster_id (defaults to representative_id for stable deterministic naming)
+
     """
     df = pd.read_csv(cluster_tsv, sep="\t", header=None, names=["representative_id", "member_id"])
     df["representative_id"] = df["representative_id"].astype(str)
@@ -163,14 +163,14 @@ def _build_cluster_id_map(
     *,
     member_col: str = "member_id",
     cluster_col: str = "cluster_id",
-) -> Dict[str, str]:
-    """
-    Build a member->cluster_id dict from a mapping DataFrame.
+) -> dict[str, str]:
+    """Build a member->cluster_id dict from a mapping DataFrame.
 
     Raises
     ------
     ValueError
         If required columns are missing.
+
     """
     if member_col not in mapping_df.columns or cluster_col not in mapping_df.columns:
         raise ValueError(
@@ -181,8 +181,7 @@ def _build_cluster_id_map(
 
 @dataclass(frozen=True)
 class HomologyAwareSplitter:
-    """
-    Homology-aware split using sequence clusters as groups (no homology leakage).
+    """Homology-aware split using sequence clusters as groups (no homology leakage).
 
     This strategy clusters sequences by homology and then performs a group-based split
     over cluster ids, ensuring that no homology cluster appears in multiple splits.
@@ -262,6 +261,7 @@ class HomologyAwareSplitter:
     ...   --outdir runs/split_homology_precomputed \\
     ...   --strategy homology_aware \\
     ...   --params params.yaml
+
     """
 
     # core sizes
@@ -273,7 +273,7 @@ class HomologyAwareSplitter:
     mode: str = "mmseqs2"  # "mmseqs2" | "precomputed"
 
     # precomputed mapping
-    clusters_path: Optional[str] = None
+    clusters_path: str | None = None
     clusters_format: str = "mmseqs_tsv"  # "mmseqs_tsv" | "csv"
     member_col: str = "member_id"
     cluster_col: str = "cluster_id"
@@ -293,7 +293,7 @@ class HomologyAwareSplitter:
     def strategy(self) -> str:
         return "homology_aware"
 
-    def _get_cluster_map(self, df: pd.DataFrame, cols: Columns) -> Tuple[Dict[str, str], Dict[str, Any]]:
+    def _get_cluster_map(self, df: pd.DataFrame, cols: Columns) -> tuple[dict[str, str], dict[str, Any]]:
         work = Path(self.work_dir)
         work.mkdir(parents=True, exist_ok=True)
 
@@ -320,7 +320,7 @@ class HomologyAwareSplitter:
                 "clusters_format": self.clusters_format,
                 "member_col": self.member_col,
                 "cluster_col": self.cluster_col,
-                "n_mapped_members": int(len(cmap)),
+                "n_mapped_members": len(cmap),
             }
             return cmap, meta
 
@@ -361,7 +361,7 @@ class HomologyAwareSplitter:
                 "threads": self.threads,
                 "work_dir": str(work),
                 "cluster_tsv": str(tsv),
-                "n_mapped_members": int(len(cmap)),
+                "n_mapped_members": len(cmap),
             }
             return cmap, meta
 
@@ -429,15 +429,15 @@ class HomologyAwareSplitter:
         if val is not None:
             val = val.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(df)),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
-            "n_clusters_total": int(len(set(cluster_ids))),
-            "n_clusters_train": int(len(train_c)),
-            "n_clusters_test": int(len(test_c)),
-            "n_clusters_val": int(len(val_c)) if val is not None else 0,
+        stats: dict[str, Any] = {
+            "n_total": len(df),
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
+            "n_clusters_total": len(set(cluster_ids)),
+            "n_clusters_train": len(train_c),
+            "n_clusters_test": len(test_c),
+            "n_clusters_val": len(val_c) if val is not None else 0,
             "leak_clusters_train_test": 0,
             "leak_clusters_train_val": 0,
             "leak_clusters_val_test": 0,

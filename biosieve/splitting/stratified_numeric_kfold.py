@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -31,7 +31,7 @@ def _try_import_train_test_split():
         return None
 
 
-def _label_stats(y: pd.Series) -> Dict[str, Any]:
+def _label_stats(y: pd.Series) -> dict[str, Any]:
     yy = pd.to_numeric(y, errors="coerce").dropna()
     if len(yy) == 0:
         return {
@@ -45,7 +45,7 @@ def _label_stats(y: pd.Series) -> Dict[str, Any]:
             "q75": None,
         }
     return {
-        "n": int(len(yy)),
+        "n": len(yy),
         "min": float(yy.min()),
         "max": float(yy.max()),
         "mean": float(yy.mean()),
@@ -56,7 +56,7 @@ def _label_stats(y: pd.Series) -> Dict[str, Any]:
     }
 
 
-def _bin_counts(bins: pd.Series) -> Dict[str, int]:
+def _bin_counts(bins: pd.Series) -> dict[str, int]:
     vc = bins.value_counts(dropna=False).sort_index()
     return {str(k): int(v) for k, v in vc.to_dict().items()}
 
@@ -68,7 +68,7 @@ def _make_bins_once(
     binning: str,
     duplicates: str,
     return_edges: bool,
-) -> Tuple[pd.Series, int, Optional[List[float]]]:
+) -> tuple[pd.Series, int, list[float] | None]:
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
 
@@ -76,7 +76,7 @@ def _make_bins_once(
     if yy.isna().any():
         raise ValueError("NaN values found in label series while binning.")
 
-    edges: Optional[List[float]] = None
+    edges: list[float] | None = None
 
     if binning == "quantile":
         if return_edges:
@@ -110,17 +110,17 @@ def _make_bins_safe(
     min_bin_count: int,
     auto_reduce_bins: bool,
     return_edges: bool,
-) -> Tuple[pd.Series, int, Optional[List[float]], List[int], bool]:
+) -> tuple[pd.Series, int, list[float] | None, list[int], bool]:
     if min_bin_count < 1:
         raise ValueError("min_bin_count must be >= 1")
     if n_bins < 2:
         raise ValueError("n_bins must be >= 2")
 
-    attempted: List[int] = []
+    attempted: list[int] = []
     auto_reduced = False
     candidates = list(range(n_bins, 1, -1)) if auto_reduce_bins else [n_bins]
 
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for b in candidates:
         attempted.append(int(b))
@@ -159,8 +159,7 @@ def _make_bins_safe(
 
 @dataclass(frozen=True)
 class StratifiedNumericKFoldSplitter:
-    """
-    Stratified K-Fold splitting for numeric labels via binning.
+    """Stratified K-Fold splitting for numeric labels via binning.
 
     This is the k-fold analogue of `stratified_numeric`: it enables stratified CV
     for regression by discretizing a numeric label into bins and applying
@@ -222,6 +221,7 @@ class StratifiedNumericKFoldSplitter:
     ...   --outdir runs/split_stratnum_kfold \\
     ...   --strategy stratified_numeric_kfold \\
     ...   --params params.yaml
+
     """
 
     label_col: str = "y"
@@ -245,7 +245,7 @@ class StratifiedNumericKFoldSplitter:
     def strategy(self) -> str:
         return "stratified_numeric_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> List[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
             raise ImportError(
@@ -269,9 +269,8 @@ class StratifiedNumericKFoldSplitter:
             dropped = int((~keep).sum())
             work = work.loc[keep].reset_index(drop=True)
             y_raw = y_raw.loc[keep].reset_index(drop=True)
-        else:
-            if y_raw.isna().any():
-                raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
+        elif y_raw.isna().any():
+            raise ValueError(f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset.")
 
         if len(work) < self.n_splits:
             raise ValueError(f"Not enough samples (n={len(work)}) for n_splits={self.n_splits}")
@@ -305,14 +304,14 @@ class StratifiedNumericKFoldSplitter:
             if tts is None:
                 raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
 
-        folds: List[SplitResult] = []
+        folds: list[SplitResult] = []
         X_dummy = work.index.values
 
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_dummy, bins)):
             train_df = work.iloc[train_idx].copy().reset_index(drop=True)
             test_df = work.iloc[test_idx].copy().reset_index(drop=True)
 
-            val_df: Optional[pd.DataFrame] = None
+            val_df: pd.DataFrame | None = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
                 train_df, val_df = tts(
@@ -329,14 +328,14 @@ class StratifiedNumericKFoldSplitter:
             train_bins = bins.iloc[train_idx].reset_index(drop=True)
             test_bins = bins.iloc[test_idx].reset_index(drop=True)
 
-            stats: Dict[str, Any] = {
+            stats: dict[str, Any] = {
                 "fold_index": int(fold_idx),
-                "n_total": int(len(df)),
-                "n_used": int(len(work)),
+                "n_total": len(df),
+                "n_used": len(work),
                 "n_dropped_nan": int(dropped),
-                "n_train": int(len(train_df)),
-                "n_test": int(len(test_df)),
-                "n_val": int(len(val_df)) if val_df is not None else 0,
+                "n_train": len(train_df),
+                "n_test": len(test_df),
+                "n_val": len(val_df) if val_df is not None else 0,
                 "label_col": self.label_col,
                 "binning": self.binning,
                 "duplicates": self.duplicates,

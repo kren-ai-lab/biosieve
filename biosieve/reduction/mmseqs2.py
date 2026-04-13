@@ -4,7 +4,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -23,8 +23,7 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class MMseqs2Reducer:
-    """
-    Homology-based redundancy reduction using MMseqs2 easy-cluster.
+    """Homology-based redundancy reduction using MMseqs2 easy-cluster.
 
     This reducer clusters sequences by homology using MMseqs2 (`easy-cluster`) and keeps
     one representative per cluster (as determined by MMseqs2). All non-representatives
@@ -92,6 +91,7 @@ class MMseqs2Reducer:
     ...   --map map_mmseqs2.csv \\
     ...   --report report_mmseqs2.json \\
     ...   --params params.yaml
+
     """
 
     min_seq_id: float = 0.9
@@ -101,7 +101,7 @@ class MMseqs2Reducer:
     threads: int = 4
 
     # housekeeping
-    tmp_root: Optional[str] = None  # if None, uses system temp
+    tmp_root: str | None = None  # if None, uses system temp
     keep_tmp: bool = False
 
     @property
@@ -125,7 +125,7 @@ class MMseqs2Reducer:
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
 
         # Build sequence dict (id -> sequence)
-        seqs: Dict[str, str] = {}
+        seqs: dict[str, str] = {}
         empty_seq = 0
         for _, row in work.iterrows():
             sid = str(row[cols.id_col])
@@ -199,11 +199,11 @@ class MMseqs2Reducer:
             kept_df["mmseqs2_cluster_id"] = kept_df[cols.id_col].astype(str).map(member_to_cluster)
 
             # extra stats (safe, does not change schema)
-            stats: Dict[str, Any] = {
-                "n_total": int(len(work)),
-                "n_kept": int(len(kept_df)),
-                "n_removed": int(len(mapping)),
-                "n_clusters": int(len(reps)),
+            stats: dict[str, Any] = {
+                "n_total": len(work),
+                "n_kept": len(kept_df),
+                "n_removed": len(mapping),
+                "n_clusters": len(reps),
                 "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
                 "note": "Representative selection delegated to MMseqs2 easy-cluster.",
             }

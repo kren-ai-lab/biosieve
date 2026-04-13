@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -13,8 +13,7 @@ log = get_logger(__name__)
 
 
 def _kmer_set(seq: str, k: int) -> set[str]:
-    """
-    Convert a sequence into a set of k-mers.
+    """Convert a sequence into a set of k-mers.
 
     Parameters
     ----------
@@ -32,6 +31,7 @@ def _kmer_set(seq: str, k: int) -> set[str]:
     ------
     ValueError
         If k < 1.
+
     """
     if k <= 0:
         raise ValueError("k must be >= 1")
@@ -41,8 +41,7 @@ def _kmer_set(seq: str, k: int) -> set[str]:
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
-    """
-    Jaccard similarity between two sets.
+    """Jaccard similarity between two sets.
 
     Parameters
     ----------
@@ -53,6 +52,7 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     -------
     float
         Jaccard similarity in [0, 1]. If both empty, returns 1.0.
+
     """
     if not a and not b:
         return 1.0
@@ -63,8 +63,7 @@ def _jaccard(a: set[str], b: set[str]) -> float:
 
 @dataclass(frozen=True)
 class KmerJaccardReducer:
-    """
-    Greedy redundancy reduction using Jaccard similarity of k-mer sets.
+    """Greedy redundancy reduction using Jaccard similarity of k-mer sets.
 
     This reducer approximates sequence redundancy without alignment by comparing
     k-mer token sets. A sequence is considered redundant if its Jaccard similarity
@@ -119,6 +118,7 @@ class KmerJaccardReducer:
     ValueError
         If threshold is out of range, k < 1, max_candidates < 1, required columns are
         missing, ids are duplicated, or sequences are empty/invalid.
+
     Notes
     -----
     - This is a greedy algorithm: results depend on representative ordering
@@ -136,6 +136,7 @@ class KmerJaccardReducer:
     ...   --map map_kmer.csv \\
     ...   --report report_kmer.json \\
     ...   --params params.yaml
+
     """
 
     threshold: float = 0.7
@@ -168,14 +169,14 @@ class KmerJaccardReducer:
             )
 
         # Representatives are tracked by work index
-        reps_idx: List[int] = []
-        reps_kmers: List[set[str]] = []
+        reps_idx: list[int] = []
+        reps_kmers: list[set[str]] = []
 
         # removed: (removed_id, representative_id, score)
-        removed_rows: List[Tuple[str, str, float]] = []
+        removed_rows: list[tuple[str, str, float]] = []
 
         # Inverted index for kmer -> rep positions
-        kmer_to_rep: Dict[str, List[int]] = {}
+        kmer_to_rep: dict[str, list[int]] = {}
 
         def add_rep(work_idx: int, seq: str) -> None:
             reps_idx.append(work_idx)
@@ -205,7 +206,7 @@ class KmerJaccardReducer:
             km_cur = _kmer_set(seq, self.k)
 
             # Candidate rep scoring by shared k-mer counts
-            cand_counts: Dict[int, int] = {}
+            cand_counts: dict[int, int] = {}
             for token in km_cur:
                 for rep_pos in kmer_to_rep.get(token, []):
                     cand_counts[rep_pos] = cand_counts.get(rep_pos, 0) + 1
@@ -247,10 +248,10 @@ class KmerJaccardReducer:
 
         kept["kmer_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"kmer:{x}")
 
-        stats: Dict[str, Any] = {
-            "n_total": int(len(work)),
-            "n_kept": int(len(kept)),
-            "n_removed": int(len(mapping)),
+        stats: dict[str, Any] = {
+            "n_total": len(work),
+            "n_kept": len(kept),
+            "n_removed": len(mapping),
             "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
             "k": int(self.k),
             "threshold": float(self.threshold),

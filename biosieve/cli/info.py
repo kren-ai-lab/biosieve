@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any
 
 import typer
 
@@ -24,17 +24,17 @@ SHOW_DEFAULTS_OPTION = typer.Option(
 )
 
 
-def _defaults_for_cls(cls: Any) -> Dict[str, Any]:
+def _defaults_for_cls(cls: Any) -> dict[str, Any]:
     if not is_dataclass(cls):
         return {}
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for f in fields(cls):
         # Skip fields that are not init params if needed; for your dataclasses it's fine.
         out[f.name] = f.default
     return out
 
 
-def _print_block(title: str, items: Dict[str, Any]) -> None:
+def _print_block(title: str, items: dict[str, Any]) -> None:
     print(f"\n{title}")
     print("-" * len(title))
     for name in sorted(items.keys()):

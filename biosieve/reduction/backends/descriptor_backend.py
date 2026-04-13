@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -9,15 +8,15 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class DescriptorMatrix:
-    cols: List[str]
+    cols: list[str]
     X: np.ndarray  # shape (N, K)
 
 
 def infer_descriptor_columns(
     df: pd.DataFrame,
     prefix: str = "desc_",
-    explicit_cols: Optional[List[str]] = None,
-) -> List[str]:
+    explicit_cols: list[str] | None = None,
+) -> list[str]:
     if explicit_cols is not None:
         missing = [c for c in explicit_cols if c not in df.columns]
         if missing:
@@ -37,7 +36,7 @@ def infer_descriptor_columns(
 
 def extract_descriptor_matrix(
     df: pd.DataFrame,
-    cols: List[str],
+    cols: list[str],
     dtype: str = "float32",
 ) -> DescriptorMatrix:
     X = df[cols].to_numpy()

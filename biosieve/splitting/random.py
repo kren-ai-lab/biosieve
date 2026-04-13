@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -14,13 +14,13 @@ log = get_logger(__name__)
 
 
 def _validate_sizes(test_size: float, val_size: float) -> None:
-    """
-    Validate split fractions.
+    """Validate split fractions.
 
     Raises
     ------
     ValueError
         If sizes are out of range or leave no samples for training.
+
     """
     if not (0.0 < test_size < 1.0):
         raise ValueError("test_size must be in (0, 1)")
@@ -32,9 +32,8 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
 def _index_split(
     n: int, test_size: float, val_size: float, seed: int
-) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
-    """
-    Create index splits for train/test(/val) using a seeded RNG.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Create index splits for train/test(/val) using a seeded RNG.
 
     Parameters
     ----------
@@ -51,6 +50,7 @@ def _index_split(
     -------
     train_idx, test_idx, val_idx
         Numpy arrays of indices. `val_idx` may be None.
+
     """
     rng = np.random.default_rng(seed)
     idx = np.arange(n)
@@ -71,8 +71,7 @@ def _index_split(
 
 @dataclass(frozen=True)
 class RandomSplitter:
-    """
-    Random train/test(/val) split (deterministic via seed).
+    """Random train/test(/val) split (deterministic via seed).
 
     Parameters
     ----------
@@ -110,6 +109,7 @@ class RandomSplitter:
     ...   --outdir runs/split_random \\
     ...   --strategy random \\
     ...   --params params.yaml
+
     """
 
     test_size: float = 0.2
@@ -141,11 +141,11 @@ class RandomSplitter:
         test = work.iloc[test_idx].reset_index(drop=True)
         val = work.iloc[val_idx].reset_index(drop=True) if val_idx is not None else None
 
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "n_total": int(n),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "test_size": float(self.test_size),
             "val_size": float(self.val_size),
             "seed": int(self.seed),
@@ -153,9 +153,9 @@ class RandomSplitter:
 
         log.info(
             "random:stats | train=%d | val=%d | test=%d",
-            int(len(train)),
-            int(len(val)) if val is not None else 0,
-            int(len(test)),
+            len(train),
+            len(val) if val is not None else 0,
+            len(test),
         )
         return SplitResult(
             train=train,

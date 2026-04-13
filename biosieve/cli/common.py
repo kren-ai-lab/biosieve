@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -38,7 +37,7 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def setup_runtime(log_level: str, quiet: bool, log_file: Optional[Path]) -> StrategyRegistry:
+def setup_runtime(log_level: str, quiet: bool, log_file: Path | None) -> StrategyRegistry:
     """Configure logging and build the strategy registry lazily per command."""
     configure_logging(
         level=log_level,

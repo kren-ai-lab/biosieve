@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Union
 
 from biosieve.core.spec import StrategySpec, lazy_import_class
 
-ReducerLike = Union[Type[Any], StrategySpec]
-SplitterLike = Union[Type[Any], StrategySpec]
+ReducerLike = Union[type[Any], StrategySpec]
+SplitterLike = Union[type[Any], StrategySpec]
 
 
 @dataclass
 class StrategyRegistry:
-    """
-    Registry of available reducer and splitter strategies.
+    """Registry of available reducer and splitter strategies.
 
     Supports both:
     - eager class registration (Type)
@@ -22,10 +21,11 @@ class StrategyRegistry:
     -----
     - `list_*` is safe for light registries (does not import classes).
     - `get_*` may import classes for StrategySpec entries.
+
     """
 
-    reducers: Dict[str, ReducerLike] = field(default_factory=dict)
-    splitters: Dict[str, SplitterLike] = field(default_factory=dict)
+    reducers: dict[str, ReducerLike] = field(default_factory=dict)
+    splitters: dict[str, SplitterLike] = field(default_factory=dict)
 
     def add_reducer(self, name: str, reducer: ReducerLike) -> None:
         self.reducers[name] = reducer
@@ -39,13 +39,13 @@ class StrategyRegistry:
     def has_splitter(self, name: str) -> bool:
         return name in self.splitters
 
-    def list_reducers(self) -> Dict[str, ReducerLike]:
+    def list_reducers(self) -> dict[str, ReducerLike]:
         return dict(self.reducers)
 
-    def list_splitters(self) -> Dict[str, SplitterLike]:
+    def list_splitters(self) -> dict[str, SplitterLike]:
         return dict(self.splitters)
 
-    def get_reducer_class(self, name: str) -> Type[Any]:
+    def get_reducer_class(self, name: str) -> type[Any]:
         if name not in self.reducers:
             raise KeyError(f"Unknown reducer strategy '{name}'. Available: {sorted(self.reducers)}")
         obj = self.reducers[name]
@@ -56,7 +56,7 @@ class StrategyRegistry:
             return cls
         return obj
 
-    def get_splitter_class(self, name: str) -> Type[Any]:
+    def get_splitter_class(self, name: str) -> type[Any]:
         if name not in self.splitters:
             raise KeyError(f"Unknown splitter strategy '{name}'. Available: {sorted(self.splitters)}")
         obj = self.splitters[name]
@@ -66,9 +66,8 @@ class StrategyRegistry:
             return cls
         return obj
 
-    def get_spec(self, name: str, kind: str) -> Optional[StrategySpec]:
-        """
-        Return StrategySpec if the entry is lazy, else None.
+    def get_spec(self, name: str, kind: str) -> StrategySpec | None:
+        """Return StrategySpec if the entry is lazy, else None.
         """
         if kind == "reducer":
             obj = self.reducers.get(name)

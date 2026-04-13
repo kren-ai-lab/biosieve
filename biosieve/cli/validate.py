@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -103,7 +103,7 @@ REPORT_OUTPUT_OPTION = typer.Option(
 # -----------------------------
 # Utilities
 # -----------------------------
-def _load_cols(cols_arg: Optional[str]) -> Columns:
+def _load_cols(cols_arg: str | None) -> Columns:
     # Keep this intentionally simple: default is enough for now
     if not cols_arg:
         return Columns(id_col="id", seq_col="sequence")
@@ -135,7 +135,7 @@ def _jsonable(x: Any) -> Any:
     return str(x)
 
 
-def _check_exists(path: Optional[str], label: str) -> Tuple[bool, str]:
+def _check_exists(path: str | None, label: str) -> tuple[bool, str]:
     if not path:
         return True, f"SKIP {label}: not provided"
     p = Path(path)
@@ -144,7 +144,7 @@ def _check_exists(path: Optional[str], label: str) -> Tuple[bool, str]:
     return True, f"OK   {label}: found '{path}'"
 
 
-def _check_unique_ids(df: pd.DataFrame, id_col: str) -> Tuple[bool, str]:
+def _check_unique_ids(df: pd.DataFrame, id_col: str) -> tuple[bool, str]:
     if id_col not in df.columns:
         return False, f"FAIL dataset: missing id column '{id_col}'"
     n = len(df)
@@ -154,7 +154,7 @@ def _check_unique_ids(df: pd.DataFrame, id_col: str) -> Tuple[bool, str]:
     return True, f"OK   dataset: ids unique ({n} rows)"
 
 
-def _check_seq_col(df: pd.DataFrame, seq_col: Optional[str]) -> Tuple[bool, str]:
+def _check_seq_col(df: pd.DataFrame, seq_col: str | None) -> tuple[bool, str]:
     if not seq_col:
         return True, "SKIP dataset: seq_col not configured"
     if seq_col not in df.columns:
@@ -169,10 +169,10 @@ def _check_seq_col(df: pd.DataFrame, seq_col: Optional[str]) -> Tuple[bool, str]
 def _check_embeddings_alignment(
     df: pd.DataFrame,
     id_col: str,
-    embeddings_path: Optional[str],
-    ids_path: Optional[str],
+    embeddings_path: str | None,
+    ids_path: str | None,
     ids_col: str,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     if not embeddings_path and not ids_path:
         return True, "SKIP embeddings: not provided"
     if not embeddings_path or not ids_path:
@@ -221,7 +221,7 @@ def _check_embeddings_alignment(
     )
 
 
-def _check_descriptors(df: pd.DataFrame, prefix: str) -> Tuple[bool, str]:
+def _check_descriptors(df: pd.DataFrame, prefix: str) -> tuple[bool, str]:
     cols = [c for c in df.columns if c.startswith(prefix)]
     if not cols:
         return True, f"SKIP descriptors: no columns with prefix '{prefix}'"
@@ -240,11 +240,11 @@ def _check_descriptors(df: pd.DataFrame, prefix: str) -> Tuple[bool, str]:
 def _check_edges(
     df: pd.DataFrame,
     id_col: str,
-    edges_path: Optional[str],
+    edges_path: str | None,
     id1_col: str,
     id2_col: str,
     value_col: str,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     if not edges_path:
         return True, "SKIP edges: not provided"
     p = Path(edges_path)
@@ -266,7 +266,7 @@ def _check_edges(
     return True, f"OK   edges: loaded {len(e)} edges; connects to dataset ids (at least {present_any} rows)"
 
 
-def _check_mmseqs2(binary: str) -> Tuple[bool, str]:
+def _check_mmseqs2(binary: str) -> tuple[bool, str]:
     import shutil
 
     path = shutil.which(binary)
@@ -275,9 +275,8 @@ def _check_mmseqs2(binary: str) -> Tuple[bool, str]:
     return True, f"OK   mmseqs2: found '{path}'"
 
 
-def _strategy_requires(strategy: str, kind: str) -> Dict[str, bool]:
-    """
-    Minimal requirements mapping.
+def _strategy_requires(strategy: str, kind: str) -> dict[str, bool]:
+    """Minimal requirements mapping.
     Adjust as you add more strategies.
     """
     if kind == "reduce":
@@ -360,7 +359,7 @@ def validate(
 def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     cols = _load_cols(args.cols)
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     errors = 0
 
     def record(ok: bool, msg: str) -> None:
@@ -432,12 +431,11 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
                     f"Unknown reducer strategy '{args.strategy}'. "
                     f"Available: {sorted(registry.list_reducers())}"
                 )
-        else:
-            if not registry.has_splitter(args.strategy):
-                raise ValueError(
-                    f"Unknown splitter strategy '{args.strategy}'. "
-                    f"Available: {sorted(registry.list_splitters())}"
-                )
+        elif not registry.has_splitter(args.strategy):
+            raise ValueError(
+                f"Unknown splitter strategy '{args.strategy}'. "
+                f"Available: {sorted(registry.list_splitters())}"
+            )
 
         req = _strategy_requires(args.strategy, args.kind)
 

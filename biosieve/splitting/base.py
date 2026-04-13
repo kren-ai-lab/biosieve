@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 
 from biosieve.types import Columns
 
-__all__ = ["SplitResult", "Splitter", "KFoldSplitter"]
+__all__ = ["KFoldSplitter", "SplitResult", "Splitter"]
 
 
 @dataclass(frozen=True, slots=True)
 class SplitResult:
-    """
-    Container for split outputs.
+    """Container for split outputs.
 
     Parameters
     ----------
@@ -46,20 +45,20 @@ class SplitResult:
 
     A k-fold strategy returns multiple SplitResult objects (one per fold),
     typically via `run_folds` on a `KFoldSplitter`.
+
     """
 
     train: pd.DataFrame
     test: pd.DataFrame
-    val: Optional[pd.DataFrame]
+    val: pd.DataFrame | None
     strategy: str
-    params: Dict[str, Any]
-    stats: Dict[str, Any]
+    params: dict[str, Any]
+    stats: dict[str, Any]
 
 
 @runtime_checkable
 class Splitter(Protocol):
-    """
-    Protocol for single-split strategies.
+    """Protocol for single-split strategies.
 
     A single-split strategy produces one (train, test, optional val) partition.
 
@@ -79,8 +78,7 @@ class Splitter(Protocol):
 
 @runtime_checkable
 class KFoldSplitter(Protocol):
-    """
-    Protocol for k-fold strategies.
+    """Protocol for k-fold strategies.
 
     A k-fold strategy produces a list of SplitResult objects, one per fold.
     Runners can detect this protocol (or simply check for `run_folds`) and export
@@ -94,6 +92,7 @@ class KFoldSplitter(Protocol):
     Notes
     -----
     - Each SplitResult returned should include `stats["fold_index"]`.
+
     """
 
     @property

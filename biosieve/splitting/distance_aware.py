@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError("test_size + val_size must be < 1.0")
 
 
-def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     mu = X.mean(axis=0)
     sd = X.std(axis=0)
     sd = np.where(sd < eps, 1.0, sd)
@@ -38,8 +38,7 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 
 
 def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
-    """
-    Compute distance to centroid for each row.
+    """Compute distance to centroid for each row.
 
     Parameters
     ----------
@@ -59,6 +58,7 @@ def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
     ------
     ValueError
         If metric is not supported.
+
     """
     if metric == "cosine":
         Xn = _l2_normalize(X)
@@ -73,7 +73,7 @@ def _distance_to_centroid(X: np.ndarray, metric: str) -> np.ndarray:
     raise ValueError("metric must be 'cosine' or 'euclidean'")
 
 
-def _dist_stats(d: np.ndarray) -> Dict[str, Any]:
+def _dist_stats(d: np.ndarray) -> dict[str, Any]:
     if d.size == 0:
         return {
             "n": 0,
@@ -99,8 +99,7 @@ def _dist_stats(d: np.ndarray) -> Dict[str, Any]:
 
 @dataclass(frozen=True)
 class DistanceAwareSplitter:
-    """
-    Distance-aware split (OOD-oriented) selecting farthest samples as test (and optional val).
+    """Distance-aware split (OOD-oriented) selecting farthest samples as test (and optional val).
 
     This strategy selects the test set as the samples farthest from the centroid in a
     feature space (embeddings or descriptors). Optionally, validation can be selected
@@ -198,6 +197,7 @@ class DistanceAwareSplitter:
     ...   --outdir runs/split_distance_aware_desc \\
     ...   --strategy distance_aware \\
     ...   --params params.yaml
+
     """
 
     # Core split sizes
@@ -218,7 +218,7 @@ class DistanceAwareSplitter:
 
     # Descriptor inputs (when feature_mode="descriptors")
     descriptor_prefix: str = "desc_"
-    descriptor_cols: Optional[List[str]] = None
+    descriptor_cols: list[str] | None = None
     standardize: bool = True
 
     # Selection behavior
@@ -234,9 +234,8 @@ class DistanceAwareSplitter:
 
     def _build_features(
         self, df: pd.DataFrame, cols: Columns
-    ) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
-        """
-        Build feature matrix and return aligned dataframe indices.
+    ) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+        """Build feature matrix and return aligned dataframe indices.
 
         Returns
         -------
@@ -251,6 +250,7 @@ class DistanceAwareSplitter:
         ------
         ValueError
             If no usable features can be constructed.
+
         """
         ids = df[cols.id_col].astype(str).tolist()
 
@@ -263,8 +263,8 @@ class DistanceAwareSplitter:
             )
             id_to_idx = {sid: i for i, sid in enumerate(store.ids)}
 
-            present_idx: List[int] = []
-            emb_rows: List[int] = []
+            present_idx: list[int] = []
+            emb_rows: list[int] = []
             missing = 0
             for i, sid in enumerate(ids):
                 j = id_to_idx.get(sid)
@@ -283,8 +283,8 @@ class DistanceAwareSplitter:
             idx = np.asarray(present_idx, dtype=int)
             meta = {
                 "feature_mode": "embeddings",
-                "n_total": int(len(df)),
-                "n_with_features": int(len(idx)),
+                "n_total": len(df),
+                "n_with_features": len(idx),
                 "n_missing_features": int(missing),
                 "coverage": float(len(idx) / len(df)) if len(df) else 0.0,
                 "embeddings_path": self.embeddings_path,
@@ -303,13 +303,13 @@ class DistanceAwareSplitter:
             idx = np.arange(len(df), dtype=int)
             meta = {
                 "feature_mode": "descriptors",
-                "n_total": int(len(df)),
-                "n_with_features": int(len(df)),
+                "n_total": len(df),
+                "n_with_features": len(df),
                 "n_missing_features": 0,
                 "coverage": 1.0,
                 "descriptor_prefix": self.descriptor_prefix,
                 "descriptor_cols_used_preview": dcols[:10] + (["..."] if len(dcols) > 10 else []),
-                "n_descriptors": int(len(dcols)),
+                "n_descriptors": len(dcols),
                 "standardize": bool(self.standardize),
                 "n_features": int(X.shape[1]),
             }
@@ -399,7 +399,7 @@ class DistanceAwareSplitter:
         # We can still compute per-split stats by intersecting indices with feat_idx.
         feat_idx_set = set(int(i) for i in feat_idx.tolist())
 
-        def _subset_dist(idxs: List[int]) -> np.ndarray:
+        def _subset_dist(idxs: list[int]) -> np.ndarray:
             # idxs are dataframe row indices; select those that have features
             mask = [i for i in idxs if int(i) in feat_idx_set]
             if not mask:
@@ -412,11 +412,11 @@ class DistanceAwareSplitter:
         d_test = _subset_dist(test_idx)
         d_val = _subset_dist(val_idx) if n_val > 0 else np.asarray([], dtype=float)
 
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "n_total": int(n),
-            "n_train": int(len(train)),
-            "n_test": int(len(test)),
-            "n_val": int(len(val)) if val is not None else 0,
+            "n_train": len(train),
+            "n_test": len(test),
+            "n_val": len(val) if val is not None else 0,
             "feature_meta": feat_meta,
             "metric": self.metric,
             "test_method": self.test_method,
