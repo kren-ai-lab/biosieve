@@ -56,6 +56,41 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     return inter / union if union else 0.0
 
 
+def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float, k: int, max_candidates: int) -> None:
+    if not (0.0 <= threshold <= 1.0):
+        msg = "threshold must be in [0, 1]"
+        raise ValueError(msg)
+    if k < 1:
+        msg = "k must be >= 1"
+        raise ValueError(msg)
+    if max_candidates < 1:
+        msg = "max_candidates must be >= 1"
+        raise ValueError(msg)
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+    if cols.seq_col not in df.columns:
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+
+def _prepare_work(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
+    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
+    ids = work[id_col].astype(str).tolist()
+    if len(ids) != len(set(ids)):
+        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+        raise ValueError(msg)
+    return work, ids
+
+
+def _build_mapping(removed_rows: list[tuple[str, str, float]]) -> pd.DataFrame:
+    mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "score"])
+    if len(mapping) == 0:
+        return pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
+    mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"kmer:{x}")
+    return mapping[["removed_id", "representative_id", "cluster_id", "score"]]
+
+
 @dataclass(frozen=True)
 class KmerJaccardReducer:
     r"""Greedy redundancy reduction using Jaccard similarity of k-mer sets.
@@ -126,33 +161,10 @@ class KmerJaccardReducer:
         """Return the strategy identifier."""
         return "kmer_jaccard"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901
         """Reduce sequence redundancy with k-mer candidate pruning."""
-        if not (0.0 <= self.threshold <= 1.0):
-            msg = "threshold must be in [0, 1]"
-            raise ValueError(msg)
-        if self.k < 1:
-            msg = "k must be >= 1"
-            raise ValueError(msg)
-        if self.max_candidates < 1:
-            msg = "max_candidates must be >= 1"
-            raise ValueError(msg)
-
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-        if cols.seq_col not in df.columns:
-            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-
-        ids = work[cols.id_col].astype(str).tolist()
-        if len(ids) != len(set(ids)):
-            msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-            raise ValueError(
-                msg
-            )
+        _validate_inputs(df, cols, self.threshold, self.k, self.max_candidates)
+        work, _ids = _prepare_work(df, cols.id_col)
 
         # Representatives are tracked by work index
         reps_idx: list[int] = []
@@ -171,14 +183,11 @@ class KmerJaccardReducer:
             for token in km:
                 kmer_to_rep.setdefault(token, []).append(rep_pos)
 
-        empty_seq = 0
-
         for i in range(len(work)):
             seq = str(work.loc[i, cols.seq_col])
             cur_id = str(work.loc[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
-                empty_seq += 1
                 msg = (
                     f"Empty/invalid sequence for id={cur_id} in column '{cols.seq_col}'. "
                     "Clean dataset before kmer_jaccard reduction."
@@ -224,15 +233,7 @@ class KmerJaccardReducer:
 
         kept = work.iloc[reps_idx].reset_index(drop=True)
 
-        mapping = pd.DataFrame(
-            removed_rows,
-            columns=["removed_id", "representative_id", "score"],
-        )
-        if len(mapping) > 0:
-            mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"kmer:{x}")
-            mapping = mapping[["removed_id", "representative_id", "cluster_id", "score"]]
-        else:
-            mapping = pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
+        mapping = _build_mapping(removed_rows)
 
         kept["kmer_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"kmer:{x}")
 

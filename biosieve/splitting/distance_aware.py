@@ -299,7 +299,7 @@ class DistanceAwareSplitter:
         msg = "feature_mode must be 'embeddings' or 'descriptors'"
         raise ValueError(msg)
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0912,PLR0915
         """Create train/test/(val) splits using centroid-distance ranking."""
         log.info("distance_aware:start | metric=%s | test_size=%.3f", self.metric, self.test_size)
         log.debug("distance_aware:params | %s", self.__dict__)

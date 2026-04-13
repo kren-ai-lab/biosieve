@@ -122,7 +122,7 @@ class GroupKFoldSplitter:
         """Return the strategy identifier."""
         return "group_kfold"
 
-    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
         """Build group-disjoint folds with optional per-fold validation splits."""
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:

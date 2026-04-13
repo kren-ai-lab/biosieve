@@ -144,7 +144,7 @@ class ClusterAwareSplitter:
         """Return the strategy identifier."""
         return "cluster_aware"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0915
         """Split data by cluster assignments into disjoint partitions."""
         _validate_sizes(self.test_size, self.val_size)
 

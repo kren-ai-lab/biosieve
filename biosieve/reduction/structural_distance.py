@@ -118,7 +118,7 @@ class StructuralDistanceReducer:
         msg = "mode must be 'distance' or 'similarity'"
         raise ValueError(msg)
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901
         """Reduce redundancy using precomputed structural edge relationships."""
         if self.mode not in {"distance", "similarity"}:
             msg = "mode must be 'distance' or 'similarity'"

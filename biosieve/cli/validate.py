@@ -7,7 +7,7 @@ import shutil
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 
 JSONScalar: TypeAlias = str | int | float | bool | None  # noqa: UP040
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]  # noqa: UP040
+
+class _RecordFn(Protocol):
+    def __call__(self, *, ok: bool, msg: str) -> None: ...
 
 INPUT_DATA_OPTION = typer.Option(
     ...,
@@ -305,6 +308,107 @@ def _strategy_requires(strategy: str, kind: str) -> dict[str, bool]:
     return {}
 
 
+def _require_strategy_in_registry(args: SimpleNamespace, registry: StrategyRegistry) -> None:
+    strategy = args.strategy
+    if not strategy:
+        return
+    if args.kind == "reduce":
+        if registry.has_reducer(strategy):
+            return
+        msg = f"Unknown reducer strategy '{strategy}'. Available: {sorted(registry.list_reducers())}"
+        raise ValueError(msg)
+    if registry.has_splitter(strategy):
+        return
+    msg = f"Unknown splitter strategy '{strategy}'. Available: {sorted(registry.list_splitters())}"
+    raise ValueError(msg)
+
+
+def _check_required_col(
+    *,
+    strategy: str,
+    configured: str | None,
+    col_name: str,
+    label: str,
+    df: pd.DataFrame,
+    record: _RecordFn,
+) -> None:
+    prefix = f"[strategy={strategy}]"
+    if not configured:
+        record(ok=False, msg=f"{prefix} FAIL dataset: cols.{label} not configured")
+        return
+    if configured not in df.columns:
+        record(ok=False, msg=f"{prefix} FAIL dataset: missing {col_name} column '{configured}'")
+        return
+    record(ok=True, msg=f"{prefix} OK   dataset: {col_name} column '{configured}' present")
+
+
+def _run_strategy_requirements(
+    *,
+    args: SimpleNamespace,
+    cols: Columns,
+    df: pd.DataFrame,
+    record: _RecordFn,
+) -> None:
+    strategy = args.strategy
+    if not strategy:
+        return
+    req = _strategy_requires(strategy, args.kind)
+    prefix = f"[strategy={strategy}]"
+
+    checks: list[tuple[bool, tuple[bool, str]]] = [
+        (bool(req.get("sequence")), _check_seq_col(df, cols.seq_col)),
+        (bool(req.get("descriptors")), _check_descriptors(df, args.descriptors_prefix)),
+        (
+            bool(req.get("embeddings")),
+            _check_embeddings_alignment(
+                df, cols.id_col, args.embeddings, args.embedding_ids, args.embedding_ids_col
+            ),
+        ),
+        (
+            bool(req.get("edges")),
+            _check_edges(
+                df, cols.id_col, args.edges, args.edges_id1_col, args.edges_id2_col, args.edges_value_col
+            ),
+        ),
+    ]
+    for needed, (ok, msg) in checks:
+        if not needed:
+            continue
+        record(ok=ok, msg=f"{prefix} {msg}")
+
+    col_requirements = [
+        (req.get("label"), cols.label_col, "label", "label_col"),
+        (req.get("group"), cols.group_col, "group", "group_col"),
+        (req.get("cluster"), cols.cluster_col, "cluster", "cluster_col"),
+        (req.get("date"), cols.date_col, "date", "date_col"),
+    ]
+    for needed, configured, col_name, label in col_requirements:
+        if not needed:
+            continue
+        _check_required_col(
+            strategy=strategy,
+            configured=configured,
+            col_name=col_name,
+            label=label,
+            df=df,
+            record=record,
+        )
+
+    if req.get("embeddings_or_descriptors"):
+        ok_emb = args.embeddings is not None and args.embedding_ids is not None
+        ok_desc = any(c.startswith(args.descriptors_prefix) for c in df.columns)
+        if ok_emb or ok_desc:
+            record(ok=True, msg=f"{prefix} OK   embeddings/descriptors requirement satisfied")
+            return
+        record(
+            ok=False,
+            msg=(
+                f"{prefix} FAIL need embeddings (--embeddings + --embedding-ids) "
+                f"OR descriptor columns (prefix '{args.descriptors_prefix}')"
+            ),
+        )
+
+
 # -----------------------------
 # Main validate runner
 # -----------------------------
@@ -374,184 +478,36 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     record(ok=ok, msg=msg)
     df = pd.read_csv(args.in_path)
 
-    # base checks
-    ok, msg = _check_unique_ids(df, cols.id_col)
-    record(ok=ok, msg=msg)
+    base_checks = [
+        _check_unique_ids(df, cols.id_col),
+        _check_seq_col(df, cols.seq_col),
+        _check_embeddings_alignment(
+            df, cols.id_col, args.embeddings, args.embedding_ids, args.embedding_ids_col
+        ),
+        _check_descriptors(df, args.descriptors_prefix),
+        _check_edges(
+            df,
+            cols.id_col,
+            args.edges,
+            args.edges_id1_col,
+            args.edges_id2_col,
+            args.edges_value_col,
+        ),
+    ]
+    for ok, msg in base_checks:
+        record(ok=ok, msg=msg)
 
-    # optional checks (sequence exists)
-    ok, msg = _check_seq_col(df, cols.seq_col)
-    record(ok=ok, msg=msg)
-
-    # embeddings alignment
-    ok, msg = _check_embeddings_alignment(
-        df,
-        cols.id_col,
-        args.embeddings,
-        args.embedding_ids,
-        args.embedding_ids_col,
-    )
-    record(ok=ok, msg=msg)
-
-    # descriptor sanity
-    ok, msg = _check_descriptors(df, args.descriptors_prefix)
-    record(ok=ok, msg=msg)
-
-    # structural edges
-    ok, msg = _check_edges(
-        df,
-        cols.id_col,
-        args.edges,
-        args.edges_id1_col,
-        args.edges_id2_col,
-        args.edges_value_col,
-    )
-    record(ok=ok, msg=msg)
-
-    # mmseqs2
     ok, msg = _check_mmseqs2(args.mmseqs2_binary)
-    # only fail if user is validating mmseqs2 explicitly or strategy requires it
-    must_mmseqs = False
-    if args.strategy and _strategy_requires(args.strategy, args.kind).get("mmseqs2", False):
-        must_mmseqs = True
+    must_mmseqs = bool(args.strategy and _strategy_requires(args.strategy, args.kind).get("mmseqs2", False))
     if must_mmseqs:
         record(ok=ok, msg=msg)
     else:
-        # make it informational
         results.append({"ok": bool(ok), "message": msg, "informational": True})
         typer.echo(msg)
 
-    # Strategy-aware requirements
     if args.strategy:
-        # validate that strategy exists in registry light/full
-        if args.kind == "reduce":
-            if not registry.has_reducer(args.strategy):
-                msg_0 = (
-                    f"Unknown reducer strategy '{args.strategy}'. "
-                    f"Available: {sorted(registry.list_reducers())}"
-                )
-                raise ValueError(
-                    msg_0
-                )
-        elif not registry.has_splitter(args.strategy):
-            msg_0 = (
-                f"Unknown splitter strategy '{args.strategy}'. "
-                f"Available: {sorted(registry.list_splitters())}"
-            )
-            raise ValueError(
-                msg_0
-            )
-
-        req = _strategy_requires(args.strategy, args.kind)
-
-        # resolve requirements against provided artefacts and cols
-        if req.get("sequence"):
-            ok, msg = _check_seq_col(df, cols.seq_col)
-            record(ok=ok, msg=f"[strategy={args.strategy}] {msg}")
-
-        if req.get("descriptors"):
-            ok, msg = _check_descriptors(df, args.descriptors_prefix)
-            record(ok=ok, msg=f"[strategy={args.strategy}] {msg}")
-
-        if req.get("embeddings"):
-            ok, msg = _check_embeddings_alignment(
-                df, cols.id_col, args.embeddings, args.embedding_ids, args.embedding_ids_col
-            )
-            record(ok=ok, msg=f"[strategy={args.strategy}] {msg}")
-
-        if req.get("edges"):
-            ok, msg = _check_edges(
-                df, cols.id_col, args.edges, args.edges_id1_col, args.edges_id2_col, args.edges_value_col
-            )
-            record(ok=ok, msg=f"[strategy={args.strategy}] {msg}")
-
-        if req.get("label"):
-            if not cols.label_col:
-                record(
-                    ok=False,
-                    msg=f"[strategy={args.strategy}] FAIL dataset: cols.label_col not configured",
-                )
-            elif cols.label_col not in df.columns:
-                record(
-                    ok=False,
-                    msg=f"[strategy={args.strategy}] FAIL dataset: missing label column '{cols.label_col}'",
-                )
-            else:
-                record(
-                    ok=True,
-                    msg=f"[strategy={args.strategy}] OK   dataset: label column '{cols.label_col}' present",
-                )
-
-        if req.get("group"):
-            if not cols.group_col:
-                record(
-                    ok=False,
-                    msg=f"[strategy={args.strategy}] FAIL dataset: cols.group_col not configured",
-                )
-            elif cols.group_col not in df.columns:
-                record(
-                    ok=False,
-                    msg=f"[strategy={args.strategy}] FAIL dataset: missing group column '{cols.group_col}'",
-                )
-            else:
-                record(
-                    ok=True,
-                    msg=f"[strategy={args.strategy}] OK   dataset: group column '{cols.group_col}' present",
-                )
-
-        if req.get("cluster"):
-            if not cols.cluster_col:
-                record(
-                    ok=False,
-                    msg=f"[strategy={args.strategy}] FAIL dataset: cols.cluster_col not configured",
-                )
-            elif cols.cluster_col not in df.columns:
-                record(
-                    ok=False,
-                    msg=(
-                        f"[strategy={args.strategy}] FAIL dataset: "
-                        f"missing cluster column '{cols.cluster_col}'"
-                    ),
-                )
-            else:
-                record(
-                    ok=True,
-                    msg=(
-                        f"[strategy={args.strategy}] OK   dataset: "
-                        f"cluster column '{cols.cluster_col}' present"
-                    ),
-                )
-
-        if req.get("date"):
-            if not cols.date_col:
-                record(ok=False, msg=f"[strategy={args.strategy}] FAIL dataset: cols.date_col not configured")
-            elif cols.date_col not in df.columns:
-                record(
-                    ok=False,
-                    msg=f"[strategy={args.strategy}] FAIL dataset: missing date column '{cols.date_col}'",
-                )
-            else:
-                record(
-                    ok=True,
-                    msg=f"[strategy={args.strategy}] OK   dataset: date column '{cols.date_col}' present",
-                )
-
-        if req.get("embeddings_or_descriptors"):
-            ok_emb = args.embeddings is not None and args.embedding_ids is not None
-            ok_desc = any(c.startswith(args.descriptors_prefix) for c in df.columns)
-            if not (ok_emb or ok_desc):
-                record(
-                    ok=False,
-                    msg=(
-                        f"[strategy={args.strategy}] FAIL need embeddings "
-                        f"(--embeddings + --embedding-ids) OR descriptor columns "
-                        f"(prefix '{args.descriptors_prefix}')"
-                    ),
-                )
-            else:
-                record(
-                    ok=True,
-                    msg=f"[strategy={args.strategy}] OK   embeddings/descriptors requirement satisfied",
-                )
+        _require_strategy_in_registry(args, registry)
+    _run_strategy_requirements(args=args, cols=cols, df=df, record=record)
 
     # Optional report output
     if args.report:

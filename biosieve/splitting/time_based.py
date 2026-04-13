@@ -84,7 +84,7 @@ class TimeSplitter:
         """Return the strategy identifier."""
         return "time"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901
         """Create chronological train/test/(val) partitions."""
         log.info("time:start | date_col=%s", cols.date_col)
 

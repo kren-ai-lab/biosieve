@@ -279,7 +279,7 @@ class StratifiedNumericSplitter:
         """Return the strategy identifier."""
         return "stratified_numeric"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # noqa: C901,PLR0912,PLR0915
         """Create numeric-target stratified train/test/(val) partitions."""
         log.info("stratified_numeric:start | label_col=%s | n_bins=%d", cols.label_col, self.n_bins)
         log.debug("stratified_numeric:params | %s", self.__dict__)

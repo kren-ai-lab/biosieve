@@ -25,6 +25,84 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+def _validate_inputs(
+    df: pd.DataFrame,
+    cols: Columns,
+    min_seq_id: float,
+    coverage: float,
+    threads: int,
+) -> None:
+    if not (0.0 <= min_seq_id <= 1.0):
+        msg = "min_seq_id must be in [0, 1]"
+        raise ValueError(msg)
+    if not (0.0 <= coverage <= 1.0):
+        msg = "coverage must be in [0, 1]"
+        raise ValueError(msg)
+    if threads < 1:
+        msg = "threads must be >= 1"
+        raise ValueError(msg)
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+    if cols.seq_col not in df.columns:
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+
+def _build_sequence_map(work: pd.DataFrame, cols: Columns) -> dict[str, str]:
+    seqs: dict[str, str] = {}
+    empty_seq = 0
+    for _, row in work.iterrows():
+        sid = str(row[cols.id_col])
+        seq = str(row[cols.seq_col])
+        if sid in seqs:
+            msg = f"Duplicate ids detected: {sid}. IDs must be unique for MMseqs2 FASTA."
+            raise ValueError(msg)
+        if not seq or seq.lower() == "nan":
+            empty_seq += 1
+        seqs[sid] = seq
+    if empty_seq > 0:
+        msg = (
+            f"Found {empty_seq} empty/invalid sequences in column '{cols.seq_col}'. "
+            "Clean dataset before mmseqs2 reduction."
+        )
+        raise ValueError(msg)
+    return seqs
+
+
+def _build_outputs(
+    *,
+    work: pd.DataFrame,
+    cols: Columns,
+    member_to_rep: dict[str, str],
+    member_to_cluster: dict[str, str],
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    reps = {m for m, rep in member_to_rep.items() if m == rep}
+    kept_df = work[work[cols.id_col].astype(str).isin(reps)].copy()
+    kept_df = kept_df.sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+    removed_rows = [
+        {
+            "removed_id": member,
+            "representative_id": rep,
+            "cluster_id": member_to_cluster[member],
+            "score": None,
+        }
+        for member, rep in member_to_rep.items()
+        if member != rep
+    ]
+    mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "cluster_id", "score"])
+    kept_df["mmseqs2_cluster_id"] = kept_df[cols.id_col].astype(str).map(member_to_cluster)
+    stats: dict[str, Any] = {
+        "n_total": len(work),
+        "n_kept": len(kept_df),
+        "n_removed": len(mapping),
+        "n_clusters": len(reps),
+        "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
+        "note": "Representative selection delegated to MMseqs2 easy-cluster.",
+    }
+    return kept_df, mapping, stats
+
+
 @dataclass(frozen=True)
 class MMseqs2Reducer:
     r"""Homology-based redundancy reduction using MMseqs2 easy-cluster.
@@ -95,48 +173,10 @@ class MMseqs2Reducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         """Run MMseqs2 clustering and return reduced data plus mapping."""
-        # --- basic checks ---
-        if not (0.0 <= self.min_seq_id <= 1.0):
-            msg = "min_seq_id must be in [0, 1]"
-            raise ValueError(msg)
-        if not (0.0 <= self.coverage <= 1.0):
-            msg = "coverage must be in [0, 1]"
-            raise ValueError(msg)
-        if self.threads < 1:
-            msg = "threads must be >= 1"
-            raise ValueError(msg)
-
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-        if cols.seq_col not in df.columns:
-            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
+        _validate_inputs(df, cols, self.min_seq_id, self.coverage, self.threads)
 
         work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-
-        # Build sequence dict (id -> sequence)
-        seqs: dict[str, str] = {}
-        empty_seq = 0
-        for _, row in work.iterrows():
-            sid = str(row[cols.id_col])
-            seq = str(row[cols.seq_col])
-
-            if sid in seqs:
-                msg = f"Duplicate ids detected: {sid}. IDs must be unique for MMseqs2 FASTA."
-                raise ValueError(msg)
-            if not seq or seq.lower() == "nan":
-                empty_seq += 1
-            seqs[sid] = seq
-
-        if empty_seq > 0:
-            msg = (
-                f"Found {empty_seq} empty/invalid sequences in column '{cols.seq_col}'. "
-                "Clean dataset before mmseqs2 reduction."
-            )
-            raise ValueError(
-                msg
-            )
+        seqs = _build_sequence_map(work, cols)
 
         tmp_base = self.tmp_root if self.tmp_root is not None else None
         if tmp_base is not None:
@@ -164,44 +204,12 @@ class MMseqs2Reducer:
 
             member_to_rep = parse_cluster_tsv(paths.cluster_tsv)
             member_to_cluster = build_cluster_ids(member_to_rep)
-
-            # Representatives are those where member_id == representative_id
-            reps = {m for m, rep in member_to_rep.items() if m == rep}
-
-            kept_df = work[work[cols.id_col].astype(str).isin(reps)].copy()
-            kept_df = kept_df.sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-
-            # mapping: every non-representative maps to rep
-            removed_rows = []
-            for member, rep in member_to_rep.items():
-                if member == rep:
-                    continue
-                removed_rows.append(
-                    {
-                        "removed_id": member,
-                        "representative_id": rep,
-                        "cluster_id": member_to_cluster[member],
-                        "score": None,  # not provided by easy-cluster
-                    }
-                )
-
-            mapping = pd.DataFrame(
-                removed_rows,
-                columns=["removed_id", "representative_id", "cluster_id", "score"],
+            kept_df, mapping, stats = _build_outputs(
+                work=work,
+                cols=cols,
+                member_to_rep=member_to_rep,
+                member_to_cluster=member_to_cluster,
             )
-
-            # Optional: attach cluster_id to kept_df too (handy for later)
-            kept_df["mmseqs2_cluster_id"] = kept_df[cols.id_col].astype(str).map(member_to_cluster)
-
-            # extra stats (safe, does not change schema)
-            stats: dict[str, Any] = {
-                "n_total": len(work),
-                "n_kept": len(kept_df),
-                "n_removed": len(mapping),
-                "n_clusters": len(reps),
-                "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
-                "note": "Representative selection delegated to MMseqs2 easy-cluster.",
-            }
 
             # If ReductionResult supports stats, include it; if not, keep inside params.
             params = {

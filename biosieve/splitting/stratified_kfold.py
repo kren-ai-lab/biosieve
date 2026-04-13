@@ -94,7 +94,7 @@ class StratifiedKFoldSplitter:
         """Return the strategy identifier."""
         return "stratified_kfold"
 
-    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
         """Create stratified k-fold splits with optional per-fold validation."""
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:

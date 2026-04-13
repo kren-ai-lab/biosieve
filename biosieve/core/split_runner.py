@@ -68,6 +68,145 @@ def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
         )
 
 
+def _columns_payload(cols: Columns) -> dict[str, str | None]:
+    return {
+        "id_col": cols.id_col,
+        "seq_col": cols.seq_col,
+        "label_col": cols.label_col,
+        "group_col": cols.group_col,
+        "cluster_col": cols.cluster_col,
+        "date_col": cols.date_col,
+    }
+
+
+def _write_split_outputs(out: Path, res: Any) -> None:
+    _write_csv(out / "train.csv", res.train)
+    _write_csv(out / "test.csv", res.test)
+    if res.val is not None:
+        _write_csv(out / "val.csv", res.val)
+
+
+def _build_kfold_report(
+    *,
+    in_path: str,
+    out: Path,
+    strategy: str,
+    strategy_params: dict[str, object],
+    cols: Columns,
+    folds_meta: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "schema_version": "0.1",
+        "timestamp": _utc_timestamp(),
+        "in_path": str(in_path),
+        "outdir": str(out),
+        "strategy": strategy,
+        "strategy_params": strategy_params,
+        "kfold": True,
+        "n_folds": len(folds_meta),
+        "folds": folds_meta,
+        "columns": _columns_payload(cols),
+    }
+
+
+def _build_single_report(
+    *,
+    in_path: str,
+    out: Path,
+    strategy: str,
+    strategy_params: dict[str, object],
+    cols: Columns,
+    res: Any,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "0.1",
+        "timestamp": _utc_timestamp(),
+        "in_path": str(in_path),
+        "outdir": str(out),
+        "strategy": strategy,
+        "strategy_params": strategy_params,
+        "kfold": False,
+        "split_params": res.params,
+        "stats": res.stats,
+        "columns": _columns_payload(cols),
+    }
+
+
+def _run_kfold(
+    *,
+    splitter: KFoldSplitter,
+    df: pd.DataFrame,
+    cols: Columns,
+    strategy: str,
+    out: Path,
+    report_path: str | None,
+    in_path: str,
+    strategy_params: dict[str, object],
+) -> Path:
+    folds = splitter.run_folds(df, cols)
+    if not isinstance(folds, list) or len(folds) == 0:
+        msg = (
+            f"Splitter '{strategy}' returned an invalid folds object. "
+            "Expected a non-empty list of SplitResult."
+        )
+        raise ValueError(msg)
+
+    folds_meta: list[dict[str, Any]] = []
+    for i, res in enumerate(folds):
+        fold_idx = int(res.stats.get("fold_index", i)) if isinstance(res.stats, dict) else i
+        fdir = _ensure_dir(str(out / f"fold_{fold_idx:02d}"))
+        _write_split_outputs(fdir, res)
+        n_val = len(res.val) if res.val is not None else 0
+        log.info(
+            "split:fold | idx=%d | train=%d | val=%d | test=%d",
+            fold_idx,
+            len(res.train),
+            n_val,
+            len(res.test),
+        )
+        folds_meta.append({"fold_index": fold_idx, "split_params": res.params, "stats": res.stats})
+
+    report = _build_kfold_report(
+        in_path=in_path,
+        out=out,
+        strategy=strategy,
+        strategy_params=strategy_params,
+        cols=cols,
+        folds_meta=folds_meta,
+    )
+    rp = Path(report_path) if report_path else (out / "kfold_report.json")
+    _write_json(rp, report)
+    return rp
+
+
+def _run_single(
+    *,
+    splitter: Splitter,
+    df: pd.DataFrame,
+    cols: Columns,
+    strategy: str,
+    out: Path,
+    report_path: str | None,
+    in_path: str,
+    strategy_params: dict[str, object],
+) -> Path:
+    res = splitter.run(df, cols)
+    _write_split_outputs(out, res)
+    n_val = len(res.val) if res.val is not None else 0
+    log.info("split:result | train=%d | val=%d | test=%d", len(res.train), n_val, len(res.test))
+    report = _build_single_report(
+        in_path=in_path,
+        out=out,
+        strategy=strategy,
+        strategy_params=strategy_params,
+        cols=cols,
+        res=res,
+    )
+    rp = Path(report_path) if report_path else (out / "split_report.json")
+    _write_json(rp, report)
+    return rp
+
+
 def run_split(
     in_path: str,
     outdir: str,
@@ -147,109 +286,32 @@ def run_split(
     log.debug("split:strategy_class | %s.%s", splitter_cls.__module__, splitter_cls.__name__)
     splitter = instantiate_strategy(splitter_cls, strategy_params)
 
-    # ----------------------------
-    # K-fold mode: splitter.run_folds
-    # ----------------------------
+    rp: Path
     if isinstance(splitter, KFoldSplitter):
         log.info("split:mode | kfold")
-        folds = splitter.run_folds(df, cols)
-
-        if not isinstance(folds, list) or len(folds) == 0:
-            msg = (
-                f"Splitter '{strategy}' returned an invalid folds object. "
-                "Expected a non-empty list of SplitResult."
-            )
-            raise ValueError(
-                msg
-            )
-
-        folds_meta: list[dict[str, Any]] = []
-        for i, res in enumerate(folds):
-            fold_idx = int(res.stats.get("fold_index", i)) if isinstance(res.stats, dict) else i
-
-            fdir = _ensure_dir(str(out / f"fold_{fold_idx:02d}"))
-            _write_csv(fdir / "train.csv", res.train)
-            _write_csv(fdir / "test.csv", res.test)
-            if res.val is not None:
-                _write_csv(fdir / "val.csv", res.val)
-
-            n_train = len(res.train)
-            n_test = len(res.test)
-            n_val = len(res.val) if res.val is not None else 0
-            log.info("split:fold | idx=%d | train=%d | val=%d | test=%d", fold_idx, n_train, n_val, n_test)
-
-            folds_meta.append(
-                {
-                    "fold_index": fold_idx,
-                    "split_params": res.params,
-                    "stats": res.stats,
-                }
-            )
-
-        rp = Path(report_path) if report_path else (out / "kfold_report.json")
-        report = {
-            "schema_version": "0.1",
-            "timestamp": _utc_timestamp(),
-            "in_path": str(in_path),
-            "outdir": str(out),
-            "strategy": strategy,
-            "strategy_params": strategy_params,
-            "kfold": True,
-            "n_folds": len(folds_meta),
-            "folds": folds_meta,
-            "columns": {
-                "id_col": cols.id_col,
-                "seq_col": cols.seq_col,
-                "label_col": cols.label_col,
-                "group_col": cols.group_col,
-                "cluster_col": cols.cluster_col,
-                "date_col": cols.date_col,
-            },
-        }
-        _write_json(rp, report)
-
-        elapsed = time.time() - t0
-        log.info("split:end | mode=kfold | seconds=%.3f | report=%s", elapsed, str(rp))
-        return
-
-    # ----------------------------
-    # Single split mode: splitter.run
-    # ----------------------------
-    log.info("split:mode | single")
-    single_splitter = cast("Splitter", splitter)
-    res = single_splitter.run(df, cols)
-
-    _write_csv(out / "train.csv", res.train)
-    _write_csv(out / "test.csv", res.test)
-    if res.val is not None:
-        _write_csv(out / "val.csv", res.val)
-
-    n_train = len(res.train)
-    n_test = len(res.test)
-    n_val = len(res.val) if res.val is not None else 0
-    log.info("split:result | train=%d | val=%d | test=%d", n_train, n_val, n_test)
-
-    rp = Path(report_path) if report_path else (out / "split_report.json")
-    report = {
-        "schema_version": "0.1",
-        "timestamp": _utc_timestamp(),
-        "in_path": str(in_path),
-        "outdir": str(out),
-        "strategy": strategy,
-        "strategy_params": strategy_params,
-        "kfold": False,
-        "split_params": res.params,
-        "stats": res.stats,
-        "columns": {
-            "id_col": cols.id_col,
-            "seq_col": cols.seq_col,
-            "label_col": cols.label_col,
-            "group_col": cols.group_col,
-            "cluster_col": cols.cluster_col,
-            "date_col": cols.date_col,
-        },
-    }
-    _write_json(rp, report)
+        rp = _run_kfold(
+            splitter=splitter,
+            df=df,
+            cols=cols,
+            strategy=strategy,
+            out=out,
+            report_path=report_path,
+            in_path=in_path,
+            strategy_params=strategy_params,
+        )
+    else:
+        log.info("split:mode | single")
+        rp = _run_single(
+            splitter=cast("Splitter", splitter),
+            df=df,
+            cols=cols,
+            strategy=strategy,
+            out=out,
+            report_path=report_path,
+            in_path=in_path,
+            strategy_params=strategy_params,
+        )
 
     elapsed = time.time() - t0
-    log.info("split:end | mode=single | seconds=%.3f | report=%s", elapsed, str(rp))
+    mode = "kfold" if isinstance(splitter, KFoldSplitter) else "single"
+    log.info("split:end | mode=%s | seconds=%.3f | report=%s", mode, elapsed, str(rp))

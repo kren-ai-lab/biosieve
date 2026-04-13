@@ -53,6 +53,102 @@ def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray
     return Xz, mu, sd
 
 
+def _validate_run_inputs(
+    *,
+    df: pd.DataFrame,
+    cols: Columns,
+    threshold: float,
+    metric: str,
+    n_jobs: int,
+) -> None:
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+    if threshold < 0:
+        msg = "threshold must be >= 0"
+        raise ValueError(msg)
+    if metric != "euclidean":
+        msg = "v0.1 supports metric='euclidean' only"
+        raise ValueError(msg)
+    if n_jobs < 1:
+        msg = "n_jobs must be >= 1"
+        raise ValueError(msg)
+
+
+def _build_work_ids(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
+    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
+    ids = work[id_col].astype(str).tolist()
+    if len(ids) != len(set(ids)):
+        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+        raise ValueError(msg)
+    return work, ids
+
+
+def _reduce_with_sklearn(
+    *,
+    ids: list[str],
+    X: np.ndarray,
+    threshold: float,
+    n_jobs: int,
+) -> tuple[set[str], dict[str, str], dict[str, float], dict[str, str]] | None:
+    removed: set[str] = set()
+    rep_of: dict[str, str] = {}
+    score_of: dict[str, float] = {}
+    cluster_of: dict[str, str] = {}
+    nn_factory = _try_import_sklearn_nn()
+    if nn_factory is None:
+        return None
+    nn = nn_factory(metric="euclidean", algorithm="auto", n_jobs=n_jobs)
+    nn.fit(X)
+    for i, rep_id in enumerate(ids):
+        if rep_id in removed:
+            continue
+        rep_cluster = f"deuc:{rep_id}"
+        dist, ind = nn.radius_neighbors(X[i : i + 1], radius=float(threshold), return_distance=True)
+        pairs = sorted(zip(dist[0].tolist(), ind[0].tolist(), strict=False), key=lambda x: (x[0], x[1]))
+        for d, j in pairs:
+            if j == i:
+                continue
+            nbr_id = ids[j]
+            if nbr_id in removed:
+                continue
+            removed.add(nbr_id)
+            rep_of[nbr_id] = rep_id
+            score_of[nbr_id] = float(d)
+            cluster_of[nbr_id] = rep_cluster
+    return removed, rep_of, score_of, cluster_of
+
+
+def _reduce_bruteforce(
+    *,
+    ids: list[str],
+    X: np.ndarray,
+    threshold: float,
+    removed: set[str],
+    rep_of: dict[str, str],
+    score_of: dict[str, float],
+    cluster_of: dict[str, str],
+) -> None:
+    for i, rep_id in enumerate(ids):
+        if rep_id in removed:
+            continue
+        rep_cluster = f"deuc:{rep_id}"
+        dists = np.sqrt(((X - X[i]) ** 2).sum(axis=1))
+        order = np.argsort(dists, kind="mergesort")
+        for j in order:
+            if j == i:
+                continue
+            if float(dists[j]) > threshold:
+                break
+            nbr_id = ids[int(j)]
+            if nbr_id in removed:
+                continue
+            removed.add(nbr_id)
+            rep_of[nbr_id] = rep_id
+            score_of[nbr_id] = float(dists[j])
+            cluster_of[nbr_id] = rep_cluster
+
+
 @dataclass(frozen=True)
 class DescriptorEuclideanReducer:
     r"""Greedy redundancy reduction in descriptor space using Euclidean distance.
@@ -136,29 +232,14 @@ class DescriptorEuclideanReducer:
 
     def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
         """Reduce descriptor redundancy and return representatives plus mapping."""
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-
-        if self.threshold < 0:
-            msg = "threshold must be >= 0"
-            raise ValueError(msg)
-        if self.metric != "euclidean":
-            msg = "v0.1 supports metric='euclidean' only"
-            raise ValueError(msg)
-        if self.n_jobs < 1:
-            msg = "n_jobs must be >= 1"
-            raise ValueError(msg)
-
-        # deterministic order
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-
-        ids = work[cols.id_col].astype(str).tolist()
-        if len(ids) != len(set(ids)):
-            msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-            raise ValueError(
-                msg
-            )
+        _validate_run_inputs(
+            df=df,
+            cols=cols,
+            threshold=self.threshold,
+            metric=self.metric,
+            n_jobs=self.n_jobs,
+        )
+        work, ids = _build_work_ids(df, cols.id_col)
 
         dcols = infer_descriptor_columns(
             work,
@@ -174,63 +255,28 @@ class DescriptorEuclideanReducer:
         if self.standardize:
             X, mu, sd = _zscore_fit_transform(X)
 
-        NearestNeighbors = _try_import_sklearn_nn()
-
-        removed: set[str] = set()
-        rep_of: dict[str, str] = {}
-        score_of: dict[str, float] = {}  # distance (lower = closer)
-        cluster_of: dict[str, str] = {}
-
-        if NearestNeighbors is not None:
-            nn = NearestNeighbors(metric="euclidean", algorithm="auto", n_jobs=self.n_jobs)
-            nn.fit(X)
-
-            for i, rep_id in enumerate(ids):
-                if rep_id in removed:
-                    continue
-
-                rep_cluster = f"deuc:{rep_id}"
-                dist, ind = nn.radius_neighbors(
-                    X[i : i + 1], radius=float(self.threshold), return_distance=True
-                )
-                dist = dist[0]
-                ind = ind[0]
-
-                # deterministic: sort by distance asc, then by index
-                pairs = sorted(zip(dist.tolist(), ind.tolist(), strict=False), key=lambda x: (x[0], x[1]))
-
-                for d, j in pairs:
-                    if j == i:
-                        continue
-                    nbr_id = ids[j]
-                    if nbr_id in removed:
-                        continue
-                    removed.add(nbr_id)
-                    rep_of[nbr_id] = rep_id
-                    score_of[nbr_id] = float(d)
-                    cluster_of[nbr_id] = rep_cluster
-
+        reduced = _reduce_with_sklearn(
+            ids=ids,
+            X=X,
+            threshold=self.threshold,
+            n_jobs=self.n_jobs,
+        )
+        if reduced is None:
+            removed: set[str] = set()
+            rep_of: dict[str, str] = {}
+            score_of: dict[str, float] = {}
+            cluster_of: dict[str, str] = {}
+            _reduce_bruteforce(
+                ids=ids,
+                X=X,
+                threshold=self.threshold,
+                removed=removed,
+                rep_of=rep_of,
+                score_of=score_of,
+                cluster_of=cluster_of,
+            )
         else:
-            # fallback brute force O(N^2)
-            for i, rep_id in enumerate(ids):
-                if rep_id in removed:
-                    continue
-                rep_cluster = f"deuc:{rep_id}"
-                diffs = X - X[i]
-                dists = np.sqrt((diffs * diffs).sum(axis=1))
-                order = np.argsort(dists, kind="mergesort")
-                for j in order:
-                    if j == i:
-                        continue
-                    if float(dists[j]) > self.threshold:
-                        break
-                    nbr_id = ids[int(j)]
-                    if nbr_id in removed:
-                        continue
-                    removed.add(nbr_id)
-                    rep_of[nbr_id] = rep_id
-                    score_of[nbr_id] = float(dists[j])
-                    cluster_of[nbr_id] = rep_cluster
+            removed, rep_of, score_of, cluster_of = reduced
 
         keep_ids = [sid for sid in ids if sid not in removed]
         kept_df = work[work[cols.id_col].astype(str).isin(set(keep_ids))].copy()

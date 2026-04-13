@@ -49,6 +49,48 @@ def _approx_identity(a: str, b: str) -> float:
     return matches / max(la, lb)
 
 
+def _validate_inputs(
+    *,
+    df: pd.DataFrame,
+    cols: Columns,
+    threshold: float,
+    k: int,
+    jaccard_prefilter: float,
+    length_tolerance: float,
+    max_candidates: int,
+) -> None:
+    if not (0.0 <= threshold <= 1.0):
+        msg = "threshold must be in [0, 1]"
+        raise ValueError(msg)
+    if k < 1:
+        msg = "k must be >= 1"
+        raise ValueError(msg)
+    if not (0.0 <= jaccard_prefilter <= 1.0):
+        msg = "jaccard_prefilter must be in [0, 1]"
+        raise ValueError(msg)
+    if not (0.0 <= length_tolerance <= 1.0):
+        msg = "length_tolerance must be in [0, 1]"
+        raise ValueError(msg)
+    if max_candidates < 1:
+        msg = "max_candidates must be >= 1"
+        raise ValueError(msg)
+    if cols.id_col not in df.columns:
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+    if cols.seq_col not in df.columns:
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        raise ValueError(msg)
+
+
+def _prepare_work(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
+    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
+    ids = work[id_col].astype(str).tolist()
+    if len(ids) != len(set(ids)):
+        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
+        raise ValueError(msg)
+    return work, ids
+
+
 @dataclass(frozen=True)
 class IdentityGreedyReducer:
     r"""Greedy redundancy reduction using an approximate identity score.
@@ -116,41 +158,18 @@ class IdentityGreedyReducer:
         """Return the strategy identifier."""
         return "identity_greedy"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
         """Reduce sequence redundancy with k-mer prefilter and identity scoring."""
-        # --- parameter validation ---
-        if not (0.0 <= self.threshold <= 1.0):
-            msg = "threshold must be in [0, 1]"
-            raise ValueError(msg)
-        if self.k < 1:
-            msg = "k must be >= 1"
-            raise ValueError(msg)
-        if not (0.0 <= self.jaccard_prefilter <= 1.0):
-            msg = "jaccard_prefilter must be in [0, 1]"
-            raise ValueError(msg)
-        if not (0.0 <= self.length_tolerance <= 1.0):
-            msg = "length_tolerance must be in [0, 1]"
-            raise ValueError(msg)
-        if self.max_candidates < 1:
-            msg = "max_candidates must be >= 1"
-            raise ValueError(msg)
-
-        # --- column validation ---
-        if cols.id_col not in df.columns:
-            msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-        if cols.seq_col not in df.columns:
-            msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
-
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-
-        ids = work[cols.id_col].astype(str).tolist()
-        if len(ids) != len(set(ids)):
-            msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-            raise ValueError(
-                msg
-            )
+        _validate_inputs(
+            df=df,
+            cols=cols,
+            threshold=self.threshold,
+            k=self.k,
+            jaccard_prefilter=self.jaccard_prefilter,
+            length_tolerance=self.length_tolerance,
+            max_candidates=self.max_candidates,
+        )
+        work, _ = _prepare_work(df, cols.id_col)
 
         reps_idx: list[int] = []
         reps_kmers: list[set[str]] = []

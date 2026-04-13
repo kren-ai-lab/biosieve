@@ -287,7 +287,7 @@ class DistanceAwareKFoldSplitter:
         """Return the strategy identifier."""
         return "distance_aware_kfold"
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
         """Create distance-ranked disjoint test folds with optional validation."""
         if self.n_splits < MIN_KFOLD_SPLITS:
             msg = "n_splits must be >= 2"

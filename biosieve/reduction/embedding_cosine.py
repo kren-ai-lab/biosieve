@@ -149,7 +149,7 @@ class EmbeddingCosineReducer:
         """Return the strategy identifier."""
         return "embedding_cosine"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
         """Reduce embedding redundancy and return representatives plus mapping."""
         if not (0.0 <= self.threshold <= 1.0):
             msg = "threshold must be in [0, 1]"
