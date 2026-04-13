@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+    import pytest
+
+
+
 import json
 
 import pandas as pd
@@ -13,12 +23,12 @@ from biosieve.core.strategies import build_registry
 REGISTRY = build_registry()
 
 
-def _write_csv(df, path):
+def _write_csv(df: pd.DataFrame, path: Path) -> Path:
     df.to_csv(path, index=False)
     return path
 
 
-def test_reduce_exact_writes_output(df_base, tmp_path):
+def test_reduce_exact_writes_output(df_base: pd.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     csv_out = tmp_path / "out.csv"
 
@@ -30,7 +40,7 @@ def test_reduce_exact_writes_output(df_base, tmp_path):
     assert len(df_out) <= len(df_base)
 
 
-def test_reduce_writes_map_csv(df_base, tmp_path):
+def test_reduce_writes_map_csv(df_base: pd.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     map_path = tmp_path / "map.csv"
 
@@ -43,7 +53,7 @@ def test_reduce_writes_map_csv(df_base, tmp_path):
     assert "representative_id" in map_df.columns
 
 
-def test_reduce_writes_json_report(df_base, tmp_path):
+def test_reduce_writes_json_report(df_base: pd.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     report_path = tmp_path / "report.json"
 
@@ -56,18 +66,18 @@ def test_reduce_writes_json_report(df_base, tmp_path):
     assert report["stats"]["n_in"] == len(df_base)
 
 
-def test_reduce_unknown_strategy_raises(df_base, tmp_path):
+def test_reduce_unknown_strategy_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     with pytest.raises(ValueError, match="Unknown reducer"):
         run_reduce(str(csv_in), str(tmp_path / "out.csv"), "nonexistent", REGISTRY)
 
 
-def test_reduce_missing_input_raises(tmp_path):
+def test_reduce_missing_input_raises(tmp_path: Path) -> None:
     with pytest.raises(Exception):
         run_reduce(str(tmp_path / "nonexistent.csv"), str(tmp_path / "out.csv"), "exact", REGISTRY)
 
 
-def test_reduce_creates_parent_dirs(df_base, tmp_path):
+def test_reduce_creates_parent_dirs(df_base: pd.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     nested_out = tmp_path / "nested" / "subdir" / "out.csv"
 

@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+
+
+
 from biosieve.splitting.distance_aware_kfold import DistanceAwareKFoldSplitter
 from biosieve.types import Columns
 
@@ -9,7 +18,7 @@ COLS = Columns(id_col="id", seq_col="sequence")
 N_SPLITS = 3
 
 
-def test_returns_n_folds(df_base, embeddings_files):
+def test_returns_n_folds(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareKFoldSplitter(
         n_splits=N_SPLITS,
@@ -22,7 +31,7 @@ def test_returns_n_folds(df_base, embeddings_files):
     assert len(folds) == N_SPLITS
 
 
-def test_each_fold_valid(df_base, embeddings_files):
+def test_each_fold_valid(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareKFoldSplitter(
         n_splits=N_SPLITS,
@@ -38,7 +47,7 @@ def test_each_fold_valid(df_base, embeddings_files):
         assert "fold_index" in res.stats
 
 
-def test_all_ids_appear_in_test_once(df_base, embeddings_files):
+def test_all_ids_appear_in_test_once(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareKFoldSplitter(
         n_splits=N_SPLITS,
@@ -55,7 +64,7 @@ def test_all_ids_appear_in_test_once(df_base, embeddings_files):
     assert set(all_test_ids) == set(df_base["id"])
 
 
-def test_no_overlap_per_fold(df_base, embeddings_files):
+def test_no_overlap_per_fold(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareKFoldSplitter(
         n_splits=N_SPLITS,
@@ -69,7 +78,7 @@ def test_no_overlap_per_fold(df_base, embeddings_files):
         assert set(res.train["id"]) & set(res.test["id"]) == set()
 
 
-def test_descriptors_mode(df_descriptors):
+def test_descriptors_mode(df_descriptors: pd.DataFrame) -> None:
     splitter = DistanceAwareKFoldSplitter(
         n_splits=N_SPLITS,
         feature_mode="descriptors",

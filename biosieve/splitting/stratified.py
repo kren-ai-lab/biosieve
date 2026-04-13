@@ -1,22 +1,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-
-import pandas as pd
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 
-def _try_import_train_test_split():
-    try:
-        from sklearn.model_selection import train_test_split  # type: ignore
+class _TrainTestSplitFn(Protocol):
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        *,
+        test_size: float,
+        random_state: int,
+        shuffle: bool,
+        stratify: pd.Series | None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
-        return train_test_split
+
+def _try_import_train_test_split() -> _TrainTestSplitFn | None:
+    try:
+        from sklearn.model_selection import train_test_split
+
+        return cast("_TrainTestSplitFn", train_test_split)
     except Exception:
         return None
 

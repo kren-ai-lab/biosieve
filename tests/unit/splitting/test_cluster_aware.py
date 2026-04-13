@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.splitting.base import SplitResult
@@ -11,7 +21,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path(df_clustered):
+def test_happy_path(df_clustered: pd.DataFrame) -> None:
     splitter = ClusterAwareSplitter(cluster_col="cluster_id", test_size=0.2, seed=13)
     res = splitter.run(df_clustered, COLS)
 
@@ -22,13 +32,13 @@ def test_happy_path(df_clustered):
     assert len(res.test) > 0
 
 
-def test_no_overlap(df_clustered):
+def test_no_overlap(df_clustered: pd.DataFrame) -> None:
     splitter = ClusterAwareSplitter(cluster_col="cluster_id", test_size=0.2, seed=13)
     res = splitter.run(df_clustered, COLS)
     assert set(res.train["id"]) & set(res.test["id"]) == set()
 
 
-def test_leakage_zero(df_clustered):
+def test_leakage_zero(df_clustered: pd.DataFrame) -> None:
     """Core invariant: no cluster appears in both train and test."""
     splitter = ClusterAwareSplitter(cluster_col="cluster_id", test_size=0.2, seed=13)
     res = splitter.run(df_clustered, COLS)
@@ -36,7 +46,7 @@ def test_leakage_zero(df_clustered):
     assert res.stats["leak_clusters_train_test"] == 0
 
 
-def test_with_mapping_file(df_base, cluster_map_file):
+def test_with_mapping_file(df_base: pd.DataFrame, cluster_map_file: Path) -> None:
     """When cluster_col absent in df but cluster_map_path provided, still works."""
     splitter = ClusterAwareSplitter(
         cluster_map_path=str(cluster_map_file),
@@ -50,7 +60,7 @@ def test_with_mapping_file(df_base, cluster_map_file):
     assert res.stats["leak_clusters_train_test"] == 0
 
 
-def test_missing_cluster_col_raises(df_base):
+def test_missing_cluster_col_raises(df_base: pd.DataFrame) -> None:
     splitter = ClusterAwareSplitter(cluster_col="NONEXISTENT", test_size=0.2)
     with pytest.raises((ValueError, KeyError)):
         splitter.run(df_base, COLS)

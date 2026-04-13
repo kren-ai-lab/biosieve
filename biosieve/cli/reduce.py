@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
-from biosieve.core.registry import StrategyRegistry
 from biosieve.core.runner import run_reduce
 from biosieve.io.params import load_params, params_for_strategy
 from biosieve.types import Columns
+
+if TYPE_CHECKING:
+    from biosieve.core.registry import StrategyRegistry
 
 INPUT_DATA_OPTION = typer.Option(
     ...,

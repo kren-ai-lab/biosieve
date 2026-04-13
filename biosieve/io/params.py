@@ -1,20 +1,23 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from types import ModuleType
 
 
-def _try_import_yaml():
+def _try_import_yaml() -> ModuleType | None:
     try:
-        import yaml  # type: ignore
-
-        return yaml
+        return importlib.import_module("yaml")
     except Exception:
         return None
 
 
-def _load_file(path: Path) -> dict[str, Any]:
+def _load_file(path: Path) -> dict[str, object]:
     if not path.exists():
         raise FileNotFoundError(f"Params file not found: {path}")
 
@@ -37,10 +40,10 @@ def _load_file(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Params root must be a dict. Example: {strategy_name: {param: value}}")
 
-    return data
+    return cast("dict[str, object]", data)
 
 
-def _parse_value(raw: str) -> Any:
+def _parse_value(raw: str) -> object:
     """Parse CLI override values.
     Accepts JSON-like scalars: true/false/null, numbers, strings.
     Also accepts quoted strings.
@@ -61,7 +64,7 @@ def _parse_value(raw: str) -> Any:
         return raw
 
 
-def _split_override(s: str) -> tuple[str, Any]:
+def _split_override(s: str) -> tuple[str, object]:
     if "=" not in s:
         raise ValueError(f"Invalid --set override (missing '='): {s}")
     key, raw = s.split("=", 1)
@@ -71,7 +74,7 @@ def _split_override(s: str) -> tuple[str, Any]:
     return key, _parse_value(raw.strip())
 
 
-def _set_nested(d: dict[str, Any], dotted_key: str, value: Any) -> None:
+def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
     """dotted_key format: strategy.param or strategy.sub.param (we allow nesting).
     Example: embedding_cosine.threshold=0.97
     """
@@ -81,24 +84,24 @@ def _set_nested(d: dict[str, Any], dotted_key: str, value: Any) -> None:
             f"Override key must include strategy and parameter, e.g. embedding_cosine.threshold. Got: {dotted_key}"
         )
 
-    cur: dict[str, Any] = d
+    cur: dict[str, object] = d
     for p in parts[:-1]:
         if p not in cur:
             cur[p] = {}
         if not isinstance(cur[p], dict):
             raise ValueError(f"Cannot set nested key under non-dict path: {p} in {dotted_key}")
-        cur = cur[p]
+        cur = cast("dict[str, object]", cur[p])
     cur[parts[-1]] = value
 
 
 def load_params(
     params_path: str | None,
     overrides: list[str] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Load {strategy_name: {param: value}} from YAML/JSON.
     Apply overrides like: ["embedding_cosine.threshold=0.97", "mmseqs2.threads=32"].
     """
-    base: dict[str, Any] = {}
+    base: dict[str, object] = {}
     if params_path:
         base = _load_file(Path(params_path))
 
@@ -110,7 +113,7 @@ def load_params(
     return base
 
 
-def params_for_strategy(all_params: dict[str, Any], strategy_name: str) -> dict[str, Any]:
+def params_for_strategy(all_params: Mapping[str, object], strategy_name: str) -> dict[str, object]:
     """Return parameter dict for a given strategy, or {} if not present.
     Enforces it must be dict if present.
     """
@@ -121,4 +124,4 @@ def params_for_strategy(all_params: dict[str, Any], strategy_name: str) -> dict[
         return {}
     if not isinstance(v, dict):
         raise ValueError(f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}.")
-    return v
+    return cast("dict[str, object]", v)

@@ -1,25 +1,39 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
 import numpy as np
 import pandas as pd
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
 
 
-def _try_import_train_test_split():
-    try:
-        from sklearn.model_selection import train_test_split  # type: ignore
+class _TrainTestSplitFn(Protocol):
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        *,
+        test_size: float,
+        random_state: int,
+        shuffle: bool,
+        stratify: pd.Series | None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
-        return train_test_split
+
+def _try_import_train_test_split() -> _TrainTestSplitFn | None:
+    try:
+        from sklearn.model_selection import train_test_split
+
+        return cast("_TrainTestSplitFn", train_test_split)
     except Exception:
         return None
 
@@ -68,8 +82,8 @@ def _make_bins_once(
     y: pd.Series,
     *,
     n_bins: int,
-    binning: str,
-    duplicates: str,
+    binning: Literal["quantile", "uniform"],
+    duplicates: Literal["drop", "raise"],
 ) -> tuple[pd.Series, int, list[float] | None]:
     """Create bins once (single attempt).
 
@@ -123,8 +137,8 @@ def _make_bins_safe(
     y: pd.Series,
     *,
     n_bins: int,
-    binning: str,
-    duplicates: str,
+    binning: Literal["quantile", "uniform"],
+    duplicates: Literal["drop", "raise"],
     min_bin_count: int,
     auto_reduce_bins: bool,
 ) -> tuple[pd.Series, int, list[float] | None, list[int], bool]:
@@ -256,8 +270,8 @@ class StratifiedNumericSplitter:
     seed: int = 13
 
     n_bins: int = 10
-    binning: str = "quantile"  # "quantile" | "uniform"
-    duplicates: str = "drop"  # "drop" | "raise" (qcut only)
+    binning: Literal["quantile", "uniform"] = "quantile"
+    duplicates: Literal["drop", "raise"] = "drop"
 
     dropna: bool = True
 
@@ -455,13 +469,14 @@ class StratifiedNumericSplitter:
 
         if val is not None:
             stats["val_label_stats"] = _label_stats(val[self.label_col])
-            stats["val_stage"] = {
+            val_stage: dict[str, object] = {
                 "n_bins_effective": int(val_n_eff) if val_n_eff is not None else None,
                 "attempted_bins": val_attempted_bins,
                 "auto_reduced": val_auto_reduced,
             }
             if self.report_bin_edges:
-                stats["val_stage"]["bin_edges"] = val_edges
+                val_stage["bin_edges"] = val_edges
+            stats["val_stage"] = val_stage
 
         if self.report_bin_edges:
             stats["bin_edges"] = edges

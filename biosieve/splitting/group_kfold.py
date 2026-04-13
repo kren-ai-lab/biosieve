@@ -1,30 +1,55 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol, cast
 
 import pandas as pd
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 
-def _try_import_group_kfold():
-    try:
-        from sklearn.model_selection import GroupKFold  # type: ignore
+class _GroupKFold(Protocol):
+    def split(self, X: object, y: object, groups: object) -> Iterator[tuple[list[int], list[int]]]: ...
 
-        return GroupKFold
+
+class _GroupKFoldFactory(Protocol):
+    def __call__(self, *, n_splits: int) -> _GroupKFold: ...
+
+
+class _TrainTestSplitFn(Protocol):
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        *,
+        test_size: float,
+        random_state: int,
+        shuffle: bool,
+        stratify: None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+
+
+def _try_import_group_kfold() -> _GroupKFoldFactory | None:
+    try:
+        from sklearn.model_selection import GroupKFold
+
+        return cast("_GroupKFoldFactory", GroupKFold)
     except Exception:
         return None
 
 
-def _try_import_train_test_split():
+def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split  # type: ignore
+        from sklearn.model_selection import train_test_split
 
-        return train_test_split
+        return cast("_TrainTestSplitFn", train_test_split)
     except Exception:
         return None
 
@@ -178,6 +203,7 @@ class GroupKFoldSplitter:
 
             if self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
+                assert tts is not None
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

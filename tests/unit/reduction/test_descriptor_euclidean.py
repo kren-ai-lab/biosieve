@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.reduction.base import ReductionResult
@@ -11,7 +20,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path(df_descriptors):
+def test_happy_path(df_descriptors: pd.DataFrame) -> None:
     reducer = DescriptorEuclideanReducer(
         threshold=2.0,
         descriptor_prefix="desc_",
@@ -26,7 +35,7 @@ def test_happy_path(df_descriptors):
     assert set(res.df["id"]).issubset(set(df_descriptors["id"]))
 
 
-def test_mapping_schema(df_descriptors):
+def test_mapping_schema(df_descriptors: pd.DataFrame) -> None:
     reducer = DescriptorEuclideanReducer(threshold=2.0, descriptor_prefix="desc_")
     res = reducer.run(df_descriptors, COLS)
     if res.mapping is not None and len(res.mapping) > 0:
@@ -34,7 +43,7 @@ def test_mapping_schema(df_descriptors):
         assert "representative_id" in res.mapping.columns
 
 
-def test_no_ids_lost(df_descriptors):
+def test_no_ids_lost(df_descriptors: pd.DataFrame) -> None:
     reducer = DescriptorEuclideanReducer(threshold=2.0, descriptor_prefix="desc_")
     res = reducer.run(df_descriptors, COLS)
     if res.mapping is not None and len(res.mapping) > 0:
@@ -44,14 +53,14 @@ def test_no_ids_lost(df_descriptors):
         assert kept | removed == set(df_descriptors["id"].astype(str))
 
 
-def test_zero_threshold_removes_nothing(df_descriptors):
+def test_zero_threshold_removes_nothing(df_descriptors: pd.DataFrame) -> None:
     """threshold=0.0 → no pair within 0 euclidean distance → nothing removed."""
     reducer = DescriptorEuclideanReducer(threshold=0.0, descriptor_prefix="desc_")
     res = reducer.run(df_descriptors, COLS)
     assert len(res.df) == len(df_descriptors)
 
 
-def test_no_matching_prefix_raises(df_descriptors):
+def test_no_matching_prefix_raises(df_descriptors: pd.DataFrame) -> None:
     """When descriptor_prefix matches no columns, should raise."""
     reducer = DescriptorEuclideanReducer(descriptor_prefix="NOMATCH_")
     with pytest.raises((ValueError, Exception)):

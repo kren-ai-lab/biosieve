@@ -1,30 +1,57 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol, cast
 
 import pandas as pd
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 
-def _try_import_stratified_kfold():
-    try:
-        from sklearn.model_selection import StratifiedKFold  # type: ignore
+class _StratifiedKFold(Protocol):
+    def split(self, X: object, y: object) -> Iterator[tuple[list[int], list[int]]]: ...
 
-        return StratifiedKFold
+
+class _StratifiedKFoldFactory(Protocol):
+    def __call__(
+        self, *, n_splits: int, shuffle: bool, random_state: int
+    ) -> _StratifiedKFold: ...
+
+
+class _TrainTestSplitFn(Protocol):
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        *,
+        test_size: float,
+        random_state: int,
+        shuffle: bool,
+        stratify: pd.Series | None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+
+
+def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
+    try:
+        from sklearn.model_selection import StratifiedKFold
+
+        return cast("_StratifiedKFoldFactory", StratifiedKFold)
     except Exception:
         return None
 
 
-def _try_import_train_test_split():
+def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split  # type: ignore
+        from sklearn.model_selection import train_test_split
 
-        return train_test_split
+        return cast("_TrainTestSplitFn", train_test_split)
     except Exception:
         return None
 
@@ -132,6 +159,7 @@ class StratifiedKFoldSplitter:
                 seed_fold = int(self.seed + fold_idx)
 
                 # default: random val from train (robust)
+                assert tts is not None
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

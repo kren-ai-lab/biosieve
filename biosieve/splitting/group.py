@@ -1,22 +1,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-
-import pandas as pd
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    import pandas as pd
+
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 
-def _try_import_gss():
-    try:
-        from sklearn.model_selection import GroupShuffleSplit  # type: ignore
+class _GroupShuffleSplit(Protocol):
+    def split(self, X: object, *, groups: pd.Series) -> Iterator[tuple[list[int], list[int]]]: ...
 
-        return GroupShuffleSplit
+
+class _GroupShuffleSplitFactory(Protocol):
+    def __call__(
+        self, *, n_splits: int, test_size: float, random_state: int
+    ) -> _GroupShuffleSplit: ...
+
+
+def _try_import_gss() -> _GroupShuffleSplitFactory | None:
+    try:
+        from sklearn.model_selection import GroupShuffleSplit
+
+        return cast("_GroupShuffleSplitFactory", GroupShuffleSplit)
     except Exception:
         return None
 

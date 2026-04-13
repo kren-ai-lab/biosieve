@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import fields, is_dataclass
-from typing import Any
 
 
-def instantiate_strategy(cls: type[Any], params: dict[str, Any]) -> Any:
+def instantiate_strategy(cls: type[object], params: dict[str, object]) -> object:
     """Instantiate a strategy class with strict parameter validation.
 
     Unknown parameter keys raise ValueError to prevent silent typos.
@@ -19,7 +18,7 @@ def instantiate_strategy(cls: type[Any], params: dict[str, Any]) -> Any:
 
     Returns
     -------
-    Any
+    object
         Instantiated strategy object.
 
     Raises

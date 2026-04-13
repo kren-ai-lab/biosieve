@@ -5,16 +5,22 @@ import time
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import pandas as pd
 
 from biosieve.core.factory import instantiate_strategy
-from biosieve.core.registry import StrategyRegistry
 from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
 
+if TYPE_CHECKING:
+    from biosieve.core.registry import StrategyRegistry
+    from biosieve.reduction.base import Reducer
+
 log = get_logger(__name__)
+
+JSONScalar: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
 
 def _utc_timestamp() -> str:
@@ -31,7 +37,7 @@ def _ensure_parent(path: str | None) -> None:
         p.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _safe_jsonable(x: Any) -> Any:
+def _safe_jsonable(x: object) -> JSONValue:
     """Convert objects into JSON-serializable representations (best-effort).
 
     Parameters
@@ -41,7 +47,7 @@ def _safe_jsonable(x: Any) -> Any:
 
     Returns
     -------
-    Any
+    JSONValue
         JSON-serializable version of `x`.
 
     Notes
@@ -58,7 +64,7 @@ def _safe_jsonable(x: Any) -> Any:
         return [_safe_jsonable(v) for v in x]
     if isinstance(x, dict):
         return {str(k): _safe_jsonable(v) for k, v in x.items()}
-    if is_dataclass(x):
+    if is_dataclass(x) and not isinstance(x, type):
         return _safe_jsonable(asdict(x))
     return str(x)
 
@@ -85,8 +91,8 @@ def run_reduce(
     cols: Columns | None = None,
     map_path: str | None = None,
     report_path: str | None = None,
-    strategy_params: dict[str, Any] | None = None,
-    read_csv_kwargs: dict[str, Any] | None = None,
+    strategy_params: dict[str, object] | None = None,
+    read_csv_kwargs: dict[str, object] | None = None,
 ) -> None:
     """Execute redundancy reduction and export artefacts to disk.
 
@@ -173,7 +179,7 @@ def run_reduce(
     _ensure_parent(map_path)
     _ensure_parent(report_path)
 
-    df = pd.read_csv(in_path, **read_csv_kwargs)
+    df = pd.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
 
     log.info("reduce:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
 
@@ -184,7 +190,7 @@ def run_reduce(
     # Reducers SHOULD raise if they require sequence and it is missing.
 
     reducer_cls = registry.get_reducer_class(strategy)
-    reducer = instantiate_strategy(reducer_cls, strategy_params)
+    reducer = cast("Reducer", instantiate_strategy(reducer_cls, strategy_params))
 
     res = reducer.run(df, cols)
 
@@ -205,7 +211,7 @@ def run_reduce(
         n_out = len(res.df)
         n_removed = int(n_in - n_out)
 
-        report: dict[str, Any] = {
+        report: dict[str, JSONValue] = {
             "schema_version": "0.1",
             "timestamp": _utc_timestamp(),
             "in_path": str(in_path),
@@ -232,7 +238,7 @@ def run_reduce(
     log.info(
         "reduce:result | n_kept=%d | n_removed=%d | ratio=%.4f",
         len(res.df),
-        len(res.mapping) if getattr(res, "mapping", None) is not None else 0,
+        len(res.mapping) if res.mapping is not None else 0,
         (len(res.df) / len(df)) if len(df) else 0.0,
     )
 

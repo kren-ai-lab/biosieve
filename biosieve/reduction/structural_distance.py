@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from biosieve.reduction.backends.structure_backend import load_edges_csv
 from biosieve.reduction.base import ReductionResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 

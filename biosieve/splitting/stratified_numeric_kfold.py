@@ -1,32 +1,58 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
 import numpy as np
 import pandas as pd
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 
-def _try_import_stratified_kfold():
-    try:
-        from sklearn.model_selection import StratifiedKFold  # type: ignore
+class _StratifiedKFold(Protocol):
+    def split(self, X: object, y: object) -> Iterator[tuple[list[int], list[int]]]: ...
 
-        return StratifiedKFold
+
+class _StratifiedKFoldFactory(Protocol):
+    def __call__(
+        self, *, n_splits: int, shuffle: bool, random_state: int
+    ) -> _StratifiedKFold: ...
+
+
+class _TrainTestSplitFn(Protocol):
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        *,
+        test_size: float,
+        random_state: int,
+        shuffle: bool,
+        stratify: None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+
+
+def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
+    try:
+        from sklearn.model_selection import StratifiedKFold
+
+        return cast("_StratifiedKFoldFactory", StratifiedKFold)
     except Exception:
         return None
 
 
-def _try_import_train_test_split():
+def _try_import_train_test_split() -> _TrainTestSplitFn | None:
     try:
-        from sklearn.model_selection import train_test_split  # type: ignore
+        from sklearn.model_selection import train_test_split
 
-        return train_test_split
+        return cast("_TrainTestSplitFn", train_test_split)
     except Exception:
         return None
 
@@ -65,8 +91,8 @@ def _make_bins_once(
     y: pd.Series,
     *,
     n_bins: int,
-    binning: str,
-    duplicates: str,
+    binning: Literal["quantile", "uniform"],
+    duplicates: Literal["drop", "raise"],
     return_edges: bool,
 ) -> tuple[pd.Series, int, list[float] | None]:
     if n_bins < 2:
@@ -105,8 +131,8 @@ def _make_bins_safe(
     y: pd.Series,
     *,
     n_bins: int,
-    binning: str,
-    duplicates: str,
+    binning: Literal["quantile", "uniform"],
+    duplicates: Literal["drop", "raise"],
     min_bin_count: int,
     auto_reduce_bins: bool,
     return_edges: bool,
@@ -231,8 +257,8 @@ class StratifiedNumericKFoldSplitter:
     seed: int = 13
 
     n_bins: int = 10
-    binning: str = "quantile"
-    duplicates: str = "drop"
+    binning: Literal["quantile", "uniform"] = "quantile"
+    duplicates: Literal["drop", "raise"] = "drop"
 
     auto_reduce_bins: bool = True
     min_bin_count: int = 2
@@ -314,6 +340,7 @@ class StratifiedNumericKFoldSplitter:
             val_df: pd.DataFrame | None = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
+                assert tts is not None
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,
@@ -325,8 +352,8 @@ class StratifiedNumericKFoldSplitter:
                 val_df = val_df.reset_index(drop=True)
 
             # IMPORTANT: bin counts reported using GLOBAL bins, not recomputed bins.
-            train_bins = bins.iloc[train_idx].reset_index(drop=True)
-            test_bins = bins.iloc[test_idx].reset_index(drop=True)
+            train_bins = pd.Series(bins.to_numpy()[np.asarray(train_idx, dtype=int)]).reset_index(drop=True)
+            test_bins = pd.Series(bins.to_numpy()[np.asarray(test_idx, dtype=int)]).reset_index(drop=True)
 
             stats: dict[str, Any] = {
                 "fold_index": int(fold_idx),

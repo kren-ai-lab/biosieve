@@ -7,6 +7,18 @@ deterministic and independent of the example files in examples/.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+    import pytest
+
+    from biosieve.core.registry import StrategyRegistry
+
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -154,7 +166,7 @@ def edges_fixture(df_base: pd.DataFrame) -> pd.DataFrame:
 
 
 @pytest.fixture
-def csv_path(df_base: pd.DataFrame, tmp_path):
+def csv_path(df_base: pd.DataFrame, tmp_path: Path) -> Path:
     """Write df_base to a CSV file; return the Path."""
     p = tmp_path / "dataset.csv"
     df_base.to_csv(p, index=False)
@@ -162,7 +174,7 @@ def csv_path(df_base: pd.DataFrame, tmp_path):
 
 
 @pytest.fixture
-def embeddings_files(embeddings_fixture, tmp_path):
+def embeddings_files(embeddings_fixture: tuple[np.ndarray, list[str]], tmp_path: Path) -> tuple[Path, Path]:
     """Write embeddings.npy + ids.csv; return (emb_path, ids_path)."""
     X, ids = embeddings_fixture
     emb_path = tmp_path / "embeddings.npy"
@@ -173,7 +185,7 @@ def embeddings_files(embeddings_fixture, tmp_path):
 
 
 @pytest.fixture
-def edges_file(edges_fixture: pd.DataFrame, tmp_path):
+def edges_file(edges_fixture: pd.DataFrame, tmp_path: Path) -> Path:
     """Write edges CSV; return the Path."""
     p = tmp_path / "struct_edges.csv"
     edges_fixture.to_csv(p, index=False)
@@ -181,7 +193,7 @@ def edges_file(edges_fixture: pd.DataFrame, tmp_path):
 
 
 @pytest.fixture
-def cluster_map_file(df_clustered: pd.DataFrame, tmp_path):
+def cluster_map_file(df_clustered: pd.DataFrame, tmp_path: Path) -> Path:
     """Write (id, cluster_id) mapping CSV; return the Path."""
     p = tmp_path / "cluster_map.csv"
     df_clustered[["id", "cluster_id"]].to_csv(p, index=False)
@@ -194,5 +206,5 @@ def cluster_map_file(df_clustered: pd.DataFrame, tmp_path):
 
 
 @pytest.fixture(scope="session")
-def registry():
+def registry() -> StrategyRegistry:
     return build_registry()

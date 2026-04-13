@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 
 from biosieve.reduction.backends.descriptor_backend import extract_descriptor_matrix, infer_descriptor_columns
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 

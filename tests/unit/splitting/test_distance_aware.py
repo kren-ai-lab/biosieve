@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.splitting.base import SplitResult
@@ -11,7 +21,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path_embeddings(df_base, embeddings_files):
+def test_happy_path_embeddings(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
@@ -29,7 +39,7 @@ def test_happy_path_embeddings(df_base, embeddings_files):
     assert len(res.test) > 0
 
 
-def test_no_overlap_embeddings(df_base, embeddings_files):
+def test_no_overlap_embeddings(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
@@ -42,7 +52,7 @@ def test_no_overlap_embeddings(df_base, embeddings_files):
     assert set(res.train["id"]) & set(res.test["id"]) == set()
 
 
-def test_stats_have_distance_info(df_base, embeddings_files):
+def test_stats_have_distance_info(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
@@ -55,7 +65,7 @@ def test_stats_have_distance_info(df_base, embeddings_files):
     assert "distance_stats_global" in res.stats or "feature_meta" in res.stats
 
 
-def test_happy_path_descriptors(df_descriptors):
+def test_happy_path_descriptors(df_descriptors: pd.DataFrame) -> None:
     splitter = DistanceAwareSplitter(
         feature_mode="descriptors",
         descriptor_prefix="desc_",
@@ -69,7 +79,7 @@ def test_happy_path_descriptors(df_descriptors):
     assert set(res.train["id"]) & set(res.test["id"]) == set()
 
 
-def test_missing_embeddings_raises(df_base, tmp_path):
+def test_missing_embeddings_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
         embeddings_path=str(tmp_path / "nonexistent.npy"),

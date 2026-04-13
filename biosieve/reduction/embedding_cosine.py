@@ -1,33 +1,59 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
 import pandas as pd
 
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.reduction.base import ReductionResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 
-def _try_import_faiss():
-    try:
-        import faiss  # type: ignore
+class _FaissIndex(Protocol):
+    def add(self, X: np.ndarray) -> None: ...
 
-        return faiss
+    def search(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]: ...
+
+
+class _FaissModule(Protocol):
+    def IndexFlatIP(self, d: int) -> _FaissIndex: ...
+
+
+class _NearestNeighborsModel(Protocol):
+    def fit(self, X: np.ndarray) -> object: ...
+
+    def radius_neighbors(
+        self, X: np.ndarray, *, radius: float, return_distance: bool
+    ) -> tuple[np.ndarray, np.ndarray]: ...
+
+
+class _NearestNeighborsFactory(Protocol):
+    def __call__(
+        self, *, metric: str, algorithm: str, n_jobs: int
+    ) -> _NearestNeighborsModel: ...
+
+
+def _try_import_faiss() -> _FaissModule | None:
+    try:
+        import faiss
+
+        return cast("_FaissModule", faiss)
     except Exception:
         return None
 
 
-def _try_import_sklearn_nn():
+def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
     try:
-        from sklearn.neighbors import NearestNeighbors  # type: ignore
+        from sklearn.neighbors import NearestNeighbors
 
-        return NearestNeighbors
+        return cast("_NearestNeighborsFactory", NearestNeighbors)
     except Exception:
         return None
 

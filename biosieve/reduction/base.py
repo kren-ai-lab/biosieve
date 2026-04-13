@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
-from biosieve.types import Columns
+    from biosieve.types import Columns
 
 __all__ = ["Reducer", "ReductionResult"]
 

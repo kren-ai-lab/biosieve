@@ -2,25 +2,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
 import pandas as pd
 
 from biosieve.splitting.base import SplitResult
-from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from biosieve.types import Columns
 
 log = get_logger(__name__)
 
 _INTERNAL_IDX_COL = "_biosieve_row_idx__"
 
 
-def _try_import_train_test_split():
-    try:
-        from sklearn.model_selection import train_test_split  # type: ignore
+class _TrainTestSplitFn(Protocol):
+    def __call__(
+        self,
+        df: pd.DataFrame,
+        *,
+        test_size: float,
+        random_state: int,
+        shuffle: bool,
+        stratify: None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
 
-        return train_test_split
+
+def _try_import_train_test_split() -> _TrainTestSplitFn | None:
+    try:
+        from sklearn.model_selection import train_test_split
+
+        return cast("_TrainTestSplitFn", train_test_split)
     except Exception:
         return None
 
@@ -360,6 +374,7 @@ class DistanceAwareKFoldSplitter:
             val_df: pd.DataFrame | None = None
             if self.val_size and self.val_size > 0:
                 seed_fold = int(self.seed + fold_idx)
+                assert tts is not None
                 train_df, val_df = tts(
                     train_df,
                     test_size=self.val_size,

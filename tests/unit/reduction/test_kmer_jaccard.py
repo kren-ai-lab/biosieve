@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.reduction.base import ReductionResult
@@ -11,7 +20,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path(df_base):
+def test_happy_path(df_base: pd.DataFrame) -> None:
     reducer = KmerJaccardReducer(threshold=0.3, k=3)
     res = reducer.run(df_base, COLS)
 
@@ -22,7 +31,7 @@ def test_happy_path(df_base):
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base):
+def test_mapping_schema(df_base: pd.DataFrame) -> None:
     reducer = KmerJaccardReducer(threshold=0.3, k=3)
     res = reducer.run(df_base, COLS)
     if res.mapping is not None and len(res.mapping) > 0:
@@ -30,7 +39,7 @@ def test_mapping_schema(df_base):
         assert "representative_id" in res.mapping.columns
 
 
-def test_no_ids_lost(df_base):
+def test_no_ids_lost(df_base: pd.DataFrame) -> None:
     reducer = KmerJaccardReducer(threshold=0.3, k=3)
     res = reducer.run(df_base, COLS)
     if res.mapping is not None and len(res.mapping) > 0:
@@ -40,14 +49,14 @@ def test_no_ids_lost(df_base):
         assert kept | removed == set(df_base["id"].astype(str))
 
 
-def test_high_threshold_removes_nothing(df_base):
+def test_high_threshold_removes_nothing(df_base: pd.DataFrame) -> None:
     """threshold=1.0 → only perfect k-mer overlap → random seqs all kept."""
     reducer = KmerJaccardReducer(threshold=1.0, k=3)
     res = reducer.run(df_base, COLS)
     assert len(res.df) == len(df_base)
 
 
-def test_missing_sequence_col(df_base):
+def test_missing_sequence_col(df_base: pd.DataFrame) -> None:
     bad_cols = Columns(id_col="id", seq_col="NONEXISTENT")
     reducer = KmerJaccardReducer()
     with pytest.raises((ValueError, KeyError)):

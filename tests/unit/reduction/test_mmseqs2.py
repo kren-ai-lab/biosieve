@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+    import pytest
+
+
+
 import shutil
 
 import pytest
@@ -16,12 +26,12 @@ COLS = Columns(id_col="id", seq_col="sequence")
 
 
 @pytest.fixture(autouse=True)
-def require_mmseqs():
+def require_mmseqs() -> None:
     if shutil.which("mmseqs") is None:
         pytest.skip("mmseqs binary not found in PATH")
 
 
-def test_happy_path(df_base, tmp_path):
+def test_happy_path(df_base: pd.DataFrame, tmp_path: Path) -> None:
     reducer = MMseqs2Reducer(
         min_seq_id=0.9,
         coverage=0.8,
@@ -38,7 +48,7 @@ def test_happy_path(df_base, tmp_path):
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base, tmp_path):
+def test_mapping_schema(df_base: pd.DataFrame, tmp_path: Path) -> None:
     reducer = MMseqs2Reducer(
         min_seq_id=0.9,
         threads=1,
@@ -50,7 +60,7 @@ def test_mapping_schema(df_base, tmp_path):
         assert "representative_id" in res.mapping.columns
 
 
-def test_missing_sequence_col(df_base):
+def test_missing_sequence_col(df_base: pd.DataFrame) -> None:
     bad_cols = Columns(id_col="id", seq_col="NONEXISTENT")
     reducer = MMseqs2Reducer()
     with pytest.raises((ValueError, KeyError)):

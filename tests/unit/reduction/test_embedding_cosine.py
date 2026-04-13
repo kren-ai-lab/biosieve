@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.reduction.base import ReductionResult
@@ -11,7 +21,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path(df_base, embeddings_files):
+def test_happy_path(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     reducer = EmbeddingCosineReducer(
         embeddings_path=str(emb_path),
@@ -29,7 +39,7 @@ def test_happy_path(df_base, embeddings_files):
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base, embeddings_files):
+def test_mapping_schema(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     reducer = EmbeddingCosineReducer(
         embeddings_path=str(emb_path),
@@ -43,7 +53,7 @@ def test_mapping_schema(df_base, embeddings_files):
         assert "representative_id" in res.mapping.columns
 
 
-def test_high_threshold_removes_nothing(df_base, embeddings_files):
+def test_high_threshold_removes_nothing(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     """threshold=1.0 (max cosine similarity) → nothing removed."""
     emb_path, ids_path = embeddings_files
     reducer = EmbeddingCosineReducer(
@@ -56,7 +66,7 @@ def test_high_threshold_removes_nothing(df_base, embeddings_files):
     assert len(res.df) == len(df_base)
 
 
-def test_missing_embeddings_file_raises(df_base, tmp_path):
+def test_missing_embeddings_file_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
     reducer = EmbeddingCosineReducer(
         embeddings_path=str(tmp_path / "nonexistent.npy"),
         ids_path=str(tmp_path / "nonexistent_ids.csv"),

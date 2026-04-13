@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
+from typing import TYPE_CHECKING
 
 import typer
 
 import biosieve
-from biosieve.core.registry import StrategyRegistry
 from biosieve.core.strategies import build_registry
 from biosieve.utils.logging import configure_logging
+
+if TYPE_CHECKING:
+    from biosieve.core.registry import StrategyRegistry
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 

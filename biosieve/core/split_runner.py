@@ -4,14 +4,17 @@ import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
 from biosieve.core.factory import instantiate_strategy
-from biosieve.core.registry import StrategyRegistry
+from biosieve.splitting.base import KFoldSplitter, Splitter
 from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
+
+if TYPE_CHECKING:
+    from biosieve.core.registry import StrategyRegistry
 
 log = get_logger(__name__)
 
@@ -69,8 +72,8 @@ def run_split(
     *,
     cols: Columns | None = None,
     report_path: str | None = None,
-    strategy_params: dict[str, Any] | None = None,
-    read_csv_kwargs: dict[str, Any] | None = None,
+    strategy_params: dict[str, object] | None = None,
+    read_csv_kwargs: dict[str, object] | None = None,
 ) -> None:
     """Run a splitting strategy and export split artefacts to disk.
 
@@ -140,7 +143,7 @@ def run_split(
     log.info("split:params | %s", strategy_params)
 
     # Read + validate input
-    df = pd.read_csv(in_path, **read_csv_kwargs)
+    df = pd.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
     _validate_input_df(df, cols)
 
     log.info("split:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
@@ -154,9 +157,9 @@ def run_split(
     # ----------------------------
     # K-fold mode: splitter.run_folds
     # ----------------------------
-    if hasattr(splitter, "run_folds") and callable(splitter.run_folds):
+    if isinstance(splitter, KFoldSplitter):
         log.info("split:mode | kfold")
-        folds = splitter.run_folds(df, cols)  # type: ignore[attr-defined]
+        folds = splitter.run_folds(df, cols)
 
         if not isinstance(folds, list) or len(folds) == 0:
             raise ValueError(
@@ -217,7 +220,8 @@ def run_split(
     # Single split mode: splitter.run
     # ----------------------------
     log.info("split:mode | single")
-    res = splitter.run(df, cols)
+    single_splitter = cast("Splitter", splitter)
+    res = single_splitter.run(df, cols)
 
     _write_csv(out / "train.csv", res.train)
     _write_csv(out / "test.csv", res.test)

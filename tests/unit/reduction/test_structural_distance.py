@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.reduction.base import ReductionResult
@@ -11,7 +21,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path(df_base, edges_file):
+def test_happy_path(df_base: pd.DataFrame, edges_file: Path) -> None:
     reducer = StructuralDistanceReducer(
         edges_path=str(edges_file),
         threshold=0.4,
@@ -25,7 +35,7 @@ def test_happy_path(df_base, edges_file):
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base, edges_file):
+def test_mapping_schema(df_base: pd.DataFrame, edges_file: Path) -> None:
     reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.4)
     res = reducer.run(df_base, COLS)
     if res.mapping is not None and len(res.mapping) > 0:
@@ -33,7 +43,7 @@ def test_mapping_schema(df_base, edges_file):
         assert "representative_id" in res.mapping.columns
 
 
-def test_no_ids_lost(df_base, edges_file):
+def test_no_ids_lost(df_base: pd.DataFrame, edges_file: Path) -> None:
     reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.4)
     res = reducer.run(df_base, COLS)
     if res.mapping is not None and len(res.mapping) > 0:
@@ -43,14 +53,14 @@ def test_no_ids_lost(df_base, edges_file):
         assert kept | removed == set(df_base["id"].astype(str))
 
 
-def test_zero_threshold_removes_nothing(df_base, edges_file):
+def test_zero_threshold_removes_nothing(df_base: pd.DataFrame, edges_file: Path) -> None:
     """threshold=0.0 → no pair passes → nothing removed."""
     reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.0)
     res = reducer.run(df_base, COLS)
     assert len(res.df) == len(df_base)
 
 
-def test_missing_edges_file_raises(df_base, tmp_path):
+def test_missing_edges_file_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
     reducer = StructuralDistanceReducer(
         edges_path=str(tmp_path / "nonexistent_edges.csv"),
     )

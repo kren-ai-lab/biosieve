@@ -3,15 +3,20 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, TypeAlias
 
 import numpy as np
 import pandas as pd
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
-from biosieve.core.registry import StrategyRegistry
 from biosieve.types import Columns
+
+if TYPE_CHECKING:
+    from biosieve.core.registry import StrategyRegistry
+
+JSONScalar: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 
 INPUT_DATA_OPTION = typer.Option(
     ...,
@@ -121,7 +126,7 @@ def _load_cols(cols_arg: str | None) -> Columns:
     return Columns(**d)
 
 
-def _jsonable(x: Any) -> Any:
+def _jsonable(x: object) -> JSONValue:
     if x is None:
         return None
     if isinstance(x, (str, int, float, bool)):
@@ -130,7 +135,7 @@ def _jsonable(x: Any) -> Any:
         return [_jsonable(v) for v in x]
     if isinstance(x, dict):
         return {str(k): _jsonable(v) for k, v in x.items()}
-    if is_dataclass(x):
+    if is_dataclass(x) and not isinstance(x, type):
         return _jsonable(asdict(x))
     return str(x)
 
@@ -359,7 +364,7 @@ def validate(
 def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     cols = _load_cols(args.cols)
 
-    results: list[dict[str, Any]] = []
+    results: list[dict[str, JSONValue]] = []
     errors = 0
 
     def record(ok: bool, msg: str) -> None:

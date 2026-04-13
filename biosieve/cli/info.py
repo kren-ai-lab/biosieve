@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from dataclasses import fields, is_dataclass
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING
 
 import typer
 
-from biosieve.core.registry import StrategyRegistry
 from biosieve.core.spec import StrategySpec
 from biosieve.core.strategies import build_registry
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from biosieve.core.registry import StrategyRegistry
 
 KIND_OPTION = typer.Option(
     "all",
@@ -24,17 +28,17 @@ SHOW_DEFAULTS_OPTION = typer.Option(
 )
 
 
-def _defaults_for_cls(cls: Any) -> dict[str, Any]:
+def _defaults_for_cls(cls: type[object]) -> dict[str, object]:
     if not is_dataclass(cls):
         return {}
-    out: dict[str, Any] = {}
+    out: dict[str, object] = {}
     for f in fields(cls):
         # Skip fields that are not init params if needed; for your dataclasses it's fine.
         out[f.name] = f.default
     return out
 
 
-def _print_block(title: str, items: dict[str, Any]) -> None:
+def _print_block(title: str, items: Mapping[str, StrategySpec | type[object]]) -> None:
     print(f"\n{title}")
     print("-" * len(title))
     for name in sorted(items.keys()):
@@ -57,7 +61,7 @@ def info(
     _run_info(args, build_registry())
 
 
-def _run_info(args: Any, registry: StrategyRegistry) -> None:
+def _run_info(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     if args.kind in {"all", "reduce"}:
         _print_block("Reducers", registry.list_reducers())
 

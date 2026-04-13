@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+
+    import pandas as pd
+    import pytest
+
+
+
 import pytest
 
 from biosieve.splitting.group_kfold import GroupKFoldSplitter
@@ -12,13 +21,13 @@ COLS = Columns(id_col="id", seq_col="sequence")
 N_SPLITS = 3
 
 
-def test_returns_n_folds(df_grouped):
+def test_returns_n_folds(df_grouped: pd.DataFrame) -> None:
     splitter = GroupKFoldSplitter(n_splits=N_SPLITS, group_col="group", seed=13)
     folds = splitter.run_folds(df_grouped, COLS)
     assert len(folds) == N_SPLITS
 
 
-def test_each_fold_valid(df_grouped):
+def test_each_fold_valid(df_grouped: pd.DataFrame) -> None:
     splitter = GroupKFoldSplitter(n_splits=N_SPLITS, group_col="group", seed=13)
     folds = splitter.run_folds(df_grouped, COLS)
     for res in folds:
@@ -27,7 +36,7 @@ def test_each_fold_valid(df_grouped):
         assert "fold_index" in res.stats
 
 
-def test_all_ids_appear_in_test_once(df_grouped):
+def test_all_ids_appear_in_test_once(df_grouped: pd.DataFrame) -> None:
     splitter = GroupKFoldSplitter(n_splits=N_SPLITS, group_col="group", seed=13)
     folds = splitter.run_folds(df_grouped, COLS)
     all_test_ids = []
@@ -37,14 +46,14 @@ def test_all_ids_appear_in_test_once(df_grouped):
     assert set(all_test_ids) == set(df_grouped["id"])
 
 
-def test_no_overlap_per_fold(df_grouped):
+def test_no_overlap_per_fold(df_grouped: pd.DataFrame) -> None:
     splitter = GroupKFoldSplitter(n_splits=N_SPLITS, group_col="group", seed=13)
     folds = splitter.run_folds(df_grouped, COLS)
     for res in folds:
         assert set(res.train["id"]) & set(res.test["id"]) == set()
 
 
-def test_leakage_zero_per_fold(df_grouped):
+def test_leakage_zero_per_fold(df_grouped: pd.DataFrame) -> None:
     """Core invariant: no group appears in both train and test within any fold."""
     splitter = GroupKFoldSplitter(n_splits=N_SPLITS, group_col="group", seed=13)
     folds = splitter.run_folds(df_grouped, COLS)
@@ -55,7 +64,7 @@ def test_leakage_zero_per_fold(df_grouped):
         assert train_groups & test_groups == set()
 
 
-def test_missing_group_col_raises(df_base):
+def test_missing_group_col_raises(df_base: pd.DataFrame) -> None:
     splitter = GroupKFoldSplitter(n_splits=N_SPLITS, group_col="NONEXISTENT")
     with pytest.raises((ValueError, KeyError)):
         splitter.run_folds(df_base, COLS)
