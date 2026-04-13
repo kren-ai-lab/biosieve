@@ -22,7 +22,7 @@ app = typer.Typer(
 
 @app.callback()
 def root(
-    _version: bool | None = typer.Option(
+    _version: bool | None = typer.Option(  # noqa: FBT001
         None,
         "--version",
         "-v",

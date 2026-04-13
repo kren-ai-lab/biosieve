@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
@@ -85,7 +85,7 @@ def split(
     csv_separator: str = CSV_SEPARATOR_OPTION,
     encoding: str = ENCODING_OPTION,
     log_level: str = LOG_LEVEL_OPTION,
-    quiet: bool = QUIET_OPTION,
+    quiet: bool = QUIET_OPTION,  # noqa: FBT001
     log_file: Path | None = LOG_FILE_OPTION,
 ) -> None:
     """Split a dataset into train/test(/val) using a selected strategy."""

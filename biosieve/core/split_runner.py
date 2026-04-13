@@ -138,7 +138,7 @@ def run_split(
 
     # Validate strategy name early (avoid silent typos)
     if not registry.has_splitter(strategy):
-        available = sorted(list(registry.list_splitters().keys()))
+        available = sorted(registry.list_splitters().keys())
         msg = f"Unknown split strategy '{strategy}'. Available: {available}"
         raise ValueError(msg)
 

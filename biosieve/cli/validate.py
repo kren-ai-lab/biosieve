@@ -17,8 +17,8 @@ from biosieve.types import Columns
 if TYPE_CHECKING:
     from biosieve.core.registry import StrategyRegistry
 
-JSONScalar: TypeAlias = str | int | float | bool | None
-JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
+JSONScalar: TypeAlias = str | int | float | bool | None  # noqa: UP040
+JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]  # noqa: UP040
 
 INPUT_DATA_OPTION = typer.Option(
     ...,
@@ -95,7 +95,7 @@ KIND_OPTION = typer.Option(
     show_default=True,
 )
 FAIL_FAST_OPTION = typer.Option(
-    False,
+    False,  # noqa: FBT003
     "--fail-fast/--no-fail-fast",
     help="Stop at first error.",
     show_default=True,
@@ -116,10 +116,7 @@ def _load_cols(cols_arg: str | None) -> Columns:
         return Columns(id_col="id", seq_col="sequence")
 
     p = Path(cols_arg)
-    if p.exists():
-        text = p.read_text(encoding="utf-8")
-    else:
-        text = cols_arg
+    text = p.read_text(encoding="utf-8") if p.exists() else cols_arg
 
     d = json.loads(text)
     return Columns(**d)
@@ -170,7 +167,7 @@ def _check_seq_col(df: pd.DataFrame, seq_col: str | None) -> tuple[bool, str]:
     return True, f"OK   dataset: sequence column present ('{seq_col}')"
 
 
-def _check_embeddings_alignment(
+def _check_embeddings_alignment(  # noqa: PLR0911
     df: pd.DataFrame,
     id_col: str,
     embeddings_path: str | None,
@@ -194,11 +191,7 @@ def _check_embeddings_alignment(
 
     # Load ids CSV
     ids_df = pd.read_csv(pI)
-    if ids_col not in ids_df.columns and len(ids_df.columns) == 1:
-        # tolerate single-col CSV
-        ids_col_eff = ids_df.columns[0]
-    else:
-        ids_col_eff = ids_col
+    ids_col_eff = ids_df.columns[0] if ids_col not in ids_df.columns and len(ids_df.columns) == 1 else ids_col
     if ids_col_eff not in ids_df.columns:
         return False, f"FAIL embeddings: ids column '{ids_col}' not found in {list(ids_df.columns)}"
 
@@ -281,32 +274,31 @@ def _strategy_requires(strategy: str, kind: str) -> dict[str, bool]:
     """Minimal requirements mapping.
     Adjust as you add more strategies.
     """
+    reduce_requirements: dict[str, dict[str, bool]] = {
+        "embedding_cosine": {"embeddings": True},
+        "descriptor_euclidean": {"descriptors": True},
+        "structural_distance": {"edges": True},
+        "mmseqs2": {"mmseqs2": True},
+        "kmer_jaccard": {"sequence": True},
+        "identity_greedy": {"sequence": True},
+        "exact": {"sequence": True},
+    }
+    split_requirements: dict[str, dict[str, bool]] = {
+        "stratified": {"label": True},
+        "stratified_numeric": {"label": True},
+        "stratified_numeric_kfold": {"label": True},
+        "group": {"group": True},
+        "group_kfold": {"group": True},
+        "time": {"date": True},
+        "distance_aware": {"embeddings_or_descriptors": True},
+        "distance_aware_kfold": {"embeddings_or_descriptors": True},
+        "homology_aware": {"mmseqs2": True},
+        "cluster_aware": {"cluster": True},
+    }
     if kind == "reduce":
-        if strategy == "embedding_cosine":
-            return {"embeddings": True}
-        if strategy == "descriptor_euclidean":
-            return {"descriptors": True}
-        if strategy == "structural_distance":
-            return {"edges": True}
-        if strategy == "mmseqs2":
-            return {"mmseqs2": True}
-        if strategy in {"kmer_jaccard", "identity_greedy", "exact"}:
-            return {"sequence": True}
+        return reduce_requirements.get(strategy, {})
     if kind == "split":
-        if strategy == "stratified":
-            return {"label": True}
-        if strategy in {"stratified_numeric", "stratified_numeric_kfold"}:
-            return {"label": True}
-        if strategy in {"group", "group_kfold"}:
-            return {"group": True}
-        if strategy == "time":
-            return {"date": True}
-        if strategy in {"distance_aware", "distance_aware_kfold"}:
-            return {"embeddings_or_descriptors": True}
-        if strategy == "homology_aware":
-            return {"mmseqs2": True}
-        if strategy == "cluster_aware":
-            return {"cluster": True}
+        return split_requirements.get(strategy, {})
     return {}
 
 
@@ -327,10 +319,10 @@ def validate(
     mmseqs2_binary: str = MMSEQS2_BINARY_OPTION,
     strategy: str | None = STRATEGY_OPTION,
     kind: str = KIND_OPTION,
-    fail_fast: bool = FAIL_FAST_OPTION,
+    fail_fast: bool = FAIL_FAST_OPTION,  # noqa: FBT001
     report_output: Path | None = REPORT_OUTPUT_OPTION,
     log_level: str = LOG_LEVEL_OPTION,
-    quiet: bool = QUIET_OPTION,
+    quiet: bool = QUIET_OPTION,  # noqa: FBT001
     log_file: Path | None = LOG_FILE_OPTION,
 ) -> None:
     """Validate dataset inputs and optional artefacts before split/reduce runs."""

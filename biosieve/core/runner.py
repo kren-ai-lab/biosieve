@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-JSONScalar: TypeAlias = str | int | float | bool | None
-JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
+JSONScalar: TypeAlias = str | int | float | bool | None  # noqa: UP040
+JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]  # noqa: UP040
 
 
 def _utc_timestamp() -> str:
@@ -176,7 +176,7 @@ def run_reduce(
     read_csv_kwargs = read_csv_kwargs or {}
 
     if strategy not in registry.reducers:
-        available = sorted(list(registry.reducers.keys()))
+        available = sorted(registry.reducers.keys())
         msg = f"Unknown reducer strategy '{strategy}'. Available: {available}"
         raise ValueError(msg)
 

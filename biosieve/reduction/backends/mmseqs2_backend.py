@@ -76,7 +76,7 @@ def run_mmseqs_easy_cluster(
     if extra_args:
         cmd.extend(extra_args)
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603
     if proc.returncode != 0:
         msg = f"MMseqs2 failed.\nCommand: {' '.join(cmd)}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}\n"
         raise RuntimeError(
@@ -110,8 +110,8 @@ def parse_cluster_tsv(cluster_tsv: Path) -> dict[str, str]:
     """
     mapping: dict[str, str] = {}
     with cluster_tsv.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+        for raw_line in f:
+            line = raw_line.strip()
             if not line:
                 continue
             rep, member = line.split("\t")[:2]

@@ -381,8 +381,8 @@ class DistanceAwareKFoldSplitter:
         folds: list[SplitResult] = []
         all_idx = np.arange(n, dtype=int)
 
-        for fold_idx, test_idx in enumerate(test_slices):
-            test_idx = np.asarray(test_idx, dtype=int)
+        for fold_idx, test_slice in enumerate(test_slices):
+            test_idx = np.asarray(test_slice, dtype=int)
 
             mask = np.ones(n, dtype=bool)
             mask[test_idx] = False

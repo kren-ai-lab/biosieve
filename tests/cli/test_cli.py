@@ -35,6 +35,7 @@ def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[byt
         [uv_bin, "run", "biosieve", *args],
         capture_output=True,
         cwd=str(cwd or PROJECT_ROOT),
+        check=False,
     )
 
 

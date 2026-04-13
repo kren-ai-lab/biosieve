@@ -403,8 +403,8 @@ class DistanceAwareSplitter:
         else:
             val_idx = []
 
-        test_set = set(int(i) for i in test_idx)
-        val_set = set(int(i) for i in val_idx)
+        test_set = {int(i) for i in test_idx}
+        val_set = {int(i) for i in val_idx}
 
         # TRAIN gets everything not in test/val (including missing-feature rows)
         train_idx = [i for i in range(n) if i not in test_set and i not in val_set]
@@ -415,7 +415,7 @@ class DistanceAwareSplitter:
 
         # Distance stats are computed only for samples WITH FEATURES
         # We can still compute per-split stats by intersecting indices with feat_idx.
-        feat_idx_set = set(int(i) for i in feat_idx.tolist())
+        feat_idx_set = {int(i) for i in feat_idx.tolist()}
 
         def _subset_dist(idxs: list[int]) -> np.ndarray:
             # idxs are dataframe row indices; select those that have features

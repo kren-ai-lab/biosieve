@@ -15,11 +15,7 @@ class EmbeddingStore:
 
 def _read_ids_csv(ids_path: Path, id_col: str = "id") -> list[str]:
     df = pd.read_csv(ids_path)
-    if id_col in df.columns:
-        ids = df[id_col].astype(str).tolist()
-    else:
-        # fallback: first column
-        ids = df.iloc[:, 0].astype(str).tolist()
+    ids = df[id_col].astype(str).tolist() if id_col in df.columns else df.iloc[:, 0].astype(str).tolist()
     if len(ids) == 0:
         msg = f"No ids found in ids file: {ids_path}"
         raise ValueError(msg)
