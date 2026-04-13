@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import asdict, is_dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -15,6 +15,11 @@ from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
 
 log = get_logger(__name__)
+
+
+def _utc_timestamp() -> str:
+    """Return an ISO 8601 UTC timestamp with a trailing Z."""
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _ensure_parent(path: Optional[str]) -> None:
@@ -202,7 +207,7 @@ def run_reduce(
 
         report: Dict[str, Any] = {
             "schema_version": "0.1",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": _utc_timestamp(),
             "in_path": str(in_path),
             "out_path": str(out_path),
             "map_path": str(map_path) if map_path else None,

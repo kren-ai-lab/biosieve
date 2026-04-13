@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +14,11 @@ from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
 
 log = get_logger(__name__)
+
+
+def _utc_timestamp() -> str:
+    """Return an ISO 8601 UTC timestamp with a trailing Z."""
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _ensure_dir(path: str) -> Path:
@@ -185,7 +190,7 @@ def run_split(
         rp = Path(report_path) if report_path else (out / "kfold_report.json")
         report = {
             "schema_version": "0.1",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": _utc_timestamp(),
             "in_path": str(in_path),
             "outdir": str(out),
             "strategy": strategy,
@@ -227,7 +232,7 @@ def run_split(
     rp = Path(report_path) if report_path else (out / "split_report.json")
     report = {
         "schema_version": "0.1",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": _utc_timestamp(),
         "in_path": str(in_path),
         "outdir": str(out),
         "strategy": strategy,
