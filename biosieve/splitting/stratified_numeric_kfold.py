@@ -89,6 +89,8 @@ class StratifiedNumericKFoldSplitter:
             train = work[train_idx]
             test = work[test_idx]
             val = None
+            train_global_idx = np.asarray(train_idx, dtype=int)
+            val_global_idx = np.asarray([], dtype=int)
             if self.val_size > 0:
                 if tts is None:
                     raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
@@ -102,6 +104,8 @@ class StratifiedNumericKFoldSplitter:
                 )
                 val = train[val_idx]
                 train = train[train_keep_idx]
+                train_global_idx = np.asarray(train_idx, dtype=int)[np.asarray(train_keep_idx, dtype=int)]
+                val_global_idx = np.asarray(train_idx, dtype=int)[np.asarray(val_idx, dtype=int)]
 
             folds.append(
                 SplitResult(
@@ -125,7 +129,9 @@ class StratifiedNumericKFoldSplitter:
                         "n_test": test.height,
                         "n_val": val.height if val is not None else 0,
                         "n_bins_effective": n_eff,
-                        "train_bin_counts": _bin_counts(bins[np.asarray(train_idx, dtype=int)]),
+                        "train_bin_counts": _bin_counts(bins[train_global_idx])
+                        if train_global_idx.size
+                        else {},
                         "test_bin_counts": _bin_counts(bins[np.asarray(test_idx, dtype=int)]),
                         "train_label_stats": _label_stats(
                             train[self.label_col].cast(pl.Float64, strict=False).to_numpy()
@@ -136,4 +142,8 @@ class StratifiedNumericKFoldSplitter:
                     },
                 )
             )
+            if val is not None:
+                folds[-1].stats["val_bin_counts"] = (
+                    _bin_counts(bins[val_global_idx]) if val_global_idx.size else {}
+                )
         return folds

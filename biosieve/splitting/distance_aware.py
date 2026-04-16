@@ -127,6 +127,16 @@ class DistanceAwareSplitter:
             raise ValueError("Split sizes leave no valid train/test partition.")
 
         X, feat_idx, feat_meta = self._build_features(work, cols)
+        n_feat = int(feat_idx.size)
+        if n_feat < n_test:
+            msg = f"Not enough feature-covered samples to allocate test split: need {n_test}, found {n_feat}."
+            raise ValueError(msg)
+        if n_val > 0 and n_feat < n_test + n_val:
+            msg = (
+                "Not enough feature-covered samples to allocate test and validation splits: "
+                f"need {n_test + n_val}, found {n_feat}."
+            )
+            raise ValueError(msg)
         dist = _distance_to_centroid(X, self.metric)
         order = feat_idx[np.argsort(-dist, kind="mergesort")]
         test_idx = order[:n_test].tolist()

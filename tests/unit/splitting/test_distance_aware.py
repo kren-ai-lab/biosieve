@@ -10,7 +10,8 @@ if TYPE_CHECKING:
     import polars as pl
     import pytest
 
-
+import numpy as np
+import polars as pl
 import pytest
 
 from biosieve.splitting.base import SplitResult
@@ -73,4 +74,25 @@ def test_missing_embeddings_raises(df_base: pl.DataFrame, tmp_path: Path) -> Non
         test_size=0.2,
     )
     with pytest.raises(FileNotFoundError):
+        splitter.run(df_base, COLS)
+
+
+def test_partial_embedding_coverage_raises_for_undersized_feature_pool(
+    df_base: pl.DataFrame, tmp_path: Path
+) -> None:
+    covered = df_base.head(2)
+    emb_path = tmp_path / "embeddings.npy"
+    ids_path = tmp_path / "embedding_ids.csv"
+    np.save(emb_path, np.zeros((covered.height, 4), dtype=np.float32))
+    pl.DataFrame({"id": covered["id"].cast(pl.String).to_list()}).write_csv(ids_path)
+
+    splitter = DistanceAwareSplitter(
+        feature_mode="embeddings",
+        embeddings_path=str(emb_path),
+        ids_path=str(ids_path),
+        test_size=0.2,
+        val_size=0.1,
+        seed=13,
+    )
+    with pytest.raises(ValueError, match="Not enough feature-covered samples"):
         splitter.run(df_base, COLS)

@@ -140,6 +140,8 @@ class StratifiedNumericSplitter:
         test = work[test_idx]
         train = trainval
         val = None
+        train_global_idx = np.asarray(trainval_idx, dtype=int)
+        val_global_idx = np.asarray([], dtype=int)
 
         if self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
@@ -157,6 +159,8 @@ class StratifiedNumericSplitter:
             )
             train = trainval[train_idx]
             val = trainval[val_idx]
+            train_global_idx = np.asarray(trainval_idx, dtype=int)[np.asarray(train_idx, dtype=int)]
+            val_global_idx = np.asarray(trainval_idx, dtype=int)[np.asarray(val_idx, dtype=int)]
 
         stats: dict[str, Any] = {
             "n_total": df.height,
@@ -172,14 +176,13 @@ class StratifiedNumericSplitter:
                 train[self.label_col].cast(pl.Float64, strict=False).to_numpy()
             ),
             "test_label_stats": _label_stats(test[self.label_col].cast(pl.Float64, strict=False).to_numpy()),
-            "train_bin_counts": _bin_counts(bins[np.asarray(trainval_idx, dtype=int)[: train.height]])
-            if train.height <= len(trainval_idx)
-            else {},
+            "train_bin_counts": _bin_counts(bins[train_global_idx]) if train_global_idx.size else {},
         }
         if val is not None:
             stats["val_label_stats"] = _label_stats(
                 val[self.label_col].cast(pl.Float64, strict=False).to_numpy()
             )
+            stats["val_bin_counts"] = _bin_counts(bins[val_global_idx]) if val_global_idx.size else {}
 
         return SplitResult(
             train=train,
