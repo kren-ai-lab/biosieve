@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    import pandas as pd
+    import polars as pl
 
     from biosieve.types import Columns
 
@@ -42,9 +42,9 @@ class SplitResult:
 
     """
 
-    train: pd.DataFrame
-    test: pd.DataFrame
-    val: pd.DataFrame | None
+    train: pl.DataFrame
+    test: pl.DataFrame
+    val: pl.DataFrame | None
     strategy: str
     params: dict[str, Any]
     stats: dict[str, Any]
@@ -66,7 +66,7 @@ class Splitter(Protocol):
         """Return the splitter strategy identifier."""
         ...
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:  # pragma: no cover
+    def run(self, df: pl.DataFrame, cols: Columns) -> SplitResult:  # pragma: no cover
         """Run a single split and return train/test/val data."""
         ...
 
@@ -93,6 +93,6 @@ class KFoldSplitter(Protocol):
         """Return the splitter strategy identifier."""
         ...
 
-    def run_folds(self, df: pd.DataFrame, cols: Columns) -> list[SplitResult]:  # pragma: no cover
+    def run_folds(self, df: pl.DataFrame, cols: Columns) -> list[SplitResult]:  # pragma: no cover
         """Run k-fold splitting and return one result per fold."""
         ...

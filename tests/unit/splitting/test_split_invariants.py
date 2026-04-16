@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
     from biosieve.splitting.base import KFoldSplitter, SplitResult, Splitter
@@ -53,15 +53,15 @@ N_SPLITS = 3
 )
 def splitter_and_df(
     request: pytest.FixtureRequest,
-    df_base: pd.DataFrame,
-    df_labeled: pd.DataFrame,
-    df_grouped: pd.DataFrame,
-    df_timed: pd.DataFrame,
-    df_clustered: pd.DataFrame,
-    df_full: pd.DataFrame,
+    df_base: pl.DataFrame,
+    df_labeled: pl.DataFrame,
+    df_grouped: pl.DataFrame,
+    df_timed: pl.DataFrame,
+    df_clustered: pl.DataFrame,
+    df_full: pl.DataFrame,
     embeddings_files: tuple[Path, Path],
     cluster_map_file: Path,
-) -> tuple[Splitter, pd.DataFrame]:
+) -> tuple[Splitter, pl.DataFrame]:
     from biosieve.splitting.cluster import ClusterAwareSplitter
     from biosieve.splitting.distance_aware import DistanceAwareSplitter
     from biosieve.splitting.group import GroupSplitter
@@ -117,19 +117,19 @@ def splitter_and_df(
 # ---------------------------------------------------------------------------
 
 
-def test_no_overlap(splitter_and_df: tuple[Splitter, pd.DataFrame]) -> None:
+def test_no_overlap(splitter_and_df: tuple[Splitter, pl.DataFrame]) -> None:
     """No sample id appears in both train and test."""
     splitter, df = splitter_and_df
     res: SplitResult = splitter.run(df, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
+    assert set(res.train["id"].to_list()) & set(res.test["id"].to_list()) == set()
 
 
-def test_all_ids_covered(splitter_and_df: tuple[Splitter, pd.DataFrame]) -> None:
+def test_all_ids_covered(splitter_and_df: tuple[Splitter, pl.DataFrame]) -> None:
     """train + test (+ val) accounts for every input sample exactly once."""
     splitter, df = splitter_and_df
     res: SplitResult = splitter.run(df, COLS)
-    total = len(res.train) + len(res.test) + (len(res.val) if res.val is not None else 0)
-    assert total == len(df)
+    total = res.train.height + res.test.height + (res.val.height if res.val is not None else 0)
+    assert total == df.height
 
 
 # ---------------------------------------------------------------------------
@@ -148,12 +148,12 @@ def test_all_ids_covered(splitter_and_df: tuple[Splitter, pd.DataFrame]) -> None
 )
 def kfold_splitter_and_df(
     request: pytest.FixtureRequest,
-    df_base: pd.DataFrame,
-    df_labeled: pd.DataFrame,
-    df_grouped: pd.DataFrame,
-    df_full: pd.DataFrame,
+    df_base: pl.DataFrame,
+    df_labeled: pl.DataFrame,
+    df_grouped: pl.DataFrame,
+    df_full: pl.DataFrame,
     embeddings_files: tuple[Path, Path],
-) -> tuple[KFoldSplitter, pd.DataFrame]:
+) -> tuple[KFoldSplitter, pl.DataFrame]:
     from biosieve.splitting.distance_aware_kfold import DistanceAwareKFoldSplitter
     from biosieve.splitting.group_kfold import GroupKFoldSplitter
     from biosieve.splitting.random_kfold import RandomKFoldSplitter
@@ -192,33 +192,33 @@ def kfold_splitter_and_df(
 # ---------------------------------------------------------------------------
 
 
-def test_kfold_returns_n_folds(kfold_splitter_and_df: tuple[KFoldSplitter, pd.DataFrame]) -> None:
+def test_kfold_returns_n_folds(kfold_splitter_and_df: tuple[KFoldSplitter, pl.DataFrame]) -> None:
     splitter, df = kfold_splitter_and_df
     folds = splitter.run_folds(df, COLS)
     assert len(folds) == N_SPLITS
 
 
-def test_kfold_each_fold_nonempty(kfold_splitter_and_df: tuple[KFoldSplitter, pd.DataFrame]) -> None:
+def test_kfold_each_fold_nonempty(kfold_splitter_and_df: tuple[KFoldSplitter, pl.DataFrame]) -> None:
     splitter, df = kfold_splitter_and_df
     folds = splitter.run_folds(df, COLS)
     for res in folds:
-        assert len(res.train) > 0
-        assert len(res.test) > 0
+        assert res.train.height > 0
+        assert res.test.height > 0
         assert "fold_index" in res.stats
 
 
-def test_kfold_all_ids_appear_in_test_once(kfold_splitter_and_df: tuple[KFoldSplitter, pd.DataFrame]) -> None:
+def test_kfold_all_ids_appear_in_test_once(kfold_splitter_and_df: tuple[KFoldSplitter, pl.DataFrame]) -> None:
     """Complete coverage: every sample is in the test set of exactly one fold."""
     splitter, df = kfold_splitter_and_df
     folds = splitter.run_folds(df, COLS)
-    all_test_ids = [res.test["id"].tolist() for res in folds]
+    all_test_ids = [res.test["id"].to_list() for res in folds]
     flat = [i for fold_ids in all_test_ids for i in fold_ids]
-    assert len(flat) == len(df)
-    assert set(flat) == set(df["id"])
+    assert len(flat) == df.height
+    assert set(flat) == set(df["id"].to_list())
 
 
-def test_kfold_no_overlap_per_fold(kfold_splitter_and_df: tuple[KFoldSplitter, pd.DataFrame]) -> None:
+def test_kfold_no_overlap_per_fold(kfold_splitter_and_df: tuple[KFoldSplitter, pl.DataFrame]) -> None:
     splitter, df = kfold_splitter_and_df
     folds = splitter.run_folds(df, COLS)
     for res in folds:
-        assert set(res.train["id"]) & set(res.test["id"]) == set()
+        assert set(res.train["id"].to_list()) & set(res.test["id"].to_list()) == set()

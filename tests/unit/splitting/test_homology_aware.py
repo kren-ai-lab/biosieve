@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
 
@@ -26,7 +26,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path_precomputed(df_base: pd.DataFrame, cluster_map_file: Path) -> None:
+def test_happy_path_precomputed(df_base: pl.DataFrame, cluster_map_file: Path) -> None:
     splitter = HomologyAwareSplitter(
         mode="precomputed",
         clusters_path=str(cluster_map_file),
@@ -40,12 +40,12 @@ def test_happy_path_precomputed(df_base: pd.DataFrame, cluster_map_file: Path) -
 
     assert isinstance(res, SplitResult)
     assert res.strategy == "homology_aware"
-    assert len(res.train) + len(res.test) == len(df_base)
-    assert len(res.train) > 0
-    assert len(res.test) > 0
+    assert res.train.height + res.test.height == df_base.height
+    assert res.train.height > 0
+    assert res.test.height > 0
 
 
-def test_leakage_zero_precomputed(df_base: pd.DataFrame, cluster_map_file: Path) -> None:
+def test_leakage_zero_precomputed(df_base: pl.DataFrame, cluster_map_file: Path) -> None:
     """Core invariant: no homology cluster in both train and test."""
     splitter = HomologyAwareSplitter(
         mode="precomputed",
@@ -60,7 +60,7 @@ def test_leakage_zero_precomputed(df_base: pd.DataFrame, cluster_map_file: Path)
     assert res.stats["leak_clusters_train_test"] == 0
 
 
-def test_missing_clusters_path_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_missing_clusters_path_raises(df_base: pl.DataFrame, tmp_path: Path) -> None:
     splitter = HomologyAwareSplitter(
         mode="precomputed",
         clusters_path=str(tmp_path / "nonexistent.csv"),
@@ -78,7 +78,7 @@ def test_missing_clusters_path_raises(df_base: pd.DataFrame, tmp_path: Path) -> 
 
 
 @pytest.mark.mmseqs2
-def test_happy_path_mmseqs2(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_happy_path_mmseqs2(df_base: pl.DataFrame, tmp_path: Path) -> None:
     if shutil.which("mmseqs") is None:
         pytest.skip("mmseqs binary not found in PATH")
 

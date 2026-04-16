@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import polars as pl
 
 from biosieve.reduction.backends.mmseqs2_backend import (
     build_cluster_ids,
@@ -26,7 +26,7 @@ log = get_logger(__name__)
 
 
 def _validate_inputs(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: Columns,
     min_seq_id: float,
     coverage: float,
@@ -42,17 +42,17 @@ def _validate_inputs(
         msg = "threads must be >= 1"
         raise ValueError(msg)
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     if cols.seq_col not in df.columns:
-        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
-def _build_sequence_map(work: pd.DataFrame, cols: Columns) -> dict[str, str]:
+def _build_sequence_map(work: pl.DataFrame, cols: Columns) -> dict[str, str]:
     seqs: dict[str, str] = {}
     empty_seq = 0
-    for _, row in work.iterrows():
+    for row in work.iter_rows(named=True):
         sid = str(row[cols.id_col])
         seq = str(row[cols.seq_col])
         if sid in seqs:
@@ -72,14 +72,13 @@ def _build_sequence_map(work: pd.DataFrame, cols: Columns) -> dict[str, str]:
 
 def _build_outputs(
     *,
-    work: pd.DataFrame,
+    work: pl.DataFrame,
     cols: Columns,
     member_to_rep: dict[str, str],
     member_to_cluster: dict[str, str],
-) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+) -> tuple[pl.DataFrame, pl.DataFrame, dict[str, Any]]:
     reps = {m for m, rep in member_to_rep.items() if m == rep}
-    kept_df = work[work[cols.id_col].astype(str).isin(reps)].copy()
-    kept_df = kept_df.sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+    kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(reps))
     removed_rows = [
         {
             "removed_id": member,
@@ -90,14 +89,30 @@ def _build_outputs(
         for member, rep in member_to_rep.items()
         if member != rep
     ]
-    mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "cluster_id", "score"])
-    kept_df["mmseqs2_cluster_id"] = kept_df[cols.id_col].astype(str).map(member_to_cluster)
+    mapping = (
+        pl.DataFrame(removed_rows)
+        if removed_rows
+        else pl.DataFrame(
+            schema={
+                "removed_id": pl.String,
+                "representative_id": pl.String,
+                "cluster_id": pl.String,
+                "score": pl.Float64,
+            }
+        )
+    )
+    kept_df = kept_df.with_columns(
+        pl.col(cols.id_col)
+        .cast(pl.String)
+        .replace(member_to_cluster)
+        .alias("mmseqs2_cluster_id")
+    )
     stats: dict[str, Any] = {
-        "n_total": len(work),
-        "n_kept": len(kept_df),
-        "n_removed": len(mapping),
+        "n_total": work.height,
+        "n_kept": kept_df.height,
+        "n_removed": mapping.height,
         "n_clusters": len(reps),
-        "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
+        "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
         "note": "Representative selection delegated to MMseqs2 easy-cluster.",
     }
     return kept_df, mapping, stats
@@ -169,11 +184,11 @@ class MMseqs2Reducer:
         """Return the strategy identifier."""
         return "mmseqs2"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:
         """Run MMseqs2 clustering and return reduced data plus mapping."""
         _validate_inputs(df, cols, self.min_seq_id, self.coverage, self.threads)
 
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+        work = df.clone().sort(cols.id_col, maintain_order=True)
         seqs = _build_sequence_map(work, cols)
 
         tmp_base = self.tmp_root if self.tmp_root is not None else None

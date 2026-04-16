@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
 
@@ -20,7 +20,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path(df_base: pd.DataFrame, edges_file: Path) -> None:
+def test_happy_path(df_base: pl.DataFrame, edges_file: Path) -> None:
     reducer = StructuralDistanceReducer(
         edges_path=str(edges_file),
         threshold=0.4,
@@ -29,19 +29,19 @@ def test_happy_path(df_base: pd.DataFrame, edges_file: Path) -> None:
 
     assert isinstance(res, ReductionResult)
     assert res.strategy == "structural_distance"
-    assert len(res.df) <= len(df_base)
-    assert len(res.df) > 0
-    assert set(res.df["id"]).issubset(set(df_base["id"]))
+    assert res.df.height <= df_base.height
+    assert res.df.height > 0
+    assert set(res.df["id"].to_list()).issubset(set(df_base["id"].to_list()))
 
 
-def test_zero_threshold_removes_nothing(df_base: pd.DataFrame, edges_file: Path) -> None:
+def test_zero_threshold_removes_nothing(df_base: pl.DataFrame, edges_file: Path) -> None:
     """threshold=0.0 → no pair passes → nothing removed."""
     reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.0)
     res = reducer.run(df_base, COLS)
-    assert len(res.df) == len(df_base)
+    assert res.df.height == df_base.height
 
 
-def test_missing_edges_file_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_missing_edges_file_raises(df_base: pl.DataFrame, tmp_path: Path) -> None:
     reducer = StructuralDistanceReducer(
         edges_path=str(tmp_path / "nonexistent_edges.csv"),
     )

@@ -6,13 +6,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import polars as pl
 
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    import pandas as pd
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
@@ -114,7 +113,7 @@ class RandomSplitter:
         """Return the strategy identifier."""
         return "random"
 
-    def run(self, df: pd.DataFrame, _cols: Columns) -> SplitResult:
+    def run(self, df: pl.DataFrame, _cols: Columns) -> SplitResult:
         """Generate deterministic random train/test/(val) splits."""
         log.info(
             "random:start | test_size=%.3f | val_size=%.3f | seed=%s",
@@ -126,20 +125,20 @@ class RandomSplitter:
 
         _validate_inputs(self.test_size, self.val_size)
 
-        work = df.copy().reset_index(drop=True)
-        n = len(work)
+        work = df.clone()
+        n = work.height
 
         train_idx, test_idx, val_idx = _index_split(n, self.test_size, self.val_size, self.seed)
 
-        train = work.iloc[train_idx].reset_index(drop=True)
-        test = work.iloc[test_idx].reset_index(drop=True)
-        val = work.iloc[val_idx].reset_index(drop=True) if val_idx is not None else None
+        train = work[train_idx]
+        test = work[test_idx]
+        val = work[val_idx] if val_idx is not None else None
 
         stats: dict[str, Any] = {
             "n_total": int(n),
-            "n_train": len(train),
-            "n_test": len(test),
-            "n_val": len(val) if val is not None else 0,
+            "n_train": train.height,
+            "n_test": test.height,
+            "n_val": val.height if val is not None else 0,
             "test_size": float(self.test_size),
             "val_size": float(self.val_size),
             "seed": int(self.seed),
@@ -147,9 +146,9 @@ class RandomSplitter:
 
         log.info(
             "random:stats | train=%d | val=%d | test=%d",
-            len(train),
-            len(val) if val is not None else 0,
-            len(test),
+            train.height,
+            val.height if val is not None else 0,
+            test.height,
         )
         return SplitResult(
             train=train,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import pandas as pd
+    import polars as pl
 
 
 from biosieve.splitting.distance_aware_kfold import DistanceAwareKFoldSplitter
@@ -15,7 +15,7 @@ COLS = Columns(id_col="id", seq_col="sequence")
 N_SPLITS = 3
 
 
-def test_descriptors_mode(df_descriptors: pd.DataFrame) -> None:
+def test_descriptors_mode(df_descriptors: pl.DataFrame) -> None:
     splitter = DistanceAwareKFoldSplitter(
         n_splits=N_SPLITS,
         feature_mode="descriptors",
@@ -25,4 +25,4 @@ def test_descriptors_mode(df_descriptors: pd.DataFrame) -> None:
     folds = splitter.run_folds(df_descriptors, COLS)
     assert len(folds) == N_SPLITS
     for res in folds:
-        assert set(res.train["id"]) & set(res.test["id"]) == set()
+        assert set(res.train["id"].to_list()) & set(res.test["id"].to_list()) == set()

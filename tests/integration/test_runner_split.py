@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
 
 import json
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from biosieve.core.split_runner import run_split
@@ -22,12 +22,12 @@ from biosieve.core.strategies import build_registry
 REGISTRY = build_registry()
 
 
-def _write_csv(df: pd.DataFrame, path: Path) -> Path:
-    df.to_csv(path, index=False)
+def _write_csv(df: pl.DataFrame, path: Path) -> Path:
+    df.write_csv(path)
     return path
 
 
-def test_split_random_writes_train_test(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_split_random_writes_train_test(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     outdir = tmp_path / "splits"
 
@@ -35,20 +35,20 @@ def test_split_random_writes_train_test(df_base: pd.DataFrame, tmp_path: Path) -
 
     assert (outdir / "train.csv").exists()
     assert (outdir / "test.csv").exists()
-    train = pd.read_csv(outdir / "train.csv")
-    test = pd.read_csv(outdir / "test.csv")
-    assert len(train) + len(test) == len(df_base)
-    assert set(train["id"]) & set(test["id"]) == set()
+    train = pl.read_csv(outdir / "train.csv")
+    test = pl.read_csv(outdir / "test.csv")
+    assert train.height + test.height == df_base.height
+    assert set(train["id"].to_list()) & set(test["id"].to_list()) == set()
 
 
-def test_split_random_no_val_by_default(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_split_random_no_val_by_default(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     outdir = tmp_path / "splits"
     run_split(str(csv_in), str(outdir), "random", REGISTRY)
     assert not (outdir / "val.csv").exists()
 
 
-def test_split_writes_report_json(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_split_writes_report_json(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     outdir = tmp_path / "splits"
     run_split(str(csv_in), str(outdir), "random", REGISTRY)
@@ -60,7 +60,7 @@ def test_split_writes_report_json(df_base: pd.DataFrame, tmp_path: Path) -> None
     assert report["strategy"] == "random"
 
 
-def test_split_kfold_writes_fold_dirs(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_split_kfold_writes_fold_dirs(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     outdir = tmp_path / "splits"
 
@@ -73,7 +73,7 @@ def test_split_kfold_writes_fold_dirs(df_base: pd.DataFrame, tmp_path: Path) -> 
         assert (fold_dir / "test.csv").exists()
 
 
-def test_split_kfold_writes_kfold_report(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_split_kfold_writes_kfold_report(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     outdir = tmp_path / "splits"
     run_split(str(csv_in), str(outdir), "random_kfold", REGISTRY, strategy_params={"n_splits": 3})
@@ -82,7 +82,7 @@ def test_split_kfold_writes_kfold_report(df_base: pd.DataFrame, tmp_path: Path) 
     assert report["n_folds"] == 3
 
 
-def test_split_unknown_strategy_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_split_unknown_strategy_raises(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     with pytest.raises(ValueError, match="Unknown split strategy"):
         run_split(str(csv_in), str(tmp_path / "out"), "nonexistent", REGISTRY)

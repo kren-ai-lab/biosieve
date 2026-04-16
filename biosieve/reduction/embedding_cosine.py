@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.reduction.base import ReductionResult
@@ -63,12 +63,12 @@ def _l2_normalize(X: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return X / np.maximum(norms, eps)
 
 
-def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float) -> None:
+def _validate_inputs(df: pl.DataFrame, cols: Columns, threshold: float) -> None:
     if not (0.0 <= threshold <= 1.0):
         msg = "threshold must be in [0, 1]"
         raise ValueError(msg)
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
@@ -155,7 +155,7 @@ class EmbeddingCosineReducer:
         """Return the strategy identifier."""
         return "embedding_cosine"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
         """Reduce embedding redundancy and return representatives plus mapping."""
         _validate_inputs(df, cols, self.threshold)
 
@@ -169,8 +169,8 @@ class EmbeddingCosineReducer:
         # Map dataset ids -> embedding row index
         id_to_idx: dict[str, int] = {str(sid): i for i, sid in enumerate(store.ids)}
 
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-        work_ids = work[cols.id_col].astype(str).tolist()
+        work = df.clone().sort(cols.id_col, maintain_order=True)
+        work_ids = work[cols.id_col].cast(pl.String).to_list()
 
         present = [sid for sid in work_ids if sid in id_to_idx]
         missing = [sid for sid in work_ids if sid not in id_to_idx]
@@ -306,8 +306,7 @@ class EmbeddingCosineReducer:
 
         keep_set = set(keep_ids)
 
-        kept_df = work[work[cols.id_col].astype(str).isin(keep_set)].copy()
-        kept_df = kept_df.sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+        kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(keep_set))
 
         # mapping df
         removed_rows = []
@@ -320,31 +319,42 @@ class EmbeddingCosineReducer:
                     "score": score_of.get(rid),
                 }
             )
-        mapping = pd.DataFrame(
-            removed_rows, columns=["removed_id", "representative_id", "cluster_id", "score"]
+        mapping = (
+            pl.DataFrame(removed_rows)
+            if removed_rows
+            else pl.DataFrame(
+                schema={
+                    "removed_id": pl.String,
+                    "representative_id": pl.String,
+                    "cluster_id": pl.String,
+                    "score": pl.Float64,
+                }
+            )
         )
 
         # Attach cluster id for representatives (convenience)
-        kept_df["embedding_cosine_cluster_id"] = (
-            kept_df[cols.id_col]
-            .astype(str)
-            .apply(
+        kept_df = kept_df.with_columns(
+            pl.col(cols.id_col)
+            .cast(pl.String)
+            .map_elements(
                 lambda x: (
                     f"embcos:{x}"
                     if (x in present_set and x not in removed)
                     else (f"singleton:{x}" if x in missing else None)
-                )
+                ),
+                return_dtype=pl.String,
             )
+            .alias("embedding_cosine_cluster_id")
         )
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
+            "n_total": work.height,
             "n_present_embeddings": len(present),
             "n_missing_embeddings": len(missing),
-            "coverage_embeddings": float(len(present) / len(work)) if len(work) else 0.0,
-            "n_kept": len(kept_df),
-            "n_removed": len(mapping),
-            "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
+            "coverage_embeddings": float(len(present) / work.height) if work.height else 0.0,
+            "n_kept": kept_df.height,
+            "n_removed": mapping.height,
+            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
         }
 
         return ReductionResult(

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import polars as pl
 
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.group import _split_groups, _validate_sizes
@@ -43,16 +43,16 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
         msg = f"cluster_map_path not found: {p}"
         raise FileNotFoundError(msg)
 
-    df = pd.read_csv(p)
+    df = pl.read_csv(p)
     if id_col not in df.columns or cluster_col not in df.columns:
-        msg = f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns.tolist()}"
+        msg = f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns}"
         raise ValueError(msg)
 
-    return dict(zip(df[id_col].astype(str), df[cluster_col].astype(str), strict=False))
+    return dict(zip(df[id_col].cast(pl.String).to_list(), df[cluster_col].cast(pl.String).to_list(), strict=False))
 
 
 def _validate_inputs(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: Columns,
     *,
     test_size: float,
@@ -62,17 +62,17 @@ def _validate_inputs(
     map_id_col: str,
     map_cluster_col: str,
     assign_singletons_for_missing: bool,
-) -> tuple[pd.DataFrame, str, int, int]:
+) -> tuple[pl.DataFrame, str, int, int]:
     _validate_sizes(test_size, val_size)
-    work = df.copy().reset_index(drop=True)
+    work = df.clone()
 
     if cluster_col in work.columns:
-        work[_INTERNAL_CLUSTER_COL] = work[cluster_col].astype(str)
+        work = work.with_columns(work[cluster_col].cast(pl.String).alias(_INTERNAL_CLUSTER_COL))
         used_source = "dataset_column"
         missing = 0
     elif cluster_map_path:
         cmap = _load_cluster_map_csv(cluster_map_path, map_id_col, map_cluster_col)
-        ids = work[cols.id_col].astype(str)
+        ids = work[cols.id_col].cast(pl.String).to_list()
 
         assigned = []
         missing = 0
@@ -90,7 +90,7 @@ def _validate_inputs(
                     raise ValueError(msg)
             assigned.append(cid)
 
-        work[_INTERNAL_CLUSTER_COL] = pd.Series(assigned, index=work.index, dtype="string").astype(str)
+        work = work.with_columns(pl.Series(_INTERNAL_CLUSTER_COL, assigned))
         used_source = "mapping_file"
     else:
         msg = (
@@ -100,7 +100,7 @@ def _validate_inputs(
         )
         raise ValueError(msg)
 
-    n_clusters = int(work[_INTERNAL_CLUSTER_COL].astype(str).nunique(dropna=False))
+    n_clusters = int(work[_INTERNAL_CLUSTER_COL].cast(pl.String).n_unique())
     if n_clusters < MIN_CLUSTERS_FOR_SPLIT:
         msg = f"Need at least 2 clusters to split. Found {n_clusters} unique clusters."
         raise ValueError(msg)
@@ -199,7 +199,7 @@ class ClusterAwareSplitter:
         """Return the strategy identifier."""
         return "cluster_aware"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> SplitResult:
         """Split data by cluster assignments into disjoint partitions."""
         work, used_source, missing, n_clusters = _validate_inputs(
             df,
@@ -212,7 +212,7 @@ class ClusterAwareSplitter:
             map_cluster_col=self.map_cluster_col,
             assign_singletons_for_missing=self.assign_singletons_for_missing,
         )
-        cluster_ids = work[_INTERNAL_CLUSTER_COL].astype(str)
+        cluster_ids = work[_INTERNAL_CLUSTER_COL].cast(pl.String)
 
         # 1) split off test by clusters
         trainval, test = _split_groups(work, cluster_ids, test_size=self.test_size, seed=self.seed)
@@ -226,13 +226,13 @@ class ClusterAwareSplitter:
             if frac <= 0 or frac >= 1:
                 msg = "Derived val fraction invalid. Check test_size/val_size."
                 raise ValueError(msg)
-            tv_clusters = trainval[_INTERNAL_CLUSTER_COL].astype(str)
+            tv_clusters = trainval[_INTERNAL_CLUSTER_COL].cast(pl.String)
             train, val = _split_groups(trainval, tv_clusters, test_size=frac, seed=self.seed)
 
         # leakage checks using the internal cluster column (always present pre-drop)
-        train_c = set(train[_INTERNAL_CLUSTER_COL].astype(str).unique())
-        test_c = set(test[_INTERNAL_CLUSTER_COL].astype(str).unique())
-        val_c = set(val[_INTERNAL_CLUSTER_COL].astype(str).unique()) if val is not None else set()
+        train_c = set(train[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list())
+        test_c = set(test[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list())
+        val_c = set(val[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list()) if val is not None else set()
 
         leak_tt = len(train_c & test_c)
         leak_tv = len(train_c & val_c) if val is not None else 0
@@ -247,16 +247,16 @@ class ClusterAwareSplitter:
             raise ValueError(msg)
 
         # cleanup internal column before returning
-        train = train.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
-        test = test.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
+        train = train.drop([_INTERNAL_CLUSTER_COL])
+        test = test.drop([_INTERNAL_CLUSTER_COL])
         if val is not None:
-            val = val.drop(columns=[_INTERNAL_CLUSTER_COL]).reset_index(drop=True)
+            val = val.drop([_INTERNAL_CLUSTER_COL])
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_train": len(train),
-            "n_test": len(test),
-            "n_val": len(val) if val is not None else 0,
+            "n_total": work.height,
+            "n_train": train.height,
+            "n_test": test.height,
+            "n_val": val.height if val is not None else 0,
             "cluster_col": self.cluster_col,
             "n_clusters_total": int(n_clusters),
             "cluster_source": used_source,

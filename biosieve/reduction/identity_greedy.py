@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import polars as pl
 
 from biosieve.reduction.base import ReductionResult
 from biosieve.utils.logging import get_logger
@@ -51,7 +51,7 @@ def _approx_identity(a: str, b: str) -> float:
 
 def _validate_inputs(
     *,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: Columns,
     threshold: float,
     k: int,
@@ -75,16 +75,16 @@ def _validate_inputs(
         msg = "max_candidates must be >= 1"
         raise ValueError(msg)
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     if cols.seq_col not in df.columns:
-        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
-def _prepare_work(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
-    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
-    ids = work[id_col].astype(str).tolist()
+def _prepare_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
+    work = df.clone().sort(id_col, maintain_order=True)
+    ids = work[id_col].cast(pl.String).to_list()
     if len(ids) != len(set(ids)):
         msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
         raise ValueError(msg)
@@ -156,7 +156,7 @@ class IdentityGreedyReducer:
         """Return the strategy identifier."""
         return "identity_greedy"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901,PLR0912,PLR0915
         """Reduce sequence redundancy with k-mer prefilter and identity scoring."""
         _validate_inputs(
             df=df,
@@ -187,9 +187,9 @@ class IdentityGreedyReducer:
             for token in km:
                 kmer_to_rep.setdefault(token, []).append(rep_pos)
 
-        for i in range(len(work)):
-            seq = str(work.loc[i, cols.seq_col])
-            cur_id = str(work.loc[i, cols.id_col])
+        for i in range(work.height):
+            seq = str(work[i, cols.seq_col])
+            cur_id = str(work[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
                 msg = (
@@ -233,7 +233,7 @@ class IdentityGreedyReducer:
                 if jac < self.jaccard_prefilter:
                     continue
 
-                rep_seq = str(work.loc[reps_idx[rep_pos], cols.seq_col])
+                rep_seq = str(work[reps_idx[rep_pos], cols.seq_col])
                 ident = _approx_identity(seq, rep_seq)
 
                 if ident > best_score:
@@ -245,27 +245,40 @@ class IdentityGreedyReducer:
 
             if best_rep_pos is not None and best_score >= self.threshold:
                 rep_work_idx = reps_idx[best_rep_pos]
-                rep_id = str(work.loc[rep_work_idx, cols.id_col])
+                rep_id = str(work[rep_work_idx, cols.id_col])
                 removed_rows.append((cur_id, rep_id, float(best_score)))
             else:
                 add_rep(i, seq)
 
-        kept = work.iloc[reps_idx].reset_index(drop=True)
+        kept = work[reps_idx]
 
-        mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "score"])
-        if len(mapping) > 0:
-            mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"ident:{x}")
-            mapping = mapping[["removed_id", "representative_id", "cluster_id", "score"]]
+        if removed_rows:
+            mapping = pl.DataFrame(
+                removed_rows,
+                schema=["removed_id", "representative_id", "score"],
+                orient="row",
+            ).with_columns(
+                (pl.lit("ident:") + pl.col("representative_id").cast(pl.String)).alias("cluster_id")
+            ).select(["removed_id", "representative_id", "cluster_id", "score"])
         else:
-            mapping = pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
+            mapping = pl.DataFrame(
+                schema={
+                    "removed_id": pl.String,
+                    "representative_id": pl.String,
+                    "cluster_id": pl.String,
+                    "score": pl.Float64,
+                }
+            )
 
-        kept["identity_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"ident:{x}")
+        kept = kept.with_columns(
+            (pl.lit("ident:") + pl.col(cols.id_col).cast(pl.String)).alias("identity_cluster_id")
+        )
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_kept": len(kept),
-            "n_removed": len(mapping),
-            "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
+            "n_total": work.height,
+            "n_kept": kept.height,
+            "n_removed": mapping.height,
+            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
             "threshold": float(self.threshold),
             "k": int(self.k),
             "jaccard_prefilter": float(self.jaccard_prefilter),

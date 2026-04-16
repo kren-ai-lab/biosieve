@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import polars as pl
 
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
@@ -28,19 +28,19 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
         raise ValueError(msg)
 
 
-def _to_datetime(s: pd.Series, fmt: str | None) -> pd.Series:
+def _to_datetime(s: pl.Series, fmt: str | None) -> pl.Series:
     if fmt:
-        return pd.to_datetime(s, format=fmt, errors="raise")
-    return pd.to_datetime(s, errors="raise")
+        return s.str.to_datetime(format=fmt, strict=True)
+    return s.str.to_datetime(strict=True)
 
 
-def _validate_inputs(df: pd.DataFrame, time_col: str, test_size: float, val_size: float) -> pd.Series:
+def _validate_inputs(df: pl.DataFrame, time_col: str, test_size: float, val_size: float) -> pl.Series:
     _validate_sizes(test_size, val_size)
     if time_col not in df.columns:
-        msg = f"Missing time column '{time_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing time column '{time_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     t_raw = df[time_col]
-    if t_raw.isna().any():
+    if t_raw.is_null().any():
         msg = f"Found NaN timestamps in '{time_col}'. Clean dataset before splitting."
         raise ValueError(msg)
     return t_raw
@@ -96,26 +96,25 @@ class TimeSplitter:
         """Return the strategy identifier."""
         return "time"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> SplitResult:
         """Create chronological train/test/(val) partitions."""
         log.info("time:start | date_col=%s", cols.date_col)
 
         log.debug("time:params | %s", self.__dict__)
 
-        work = df.copy().reset_index(drop=True)
+        work = df.clone()
         t_raw = _validate_inputs(work, self.time_col, self.test_size, self.val_size)
 
         if self.parse_datetime:
             t = _to_datetime(t_raw, self.time_format)
         else:
-            t = pd.to_numeric(t_raw, errors="raise")
+            t = t_raw.cast(pl.Float64, strict=True)
 
-        work["_biosieve_time__"] = t
-        work = work.sort_values("_biosieve_time__", ascending=self.ascending, kind="mergesort").reset_index(
-            drop=True
+        work = work.with_columns(t.alias("_biosieve_time__")).sort(
+            "_biosieve_time__", descending=not self.ascending, maintain_order=True
         )
 
-        n = len(work)
+        n = work.height
         n_test = round(n * self.test_size)
         n_val = round(n * self.val_size) if self.val_size > 0 else 0
         n_train = n - n_test - n_val
@@ -130,27 +129,27 @@ class TimeSplitter:
             msg = "val_size too small -> no validation samples after rounding. Increase val_size."
             raise ValueError(msg)
 
-        train = work.iloc[:n_train].drop(columns=["_biosieve_time__"]).reset_index(drop=True)
+        train = work[:n_train].drop(["_biosieve_time__"])
         val = (
-            work.iloc[n_train : n_train + n_val].drop(columns=["_biosieve_time__"]).reset_index(drop=True)
+            work[n_train : n_train + n_val].drop(["_biosieve_time__"])
             if n_val > 0
             else None
         )
-        test = work.iloc[n_train + n_val :].drop(columns=["_biosieve_time__"]).reset_index(drop=True)
+        test = work[n_train + n_val :].drop(["_biosieve_time__"])
 
-        def _range(x: pd.DataFrame) -> dict[str, Any]:
-            if len(x) == 0:
+        def _range(x: pl.DataFrame) -> dict[str, Any]:
+            if x.height == 0:
                 return {"min": None, "max": None}
             tt = x[self.time_col]
             if self.parse_datetime:
-                tt = pd.to_datetime(tt, format=self.time_format, errors="coerce")
+                tt = _to_datetime(tt, self.time_format)
             return {"min": str(tt.min()), "max": str(tt.max())}
 
         stats: dict[str, Any] = {
             "n_total": int(n),
-            "n_train": len(train),
-            "n_test": len(test),
-            "n_val": len(val) if val is not None else 0,
+            "n_train": train.height,
+            "n_test": test.height,
+            "n_val": val.height if val is not None else 0,
             "time_col": self.time_col,
             "ascending": bool(self.ascending),
             "parse_datetime": bool(self.parse_datetime),

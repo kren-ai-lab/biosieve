@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
 
@@ -16,7 +16,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 import pytest
 
 import biosieve
@@ -47,9 +47,9 @@ def csv_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
     aa = list("ACDEFGHIKLMNPQRSTVWY")
     ids = [f"pep_{i:03d}" for i in range(50)]
     seqs = ["".join(rng.choice(aa, size=int(rng.integers(20, 41)))) for _ in range(50)]
-    df = pd.DataFrame({"id": ids, "sequence": seqs})
+    df = pl.DataFrame({"id": ids, "sequence": seqs})
     p = tmp_path_factory.mktemp("cli") / "dataset.csv"
-    df.to_csv(p, index=False)
+    df.write_csv(p)
     return p
 
 
@@ -99,7 +99,7 @@ def test_cli_reduce_exact(csv_file: Path, tmp_path: Path) -> None:
     r = _run("reduce", "--input-data", str(csv_file), "--output", str(out), "--strategy", "exact")
     assert r.returncode == 0, r.stderr.decode()
     assert out.exists()
-    df_out = pd.read_csv(out)
+    df_out = pl.read_csv(out)
     assert "id" in df_out.columns
 
 

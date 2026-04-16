@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 
 @dataclass(frozen=True)
@@ -29,16 +29,16 @@ def load_edges_csv(
         msg = f"Structural edges file not found: {p}"
         raise FileNotFoundError(msg)
 
-    df = pd.read_csv(p)
+    df = pl.read_csv(p)
     for col in (id1_col, id2_col, value_col):
         if col not in df.columns:
-            msg = f"Missing required column '{col}' in {p}. Found: {df.columns.tolist()}"
+            msg = f"Missing required column '{col}' in {p}. Found: {df.columns}"
             raise ValueError(msg)
 
     adj: dict[str, list[tuple[str, float]]] = {}
     n_edges = 0
 
-    for _, row in df.iterrows():
+    for row in df.iter_rows(named=True):
         a = str(row[id1_col])
         b = str(row[id2_col])
         v = float(row[value_col])

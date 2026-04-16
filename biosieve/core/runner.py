@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
-import pandas as pd
+import polars as pl
 
 from biosieve.core.factory import instantiate_strategy
 from biosieve.types import Columns
@@ -66,13 +66,13 @@ def _safe_jsonable(x: object) -> JSONValue:
     return str(x)
 
 
-def _validate_unique_ids(df: pd.DataFrame, id_col: str) -> None:
+def _validate_unique_ids(df: pl.DataFrame, id_col: str) -> None:
     """Fail-fast check: BioSieve expects 1 row = 1 unique id."""
     if id_col not in df.columns:
-        msg = f"Missing id column '{id_col}' in input data. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{id_col}' in input data. Columns: {df.columns}"
         raise ValueError(msg)
-    n_in = len(df)
-    unique_ids = df[id_col].astype(str).nunique()
+    n_in = df.height
+    unique_ids = df[id_col].cast(pl.String).n_unique()
     if unique_ids != n_in:
         msg = (
             f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
@@ -112,12 +112,12 @@ def run_reduce(
         map_path: Optional mapping CSV path.
         report_path: Optional JSON report path.
         strategy_params: Params used to instantiate the reducer class (unknown keys -> error).
-        read_csv_kwargs: Optional kwargs passed to pandas.read_csv.
+        read_csv_kwargs: Optional kwargs passed to polars.read_csv.
 
     Raises:
         ValueError: If the reducer strategy name is unknown, the id column is missing, or ids
         are not unique.
-        FileNotFoundError: If `in_path` does not exist (raised by pandas).
+        FileNotFoundError: If `in_path` does not exist (raised by polars).
         RuntimeError: If the reducer fails internally (propagated from the reducer implementation).
 
     Notes:
@@ -152,6 +152,9 @@ def run_reduce(
 
     strategy_params = strategy_params or {}
     read_csv_kwargs = read_csv_kwargs or {}
+    if "sep" in read_csv_kwargs and "separator" not in read_csv_kwargs:
+        read_csv_kwargs = {**read_csv_kwargs, "separator": read_csv_kwargs["sep"]}
+        read_csv_kwargs.pop("sep")
 
     if strategy not in registry.reducers:
         available = sorted(registry.reducers.keys())
@@ -162,9 +165,9 @@ def run_reduce(
     _ensure_parent(map_path)
     _ensure_parent(report_path)
 
-    df = pd.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
+    df = pl.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
 
-    log.info("reduce:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
+    log.info("reduce:input | n_rows=%d | n_cols=%d", df.height, len(df.columns))
 
     _validate_unique_ids(df, cols.id_col)
 
@@ -178,20 +181,25 @@ def run_reduce(
     res = reducer.run(df, cols)
 
     # --- write outputs ---
-    res.df.to_csv(out_path, index=False)
+    res.df.write_csv(out_path)
 
     if map_path is not None:
         if res.mapping is None:
-            pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"]).to_csv(
-                map_path, index=False
-            )
+            pl.DataFrame(
+                schema={
+                    "removed_id": pl.String,
+                    "representative_id": pl.String,
+                    "cluster_id": pl.String,
+                    "score": pl.Float64,
+                }
+            ).write_csv(map_path)
         else:
-            res.mapping.to_csv(map_path, index=False)
+            res.mapping.write_csv(map_path)
 
     # --- report ---
     if report_path is not None:
-        n_in = len(df)
-        n_out = len(res.df)
+        n_in = df.height
+        n_out = res.df.height
         n_removed = int(n_in - n_out)
 
         report: dict[str, JSONValue] = {
@@ -208,7 +216,7 @@ def run_reduce(
                 "n_out": n_out,
                 "n_removed": n_removed,
                 "fraction_removed": float(n_removed / n_in) if n_in else 0.0,
-                "n_mapped_removed": len(res.mapping) if res.mapping is not None else 0,
+                "n_mapped_removed": res.mapping.height if res.mapping is not None else 0,
             },
             "columns": _safe_jsonable(cols),
         }

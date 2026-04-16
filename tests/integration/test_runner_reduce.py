@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
 
 import json
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from biosieve.core.runner import run_reduce
@@ -22,37 +22,37 @@ from biosieve.core.strategies import build_registry
 REGISTRY = build_registry()
 
 
-def _write_csv(df: pd.DataFrame, path: Path) -> Path:
-    df.to_csv(path, index=False)
+def _write_csv(df: pl.DataFrame, path: Path) -> Path:
+    df.write_csv(path)
     return path
 
 
-def test_reduce_exact_writes_output(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_reduce_exact_writes_output(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     csv_out = tmp_path / "out.csv"
 
     run_reduce(str(csv_in), str(csv_out), "exact", REGISTRY)
 
     assert csv_out.exists()
-    df_out = pd.read_csv(csv_out)
+    df_out = pl.read_csv(csv_out)
     assert "id" in df_out.columns
-    assert len(df_out) <= len(df_base)
+    assert df_out.height <= df_base.height
 
 
-def test_reduce_writes_map_csv(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_reduce_writes_map_csv(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     map_path = tmp_path / "map.csv"
 
     run_reduce(str(csv_in), str(tmp_path / "out.csv"), "exact", REGISTRY, map_path=str(map_path))
 
     assert map_path.exists()
-    map_df = pd.read_csv(map_path)
+    map_df = pl.read_csv(map_path)
     # Even if nothing was removed, the file must exist with correct schema
     assert "removed_id" in map_df.columns
     assert "representative_id" in map_df.columns
 
 
-def test_reduce_writes_json_report(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_reduce_writes_json_report(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     report_path = tmp_path / "report.json"
 
@@ -62,10 +62,10 @@ def test_reduce_writes_json_report(df_base: pd.DataFrame, tmp_path: Path) -> Non
     report = json.loads(report_path.read_text())
     assert report["schema_version"] == "0.1"
     assert "stats" in report
-    assert report["stats"]["n_in"] == len(df_base)
+    assert report["stats"]["n_in"] == df_base.height
 
 
-def test_reduce_unknown_strategy_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_reduce_unknown_strategy_raises(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     with pytest.raises(ValueError, match="Unknown reducer"):
         run_reduce(str(csv_in), str(tmp_path / "out.csv"), "nonexistent", REGISTRY)
@@ -76,7 +76,7 @@ def test_reduce_missing_input_raises(tmp_path: Path) -> None:
         run_reduce(str(tmp_path / "nonexistent.csv"), str(tmp_path / "out.csv"), "exact", REGISTRY)
 
 
-def test_reduce_creates_parent_dirs(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_reduce_creates_parent_dirs(df_base: pl.DataFrame, tmp_path: Path) -> None:
     csv_in = _write_csv(df_base, tmp_path / "in.csv")
     nested_out = tmp_path / "nested" / "subdir" / "out.csv"
 

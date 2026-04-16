@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    import pandas as pd
+    import polars as pl
 
     from biosieve.types import Columns
 
@@ -46,8 +46,8 @@ class ReductionResult:
 
     """
 
-    df: pd.DataFrame
-    mapping: pd.DataFrame | None
+    df: pl.DataFrame
+    mapping: pl.DataFrame | None
     strategy: str
     params: dict[str, Any]
     stats: dict[str, Any] | None = None
@@ -67,6 +67,6 @@ class Reducer(Protocol):
         """Return the reducer strategy identifier."""
         ...
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # pragma: no cover
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:  # pragma: no cover
         """Run reduction and return reduced data plus mapping metadata."""
         ...

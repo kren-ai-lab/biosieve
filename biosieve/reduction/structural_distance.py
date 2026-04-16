@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import polars as pl
 
 from biosieve.reduction.backends.structure_backend import load_edges_csv
 from biosieve.reduction.base import ReductionResult
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _validate_inputs(df: pd.DataFrame, cols: Columns, mode: str, threshold: float) -> None:
+def _validate_inputs(df: pl.DataFrame, cols: Columns, mode: str, threshold: float) -> None:
     if mode not in {"distance", "similarity"}:
         msg = "mode must be 'distance' or 'similarity'"
         raise ValueError(msg)
@@ -25,7 +25,7 @@ def _validate_inputs(df: pd.DataFrame, cols: Columns, mode: str, threshold: floa
         msg = "threshold must be >= 0 for distance mode"
         raise ValueError(msg)
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
@@ -129,13 +129,13 @@ class StructuralDistanceReducer:
         msg = "mode must be 'distance' or 'similarity'"
         raise ValueError(msg)
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:
         """Reduce redundancy using precomputed structural edge relationships."""
         _validate_inputs(df, cols, self.mode, self.threshold)
 
         # deterministic ordering
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-        ids = work[cols.id_col].astype(str).tolist()
+        work = df.clone().sort(cols.id_col, maintain_order=True)
+        ids = work[cols.id_col].cast(pl.String).to_list()
         id_set = set(ids)
 
         edges = load_edges_csv(
@@ -172,8 +172,7 @@ class StructuralDistanceReducer:
                     cluster_of[nbr_id] = rep_cluster
 
         keep_ids = [sid for sid in ids if sid not in removed]
-        kept_df = work[work[cols.id_col].astype(str).isin(set(keep_ids))].copy()
-        kept_df = kept_df.sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+        kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(set(keep_ids)))
 
         rows = []
         for rid, rep in rep_of.items():
@@ -185,19 +184,29 @@ class StructuralDistanceReducer:
                     "score": score_of.get(rid),
                 }
             )
-        mapping = pd.DataFrame(
-            rows,
-            columns=["removed_id", "representative_id", "cluster_id", "score"],
+        mapping = (
+            pl.DataFrame(rows)
+            if rows
+            else pl.DataFrame(
+                schema={
+                    "removed_id": pl.String,
+                    "representative_id": pl.String,
+                    "cluster_id": pl.String,
+                    "score": pl.Float64,
+                }
+            )
         )
 
-        kept_df["structural_cluster_id"] = kept_df[cols.id_col].astype(str).apply(lambda x: f"struct:{x}")
+        kept_df = kept_df.with_columns(
+            (pl.lit("struct:") + pl.col(cols.id_col).cast(pl.String)).alias("structural_cluster_id")
+        )
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_kept": len(kept_df),
-            "n_removed": len(mapping),
+            "n_total": work.height,
+            "n_kept": kept_df.height,
+            "n_removed": mapping.height,
             "n_edges_loaded": int(edges.n_edges),
-            "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
+            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
             "mode": self.mode,
         }
 

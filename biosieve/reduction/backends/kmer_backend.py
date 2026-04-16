@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pandas as pd
+import polars as pl
 
 
 def _kmer_set(seq: str, k: int) -> set[str]:
@@ -27,10 +27,10 @@ def _kmer_set(seq: str, k: int) -> set[str]:
     return {seq[i : i + k] for i in range(len(seq) - k + 1)}
 
 
-def _prepare_work(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
+def _prepare_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
     """Sort by id_col for determinism, reset index, validate uniqueness."""
-    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
-    ids = work[id_col].astype(str).tolist()
+    work = df.clone().sort(id_col, maintain_order=True)
+    ids = work[id_col].cast(pl.String).to_list()
     if len(ids) != len(set(ids)):
         msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
         raise ValueError(msg)
@@ -40,10 +40,18 @@ def _prepare_work(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str
 def _build_mapping(
     removed_rows: list[tuple[str, str, float]],
     cluster_prefix: str = "kmer",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Build a mapping DataFrame from (removed_id, representative_id, score) triples."""
-    mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "score"])
-    if len(mapping) == 0:
-        return pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
-    mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"{cluster_prefix}:{x}")
-    return mapping[["removed_id", "representative_id", "cluster_id", "score"]]
+    if not removed_rows:
+        return pl.DataFrame(
+            schema={
+                "removed_id": pl.String,
+                "representative_id": pl.String,
+                "cluster_id": pl.String,
+                "score": pl.Float64,
+            }
+        )
+    mapping = pl.DataFrame(removed_rows, schema=["removed_id", "representative_id", "score"], orient="row")
+    return mapping.with_columns(
+        (pl.lit(f"{cluster_prefix}:") + pl.col("representative_id").cast(pl.String)).alias("cluster_id")
+    ).select(["removed_id", "representative_id", "cluster_id", "score"])
