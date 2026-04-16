@@ -33,7 +33,7 @@ pip install 'biosieve[faiss] @ git+https://github.com/kren-ai-lab/biosieve.git'
 The `mmseqs2` reducer and `homology_aware` splitter require the [MMseqs2](https://github.com/soedinglab/MMseqs2) binary
 to be available in `PATH`.
 
-**TIP**: you can install MMSeqs2 easlity with [pixi](https://pixi.prefix.dev/latest/): `pixi global install -c bioconda -c conda-forge mmseqs2`. 
+> [!TIP] You can install MMSeqs2 easlity with [pixi](https://pixi.prefix.dev/latest/): `pixi global install -c bioconda -c conda-forge mmseqs2`. 
 
 ## Quick Start
 
