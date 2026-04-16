@@ -1,3 +1,5 @@
+# ruff: noqa: ANN401, D102, EM101, EM102, TRY003
+
 """Homology-aware splitting strategy using sequence clustering as grouping."""
 
 from __future__ import annotations
@@ -143,7 +145,9 @@ class HomologyAwareSplitter:
                 threads=self.threads,
             )
             mdf = _load_mmseqs_cluster_tsv(tsv)
-            return _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id"), {"mode": "mmseqs2"}
+            return _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id"), {
+                "mode": "mmseqs2"
+            }
 
         raise ValueError("mode must be 'mmseqs2' or 'precomputed'")
 
@@ -161,11 +165,15 @@ class HomologyAwareSplitter:
         val = None
         if self.val_size > 0:
             frac = self.val_size / (1.0 - self.test_size)
-            train, val = _split_groups(trainval, trainval[_INTERNAL_CLUSTER_COL].cast(pl.String), test_size=frac, seed=self.seed)
+            train, val = _split_groups(
+                trainval, trainval[_INTERNAL_CLUSTER_COL].cast(pl.String), test_size=frac, seed=self.seed
+            )
 
         train_c = set(train[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list())
         test_c = set(test[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list())
-        val_c = set(val[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list()) if val is not None else set()
+        val_c = (
+            set(val[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list()) if val is not None else set()
+        )
 
         if self.keep_work is False and self.mode == "mmseqs2":
             shutil.rmtree(self.work_dir, ignore_errors=True)

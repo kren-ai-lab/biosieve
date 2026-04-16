@@ -78,19 +78,25 @@ class ExactDedupReducer:
             [cols.id_col, cols.seq_col]
         )
 
-        rep_by_seq = dict(zip(kept[cols.seq_col].to_list(), kept[cols.id_col].cast(pl.String).to_list(), strict=False))
+        rep_by_seq = dict(
+            zip(kept[cols.seq_col].to_list(), kept[cols.id_col].cast(pl.String).to_list(), strict=False)
+        )
 
         if removed.height > 0:
-            mapping = removed.select(
-                pl.col(cols.id_col).cast(pl.String).alias("removed_id"),
-                pl.col(cols.seq_col)
-                .replace_strict(rep_by_seq, default=None)
-                .cast(pl.String)
-                .alias("representative_id"),
-            ).with_columns(
-                pl.lit(1.0).alias("score"),
-                (pl.lit("exact:") + pl.col("representative_id")).alias("cluster_id"),
-            ).select(["removed_id", "representative_id", "cluster_id", "score"])
+            mapping = (
+                removed.select(
+                    pl.col(cols.id_col).cast(pl.String).alias("removed_id"),
+                    pl.col(cols.seq_col)
+                    .replace_strict(rep_by_seq, default=None)
+                    .cast(pl.String)
+                    .alias("representative_id"),
+                )
+                .with_columns(
+                    pl.lit(1.0).alias("score"),
+                    (pl.lit("exact:") + pl.col("representative_id")).alias("cluster_id"),
+                )
+                .select(["removed_id", "representative_id", "cluster_id", "score"])
+            )
         else:
             mapping = pl.DataFrame(
                 schema={
@@ -101,7 +107,9 @@ class ExactDedupReducer:
                 }
             )
 
-        kept = kept.with_columns((pl.lit("exact:") + pl.col(cols.id_col).cast(pl.String)).alias("exact_cluster_id"))
+        kept = kept.with_columns(
+            (pl.lit("exact:") + pl.col(cols.id_col).cast(pl.String)).alias("exact_cluster_id")
+        )
 
         stats: dict[str, Any] = {
             "n_total": work.height,

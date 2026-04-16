@@ -6,13 +6,14 @@ Output: embeddings.npy, embedding_ids.csv
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
-df_emb = pd.read_csv("demo_esm2_t6_8M_UR50D.csv")
-np.save("embeddings.npy", df_emb.drop(columns=["sequence"]).values)
-print(f"Saved embeddings.npy {df_emb.drop(columns=['sequence']).shape}")
+df_emb = pl.read_csv("demo_esm2_t6_8M_UR50D.csv")
+emb_array = df_emb.drop("sequence").to_numpy()
+np.save("embeddings.npy", emb_array)
+print(f"Saved embeddings.npy {emb_array.shape}")
 
-df_main = pd.read_csv("biosieve_example_dataset_1000.csv")
-ids = df_main["id"].astype(str).tolist()
-pd.DataFrame({"id": ids}).to_csv("embedding_ids.csv", index=False)
+df_main = pl.read_csv("biosieve_example_dataset_1000.csv")
+ids = df_main["id"].cast(pl.String).to_list()
+pl.DataFrame({"id": ids}).write_csv("embedding_ids.csv")
 print(f"Saved embedding_ids.csv ({len(ids)} rows)")

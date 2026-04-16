@@ -145,6 +145,6 @@ Every run produces consistent artefacts:
 
 ## Acknowledgements
 
-Built on top of scikit-learn, pandas, NumPy, and optionally datasketch, FAISS, and MMseqs2.
+Built on top of scikit-learn, polars, NumPy, and optionally datasketch, FAISS, and MMseqs2.
 
 Developed by **KREN AI Lab** at Universidad de Magallanes, Chile.

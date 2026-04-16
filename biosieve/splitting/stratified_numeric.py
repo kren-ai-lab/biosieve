@@ -1,9 +1,11 @@
+# ruff: noqa: ANN202, ANN401, D102, EM101, EM102, PLR2004, TRY003, TRY300
+
 """Stratified splitting strategy for numeric targets via binning."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import numpy as np
 import polars as pl
@@ -166,14 +168,18 @@ class StratifiedNumericSplitter:
             "label_col": self.label_col,
             "n_bins_requested": self.n_bins,
             "n_bins_effective": n_eff,
-            "train_label_stats": _label_stats(train[self.label_col].cast(pl.Float64, strict=False).to_numpy()),
+            "train_label_stats": _label_stats(
+                train[self.label_col].cast(pl.Float64, strict=False).to_numpy()
+            ),
             "test_label_stats": _label_stats(test[self.label_col].cast(pl.Float64, strict=False).to_numpy()),
             "train_bin_counts": _bin_counts(bins[np.asarray(trainval_idx, dtype=int)[: train.height]])
             if train.height <= len(trainval_idx)
             else {},
         }
         if val is not None:
-            stats["val_label_stats"] = _label_stats(val[self.label_col].cast(pl.Float64, strict=False).to_numpy())
+            stats["val_label_stats"] = _label_stats(
+                val[self.label_col].cast(pl.Float64, strict=False).to_numpy()
+            )
 
         return SplitResult(
             train=train,

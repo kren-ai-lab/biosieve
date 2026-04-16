@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import polars as pl
 
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
+    import polars as pl
+
     from biosieve.types import Columns
 
 log = get_logger(__name__)

@@ -4,8 +4,8 @@ Run from examples/raw_data_examples/
 Output: cluster_map.csv
 """
 
-import pandas as pd
+import polars as pl
 
-df = pd.read_csv("biosieve_example_dataset_1000.csv")
-df[["id", "cluster_id"]].to_csv("cluster_map.csv", index=False)
-print(f"Saved cluster_map.csv ({len(df)} rows)")
+df = pl.read_csv("biosieve_example_dataset_1000.csv")
+df.select(["id", "cluster_id"]).write_csv("cluster_map.csv")
+print(f"Saved cluster_map.csv ({df.height} rows)")

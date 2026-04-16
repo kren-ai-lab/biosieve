@@ -12,8 +12,6 @@ from biosieve.reduction.base import ReductionResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    import polars as pl
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
@@ -195,7 +193,9 @@ class KmerJaccardReducer:
 
         mapping = _build_mapping(removed_rows)
 
-        kept = kept.with_columns((pl.lit("kmer:") + pl.col(cols.id_col).cast(pl.String)).alias("kmer_cluster_id"))
+        kept = kept.with_columns(
+            (pl.lit("kmer:") + pl.col(cols.id_col).cast(pl.String)).alias("kmer_cluster_id")
+        )
 
         stats: dict[str, Any] = {
             "n_total": work.height,

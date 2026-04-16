@@ -244,13 +244,13 @@ def run_split(
         strategy_params:
             Parameters to instantiate the strategy dataclass.
             Unknown keys raise ValueError (strict contract).
-        read_csv_kwargs: Extra kwargs passed to pandas.read_csv (e.g., sep, dtype, usecols).
+        read_csv_kwargs: Extra kwargs passed to polars.read_csv (e.g., separator, dtypes, columns).
 
     Raises:
         ValueError: If strategy is unknown, required columns are missing, ids are not unique,
         or the splitter returns invalid outputs.
         ImportError: If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
-        FileNotFoundError: If `in_path` does not exist (raised by pandas).
+        FileNotFoundError: If `in_path` does not exist (raised by polars).
 
     """
     t0 = time.time()

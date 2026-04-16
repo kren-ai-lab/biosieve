@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     import polars as pl
@@ -33,8 +33,10 @@ def test_chronological_order(df_timed: pl.DataFrame) -> None:
     splitter = TimeSplitter(time_col="date", test_size=0.2)
     res = splitter.run(df_timed, COLS)
 
-    max_train = res.train["date"].str.to_date().max()
-    min_test = res.test["date"].str.to_date().min()
+    max_train = cast("str", res.train["date"].max())
+    min_test = cast("str", res.test["date"].min())
+    assert max_train is not None
+    assert min_test is not None
     assert max_train <= min_test
 
 

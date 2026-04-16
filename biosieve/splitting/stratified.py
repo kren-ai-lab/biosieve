@@ -74,10 +74,7 @@ def _validate_inputs(
 
 
 def _value_counts_dict(series: pl.Series) -> dict[str, int]:
-    return {
-        str(row[0]): int(row[1])
-        for row in series.cast(pl.String).value_counts().iter_rows()
-    }
+    return {str(row[0]): int(row[1]) for row in series.cast(pl.String).value_counts().iter_rows()}
 
 
 @dataclass(frozen=True)

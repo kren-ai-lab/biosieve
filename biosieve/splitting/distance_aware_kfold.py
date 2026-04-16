@@ -1,3 +1,5 @@
+# ruff: noqa: ANN202, ANN401, D102, EM101, PLC0415, SLF001, TC002, TRY003, TRY300
+
 """Distance-aware k-fold splitter for out-of-distribution validation."""
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from biosieve.splitting.distance_aware import DistanceAwareSplitter, _dist_stats
 
 def _try_import_train_test_split():
     try:
-        from sklearn.model_selection import train_test_split  # noqa: PLC0415
+        from sklearn.model_selection import train_test_split
 
         return train_test_split
     except ImportError:

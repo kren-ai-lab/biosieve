@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
     import pytest
 
 
@@ -20,7 +20,7 @@ from biosieve.types import Columns
 COLS = Columns(id_col="id", seq_col="sequence")
 
 
-def test_happy_path_embeddings(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
+def test_happy_path_embeddings(df_base: pl.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
@@ -38,7 +38,7 @@ def test_happy_path_embeddings(df_base: pd.DataFrame, embeddings_files: tuple[Pa
     assert len(res.test) > 0
 
 
-def test_stats_have_distance_info(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
+def test_stats_have_distance_info(df_base: pl.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
@@ -51,7 +51,7 @@ def test_stats_have_distance_info(df_base: pd.DataFrame, embeddings_files: tuple
     assert "distance_stats_global" in res.stats or "feature_meta" in res.stats
 
 
-def test_happy_path_descriptors(df_descriptors: pd.DataFrame) -> None:
+def test_happy_path_descriptors(df_descriptors: pl.DataFrame) -> None:
     splitter = DistanceAwareSplitter(
         feature_mode="descriptors",
         descriptor_prefix="desc_",
@@ -65,7 +65,7 @@ def test_happy_path_descriptors(df_descriptors: pd.DataFrame) -> None:
     assert set(res.train["id"]) & set(res.test["id"]) == set()
 
 
-def test_missing_embeddings_raises(df_base: pd.DataFrame, tmp_path: Path) -> None:
+def test_missing_embeddings_raises(df_base: pl.DataFrame, tmp_path: Path) -> None:
     splitter = DistanceAwareSplitter(
         feature_mode="embeddings",
         embeddings_path=str(tmp_path / "nonexistent.npy"),

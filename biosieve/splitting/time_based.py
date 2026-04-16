@@ -57,7 +57,7 @@ class TimeSplitter:
         time_col: Column containing timestamps (string datetime) or numeric time values.
         test_size: Fraction assigned to the test split (latest samples if ascending=True).
         val_size: Fraction assigned to a validation split between train and test (0 disables validation).
-        parse_datetime: If True, parse `time_col` using `pandas.to_datetime`. If False, parse as numeric.
+        parse_datetime: If True, parse `time_col` as datetimes. If False, parse as numeric.
         time_format: Optional datetime format string (e.g., "%Y-%m-%d"). Only used when parse_datetime=True.
         ascending: If True, sorts from older to newer. If False, newer to older (reverses split direction).
 
@@ -130,11 +130,7 @@ class TimeSplitter:
             raise ValueError(msg)
 
         train = work[:n_train].drop(["_biosieve_time__"])
-        val = (
-            work[n_train : n_train + n_val].drop(["_biosieve_time__"])
-            if n_val > 0
-            else None
-        )
+        val = work[n_train : n_train + n_val].drop(["_biosieve_time__"]) if n_val > 0 else None
         test = work[n_train + n_val :].drop(["_biosieve_time__"])
 
         def _range(x: pl.DataFrame) -> dict[str, Any]:

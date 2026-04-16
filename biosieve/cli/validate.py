@@ -346,7 +346,7 @@ def _run_strategy_requirements(
     *,
     args: SimpleNamespace,
     cols: Columns,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     record: _RecordFn,
 ) -> None:
     strategy = args.strategy

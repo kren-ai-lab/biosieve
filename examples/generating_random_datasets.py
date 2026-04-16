@@ -1,7 +1,7 @@
 import random
 from datetime import date, timedelta
 import math
-import pandas as pd
+import polars as pl
 
 def random_peptide(rng: random.Random, length: int) -> str:
     aa = "ACDEFGHIKLMNPQRSTVWY"
@@ -31,7 +31,7 @@ def generate_biosieve_dataset(
     exact_dup_rate: float = 0.08,
     near_dup_rate: float = 0.25,
     target_name: str = "target",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """
     Generates a synthetic dataset with:
     - exact duplicates (same sequence)
@@ -177,12 +177,10 @@ def generate_biosieve_dataset(
             }
         )
 
-    df = pd.DataFrame(rows)
-    df = df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
-    return df
+    return pl.DataFrame(rows).sample(fraction=1.0, shuffle=True, seed=seed)
 
 if __name__ == "__main__":
     df = generate_biosieve_dataset(n=1000, seed=13, target_name="target")
-    df.to_csv("biosieve_example_dataset_1000.csv", index=False)
+    df.write_csv("biosieve_example_dataset_1000.csv")
     print(df.head(10))
-    print("Saved: biosieve_example_dataset_1000.csv", "rows:", len(df), "cols:", len(df.columns))
+    print("Saved: biosieve_example_dataset_1000.csv", "rows:", df.height, "cols:", len(df.columns))

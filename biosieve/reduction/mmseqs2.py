@@ -102,10 +102,7 @@ def _build_outputs(
         )
     )
     kept_df = kept_df.with_columns(
-        pl.col(cols.id_col)
-        .cast(pl.String)
-        .replace(member_to_cluster)
-        .alias("mmseqs2_cluster_id")
+        pl.col(cols.id_col).cast(pl.String).replace(member_to_cluster).alias("mmseqs2_cluster_id")
     )
     stats: dict[str, Any] = {
         "n_total": work.height,

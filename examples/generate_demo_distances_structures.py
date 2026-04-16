@@ -5,10 +5,10 @@ Output: struct_edges.csv
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
-df = pd.read_csv("biosieve_example_dataset_1000.csv")
-ids = df["id"].astype(str).tolist()
+df = pl.read_csv("biosieve_example_dataset_1000.csv")
+ids = df["id"].cast(pl.String).to_list()
 N = len(ids)
 
 rows = []
@@ -18,5 +18,5 @@ for i in range(0, N - 2, 3):
     rows.append((a, c, 0.42))
     rows.append((b, c, 0.40))
 
-pd.DataFrame(rows, columns=["id1", "id2", "distance"]).to_csv("struct_edges.csv", index=False)
+pl.DataFrame(rows, schema=["id1", "id2", "distance"], orient="row").write_csv("struct_edges.csv")
 print(f"Saved struct_edges.csv with {len(rows)} edges")

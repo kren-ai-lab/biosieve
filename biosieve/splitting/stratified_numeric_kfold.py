@@ -1,3 +1,5 @@
+# ruff: noqa: ANN202, ANN401, D102, EM101, EM102, TRY003, TRY300
+
 """Stratified k-fold splitter for numeric targets via binning."""
 
 from __future__ import annotations
@@ -125,8 +127,12 @@ class StratifiedNumericKFoldSplitter:
                         "n_bins_effective": n_eff,
                         "train_bin_counts": _bin_counts(bins[np.asarray(train_idx, dtype=int)]),
                         "test_bin_counts": _bin_counts(bins[np.asarray(test_idx, dtype=int)]),
-                        "train_label_stats": _label_stats(train[self.label_col].cast(pl.Float64, strict=False).to_numpy()),
-                        "test_label_stats": _label_stats(test[self.label_col].cast(pl.Float64, strict=False).to_numpy()),
+                        "train_label_stats": _label_stats(
+                            train[self.label_col].cast(pl.Float64, strict=False).to_numpy()
+                        ),
+                        "test_label_stats": _label_stats(
+                            test[self.label_col].cast(pl.Float64, strict=False).to_numpy()
+                        ),
                     },
                 )
             )

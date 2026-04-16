@@ -1,3 +1,5 @@
+# ruff: noqa: ANN401, D102, EM101, TRY003
+
 """Distance-aware split strategy targeting out-of-distribution evaluation."""
 
 from __future__ import annotations
@@ -95,7 +97,9 @@ class DistanceAwareSplitter:
                 {"feature_mode": "embeddings", "n_with_features": len(present_idx), "n_total": df.height},
             )
         if self.feature_mode == "descriptors":
-            dcols = infer_descriptor_columns(df, prefix=self.descriptor_prefix, explicit_cols=self.descriptor_cols)
+            dcols = infer_descriptor_columns(
+                df, prefix=self.descriptor_prefix, explicit_cols=self.descriptor_cols
+            )
             X = extract_descriptor_matrix(df, dcols, self.dtype).X
             if self.standardize:
                 mu = X.mean(axis=0, keepdims=True)

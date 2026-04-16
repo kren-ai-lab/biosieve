@@ -48,7 +48,9 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
         msg = f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns}"
         raise ValueError(msg)
 
-    return dict(zip(df[id_col].cast(pl.String).to_list(), df[cluster_col].cast(pl.String).to_list(), strict=False))
+    return dict(
+        zip(df[id_col].cast(pl.String).to_list(), df[cluster_col].cast(pl.String).to_list(), strict=False)
+    )
 
 
 def _validate_inputs(
@@ -232,7 +234,9 @@ class ClusterAwareSplitter:
         # leakage checks using the internal cluster column (always present pre-drop)
         train_c = set(train[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list())
         test_c = set(test[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list())
-        val_c = set(val[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list()) if val is not None else set()
+        val_c = (
+            set(val[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list()) if val is not None else set()
+        )
 
         leak_tt = len(train_c & test_c)
         leak_tv = len(train_c & val_c) if val is not None else 0

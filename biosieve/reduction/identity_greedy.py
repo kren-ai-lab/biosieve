@@ -253,13 +253,17 @@ class IdentityGreedyReducer:
         kept = work[reps_idx]
 
         if removed_rows:
-            mapping = pl.DataFrame(
-                removed_rows,
-                schema=["removed_id", "representative_id", "score"],
-                orient="row",
-            ).with_columns(
-                (pl.lit("ident:") + pl.col("representative_id").cast(pl.String)).alias("cluster_id")
-            ).select(["removed_id", "representative_id", "cluster_id", "score"])
+            mapping = (
+                pl.DataFrame(
+                    removed_rows,
+                    schema=["removed_id", "representative_id", "score"],
+                    orient="row",
+                )
+                .with_columns(
+                    (pl.lit("ident:") + pl.col("representative_id").cast(pl.String)).alias("cluster_id")
+                )
+                .select(["removed_id", "representative_id", "cluster_id", "score"])
+            )
         else:
             mapping = pl.DataFrame(
                 schema={
