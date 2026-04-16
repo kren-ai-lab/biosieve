@@ -1,0 +1,5 @@
+minhash_jaccard:
+  threshold: 0.8
+  k: 5
+  num_perm: 128
+  seed: 42

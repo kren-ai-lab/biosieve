@@ -5,37 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
-
+from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set, _prepare_work
 from biosieve.reduction.base import ReductionResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from biosieve.types import Columns
 
 log = get_logger(__name__)
-
-
-def _kmer_set(seq: str, k: int) -> set[str]:
-    """Convert a sequence into a set of k-mers.
-
-    Args:
-        seq: Input sequence string.
-        k: K-mer size (>= 1).
-
-    Returns:
-        Set of unique k-mer tokens. If len(seq) < k, returns {seq}.
-
-    Raises:
-        ValueError: If k < 1.
-
-    """
-    if k <= 0:
-        msg = "k must be >= 1"
-        raise ValueError(msg)
-    if len(seq) < k:
-        return {seq}
-    return {seq[i : i + k] for i in range(len(seq) - k + 1)}
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
@@ -72,23 +51,6 @@ def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float, k: int, 
     if cols.seq_col not in df.columns:
         msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
         raise ValueError(msg)
-
-
-def _prepare_work(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
-    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
-    ids = work[id_col].astype(str).tolist()
-    if len(ids) != len(set(ids)):
-        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-        raise ValueError(msg)
-    return work, ids
-
-
-def _build_mapping(removed_rows: list[tuple[str, str, float]]) -> pd.DataFrame:
-    mapping = pd.DataFrame(removed_rows, columns=["removed_id", "representative_id", "score"])
-    if len(mapping) == 0:
-        return pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
-    mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"kmer:{x}")
-    return mapping[["removed_id", "representative_id", "cluster_id", "score"]]
 
 
 @dataclass(frozen=True)

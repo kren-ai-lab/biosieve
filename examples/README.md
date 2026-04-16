@@ -77,6 +77,7 @@ bash ../testing_reducers.sh
 | `params_split_cluster_aware.yaml`                  | `cluster_aware`                         |
 | `params_split_cluster_aware_with_mapping.yaml`     | `cluster_aware` (external mapping file) |
 | `params_reducer.yaml`                              | `embedding_cosine` reducer              |
+| `params_reducer_minhash_jaccard.yaml`              | `minhash_jaccard` reducer               |
 
 ## CLI reference
 

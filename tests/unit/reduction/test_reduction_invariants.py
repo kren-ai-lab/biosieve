@@ -16,9 +16,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
-    import pytest
-
     from biosieve.reduction.base import Reducer, ReductionResult
 
 import pandas as pd
@@ -34,11 +31,26 @@ COLS = Columns(id_col="id", seq_col="sequence")
 # ---------------------------------------------------------------------------
 
 
+try:
+    import datasketch as _datasketch_mod  # noqa: F401
+
+    _has_datasketch = True
+except ImportError:
+    _has_datasketch = False
+
+
 @pytest.fixture(
     params=[
         "exact",
         "identity_greedy",
         "kmer_jaccard",
+        pytest.param(
+            "minhash_jaccard",
+            marks=pytest.mark.skipif(
+                not _has_datasketch,
+                reason="datasketch not installed",
+            ),
+        ),
         "descriptor_euclidean",
         "structural_distance",
         "embedding_cosine",
@@ -57,6 +69,7 @@ def reducer_and_df(
     from biosieve.reduction.exact import ExactDedupReducer
     from biosieve.reduction.identity_greedy import IdentityGreedyReducer
     from biosieve.reduction.kmer_jaccard import KmerJaccardReducer
+    from biosieve.reduction.minhash_jaccard import MinHashJaccardReducer
     from biosieve.reduction.structural_distance import StructuralDistanceReducer
 
     emb_path, ids_path = embeddings_files
@@ -68,6 +81,7 @@ def reducer_and_df(
         "exact": (ExactDedupReducer(), df_with_dupes),
         "identity_greedy": (IdentityGreedyReducer(threshold=0.5), df_base),
         "kmer_jaccard": (KmerJaccardReducer(threshold=0.3, k=3), df_base),
+        "minhash_jaccard": (MinHashJaccardReducer(threshold=0.3, k=3, num_perm=64), df_base),
         "descriptor_euclidean": (
             DescriptorEuclideanReducer(threshold=2.0, descriptor_prefix="desc_"),
             df_descriptors,

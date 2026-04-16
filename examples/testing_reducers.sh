@@ -50,6 +50,15 @@ biosieve reduce \
   --mapping-output map_desc_euclidean.csv \
   --report-output report_desc_euclidean.json
 
+# MinHash Jaccard (approximate, requires datasketch: pip install biosieve[minhash])
+biosieve reduce \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_minhash.csv \
+  --strategy minhash_jaccard \
+  --mapping-output map_minhash.csv \
+  --report-output report_minhash.json \
+  --params ../configs/params_reducer_minhash_jaccard.yaml
+
 # Structural distance
 biosieve reduce \
   -i biosieve_example_dataset_1000.csv \

@@ -17,6 +17,12 @@ def build_registry() -> StrategyRegistry:
         StrategySpec("kmer_jaccard", "reducer", "biosieve.reduction.kmer_jaccard:KmerJaccardReducer"),
     )
     reg.add_reducer(
+        "minhash_jaccard",
+        StrategySpec(
+            "minhash_jaccard", "reducer", "biosieve.reduction.minhash_jaccard:MinHashJaccardReducer"
+        ),
+    )
+    reg.add_reducer(
         "identity_greedy",
         StrategySpec(
             "identity_greedy", "reducer", "biosieve.reduction.identity_greedy:IdentityGreedyReducer"
