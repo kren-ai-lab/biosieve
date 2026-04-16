@@ -1,57 +1,59 @@
 #!/usr/bin/bash
+# Run from examples/raw_data_examples/
 
-#Exact dedup
+# Exact deduplication
 biosieve reduce \
-  --in biosieve_example_dataset_1000.csv \
-  --out data_nr_exact.csv \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_exact.csv \
   --strategy exact \
-  --map redundancy_map_exact.csv \
-  --report reduction_exact.json
+  --mapping-output map_exact.csv \
+  --report-output report_exact.json
 
-# identity_greedy
+# Identity greedy
 biosieve reduce \
-  --in biosieve_example_dataset_1000.csv \
-  --out data_nr_identity.csv \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_identity.csv \
   --strategy identity_greedy \
-  --map map_identity.csv \
-  --report reduction_identity.json
+  --mapping-output map_identity.csv \
+  --report-output report_identity.json
 
-# kmer_jaccard
+# K-mer Jaccard
 biosieve reduce \
-  --in biosieve_example_dataset_1000.csv \
-  --out data_nr_kmer.csv \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_kmer.csv \
   --strategy kmer_jaccard \
-  --map map_kmer.csv \
-  --report reduction_kmer.json
+  --mapping-output map_kmer.csv \
+  --report-output report_kmer.json
 
-# mmseq2
+# MMseqs2
 biosieve reduce \
-  --in biosieve_example_dataset_1000.csv \
-  --out data_nr_mmseqs2.csv \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_mmseqs2.csv \
   --strategy mmseqs2 \
-  --map map_mmseqs2.csv \
-  --report reduction_mmseqs2.json
+  --mapping-output map_mmseqs2.csv \
+  --report-output report_mmseqs2.json
 
-# embedding cosine-distance
+# Embedding cosine distance
 biosieve reduce \
-  --in biosieve_example_dataset_1000.csv \
-  --out data_nr_embcos.csv \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_emb_cosine.csv \
   --strategy embedding_cosine \
-  --map map_embcos.csv \
-  --report reduction_embcos.json
+  --mapping-output map_emb_cosine.csv \
+  --report-output report_emb_cosine.json \
+  --params ../configs/params_reducer.yaml
 
-# descriptors euclidean distance
+# Descriptor Euclidean distance
 biosieve reduce \
-  --in biosieve_example_dataset_1000_desc.csv \
-  --out data_nr_deuc.csv \
+  -i biosieve_example_dataset_1000_desc.csv \
+  -o data_nr_desc_euclidean.csv \
   --strategy descriptor_euclidean \
-  --map map_deuc.csv \
-  --report reduction_deuc.json
+  --mapping-output map_desc_euclidean.csv \
+  --report-output report_desc_euclidean.json
 
-# structural distances
+# Structural distance
 biosieve reduce \
-  --in biosieve_example_dataset_1000.csv \
-  --out data_nr_struct.csv \
+  -i biosieve_example_dataset_1000.csv \
+  -o data_nr_structural.csv \
   --strategy structural_distance \
-  --map map_struct.csv \
-  --report reduction_struct.json
+  --mapping-output map_structural.csv \
+  --report-output report_structural.json
