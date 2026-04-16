@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from types import ModuleType
+
+log = logging.getLogger(__name__)
 
 MIN_OVERRIDE_KEY_PARTS = 2
 
@@ -120,6 +123,14 @@ def load_params(
 def params_for_strategy(all_params: Mapping[str, object], strategy_name: str) -> dict[str, object]:
     """Return the parameter mapping for one strategy, or an empty mapping."""
     if strategy_name not in all_params:
+        if all_params:
+            known = sorted(all_params.keys())
+            log.warning(
+                "No params found for strategy '%s' in params file. "
+                "Keys present: %s. Check that the top-level key matches the strategy name.",
+                strategy_name,
+                known,
+            )
         return {}
     v = all_params[strategy_name]
     if v is None:
