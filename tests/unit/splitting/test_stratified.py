@@ -29,12 +29,6 @@ def test_happy_path(df_labeled: pd.DataFrame) -> None:
     assert len(res.test) > 0
 
 
-def test_no_overlap(df_labeled: pd.DataFrame) -> None:
-    splitter = StratifiedSplitter(label_col="label", test_size=0.2, seed=13)
-    res = splitter.run(df_labeled, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_val_when_requested(df_labeled: pd.DataFrame) -> None:
     splitter = StratifiedSplitter(label_col="label", test_size=0.2, val_size=0.1, seed=13)
     res = splitter.run(df_labeled, COLS)

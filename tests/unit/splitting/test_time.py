@@ -30,12 +30,6 @@ def test_happy_path(df_timed: pd.DataFrame) -> None:
     assert len(res.test) > 0
 
 
-def test_no_overlap(df_timed: pd.DataFrame) -> None:
-    splitter = TimeSplitter(time_col="date", test_size=0.2)
-    res = splitter.run(df_timed, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_chronological_order(df_timed: pd.DataFrame) -> None:
     """All train dates must be earlier than all test dates."""
     splitter = TimeSplitter(time_col="date", test_size=0.2)

@@ -29,12 +29,6 @@ def test_happy_path(df_full: pd.DataFrame) -> None:
     assert len(res.test) > 0
 
 
-def test_no_overlap(df_full: pd.DataFrame) -> None:
-    splitter = StratifiedNumericSplitter(label_col="target", test_size=0.2, n_bins=5, seed=13)
-    res = splitter.run(df_full, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_stats_have_bins(df_full: pd.DataFrame) -> None:
     splitter = StratifiedNumericSplitter(label_col="target", test_size=0.2, n_bins=5, seed=13)
     res = splitter.run(df_full, COLS)

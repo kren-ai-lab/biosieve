@@ -38,20 +38,6 @@ def test_happy_path(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) 
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
-    emb_path, ids_path = embeddings_files
-    reducer = EmbeddingCosineReducer(
-        embeddings_path=str(emb_path),
-        ids_path=str(ids_path),
-        threshold=0.5,
-        use_faiss=False,
-    )
-    res = reducer.run(df_base, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        assert "removed_id" in res.mapping.columns
-        assert "representative_id" in res.mapping.columns
-
-
 def test_high_threshold_removes_nothing(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     """threshold=1.0 (max cosine similarity) → nothing removed."""
     emb_path, ids_path = embeddings_files

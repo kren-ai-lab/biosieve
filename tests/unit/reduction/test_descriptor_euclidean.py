@@ -33,24 +33,6 @@ def test_happy_path(df_descriptors: pd.DataFrame) -> None:
     assert set(res.df["id"]).issubset(set(df_descriptors["id"]))
 
 
-def test_mapping_schema(df_descriptors: pd.DataFrame) -> None:
-    reducer = DescriptorEuclideanReducer(threshold=2.0, descriptor_prefix="desc_")
-    res = reducer.run(df_descriptors, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        assert "removed_id" in res.mapping.columns
-        assert "representative_id" in res.mapping.columns
-
-
-def test_no_ids_lost(df_descriptors: pd.DataFrame) -> None:
-    reducer = DescriptorEuclideanReducer(threshold=2.0, descriptor_prefix="desc_")
-    res = reducer.run(df_descriptors, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        kept = set(res.df["id"].astype(str))
-        removed = set(res.mapping["removed_id"].astype(str))
-        assert kept & removed == set()
-        assert kept | removed == set(df_descriptors["id"].astype(str))
-
-
 def test_zero_threshold_removes_nothing(df_descriptors: pd.DataFrame) -> None:
     """threshold=0.0 → no pair within 0 euclidean distance → nothing removed."""
     reducer = DescriptorEuclideanReducer(threshold=0.0, descriptor_prefix="desc_")

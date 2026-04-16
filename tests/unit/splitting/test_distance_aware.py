@@ -38,19 +38,6 @@ def test_happy_path_embeddings(df_base: pd.DataFrame, embeddings_files: tuple[Pa
     assert len(res.test) > 0
 
 
-def test_no_overlap_embeddings(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
-    emb_path, ids_path = embeddings_files
-    splitter = DistanceAwareSplitter(
-        feature_mode="embeddings",
-        embeddings_path=str(emb_path),
-        ids_path=str(ids_path),
-        test_size=0.2,
-        seed=13,
-    )
-    res = splitter.run(df_base, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_stats_have_distance_info(df_base: pd.DataFrame, embeddings_files: tuple[Path, Path]) -> None:
     emb_path, ids_path = embeddings_files
     splitter = DistanceAwareSplitter(

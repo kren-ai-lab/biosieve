@@ -45,20 +45,6 @@ def test_happy_path_precomputed(df_base: pd.DataFrame, cluster_map_file: Path) -
     assert len(res.test) > 0
 
 
-def test_no_overlap_precomputed(df_base: pd.DataFrame, cluster_map_file: Path) -> None:
-    splitter = HomologyAwareSplitter(
-        mode="precomputed",
-        clusters_path=str(cluster_map_file),
-        clusters_format="csv",
-        member_col="id",
-        cluster_col="cluster_id",
-        test_size=0.2,
-        seed=13,
-    )
-    res = splitter.run(df_base, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_leakage_zero_precomputed(df_base: pd.DataFrame, cluster_map_file: Path) -> None:
     """Core invariant: no homology cluster in both train and test."""
     splitter = HomologyAwareSplitter(

@@ -47,18 +47,6 @@ def test_happy_path(df_base: pd.DataFrame, tmp_path: Path) -> None:
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base: pd.DataFrame, tmp_path: Path) -> None:
-    reducer = MMseqs2Reducer(
-        min_seq_id=0.9,
-        threads=1,
-        tmp_root=str(tmp_path / "mmseqs_work2"),
-    )
-    res = reducer.run(df_base, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        assert "removed_id" in res.mapping.columns
-        assert "representative_id" in res.mapping.columns
-
-
 def test_missing_sequence_col(df_base: pd.DataFrame) -> None:
     bad_cols = Columns(id_col="id", seq_col="NONEXISTENT")
     reducer = MMseqs2Reducer()

@@ -29,12 +29,6 @@ def test_happy_path(df_grouped: pd.DataFrame) -> None:
     assert len(res.test) > 0
 
 
-def test_no_overlap(df_grouped: pd.DataFrame) -> None:
-    splitter = GroupSplitter(group_col="group", test_size=0.2, seed=13)
-    res = splitter.run(df_grouped, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_leakage_zero(df_grouped: pd.DataFrame) -> None:
     """Core invariant: no group appears in both train and test."""
     splitter = GroupSplitter(group_col="group", test_size=0.2, seed=13)

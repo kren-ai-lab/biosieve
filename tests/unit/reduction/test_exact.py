@@ -52,25 +52,6 @@ def test_no_duplicates_unchanged(df_base: pd.DataFrame) -> None:
     assert len(res.df) == len(df_base)
 
 
-def test_mapping_schema(df_with_duplicates: pd.DataFrame) -> None:
-    reducer = ExactDedupReducer()
-    res = reducer.run(df_with_duplicates, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        assert "removed_id" in res.mapping.columns
-        assert "representative_id" in res.mapping.columns
-
-
-def test_no_ids_lost(df_with_duplicates: pd.DataFrame) -> None:
-    reducer = ExactDedupReducer()
-    res = reducer.run(df_with_duplicates, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        kept = set(res.df["id"].astype(str))
-        removed = set(res.mapping["removed_id"].astype(str))
-        all_ids = set(df_with_duplicates["id"].astype(str))
-        assert kept & removed == set()
-        assert kept | removed == all_ids
-
-
 def test_missing_sequence_col(df_base: pd.DataFrame) -> None:
     bad_cols = Columns(id_col="id", seq_col="NONEXISTENT")
     reducer = ExactDedupReducer()

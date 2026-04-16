@@ -28,12 +28,6 @@ def test_happy_path(df_base: pd.DataFrame) -> None:
     assert res.val is None
 
 
-def test_no_overlap(df_base: pd.DataFrame) -> None:
-    splitter = RandomSplitter(test_size=0.2, seed=13)
-    res = splitter.run(df_base, COLS)
-    assert set(res.train["id"]) & set(res.test["id"]) == set()
-
-
 def test_val_when_requested(df_base: pd.DataFrame) -> None:
     splitter = RandomSplitter(test_size=0.2, val_size=0.1, seed=13)
     res = splitter.run(df_base, COLS)

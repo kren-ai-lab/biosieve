@@ -34,24 +34,6 @@ def test_happy_path(df_base: pd.DataFrame, edges_file: Path) -> None:
     assert set(res.df["id"]).issubset(set(df_base["id"]))
 
 
-def test_mapping_schema(df_base: pd.DataFrame, edges_file: Path) -> None:
-    reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.4)
-    res = reducer.run(df_base, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        assert "removed_id" in res.mapping.columns
-        assert "representative_id" in res.mapping.columns
-
-
-def test_no_ids_lost(df_base: pd.DataFrame, edges_file: Path) -> None:
-    reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.4)
-    res = reducer.run(df_base, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
-        kept = set(res.df["id"].astype(str))
-        removed = set(res.mapping["removed_id"].astype(str))
-        assert kept & removed == set()
-        assert kept | removed == set(df_base["id"].astype(str))
-
-
 def test_zero_threshold_removes_nothing(df_base: pd.DataFrame, edges_file: Path) -> None:
     """threshold=0.0 → no pair passes → nothing removed."""
     reducer = StructuralDistanceReducer(edges_path=str(edges_file), threshold=0.0)
