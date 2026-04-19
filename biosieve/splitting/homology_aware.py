@@ -73,7 +73,7 @@ def _load_mmseqs_cluster_tsv(cluster_tsv: Path) -> pl.DataFrame:
         separator="\t",
         has_header=False,
         new_columns=["representative_id", "member_id"],
-    ).with_columns(pl.col("representative_id").alias("cluster_id"))
+    ).with_columns(cluster_id=pl.col("representative_id"))
 
 
 def _build_cluster_id_map(mapping_df: pl.DataFrame, *, member_col: str, cluster_col: str) -> dict[str, str]:

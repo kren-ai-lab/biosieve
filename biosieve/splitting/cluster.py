@@ -69,7 +69,7 @@ def _validate_inputs(
     work = df.clone()
 
     if cluster_col in work.columns:
-        work = work.with_columns(work[cluster_col].cast(pl.String).alias(_INTERNAL_CLUSTER_COL))
+        work = work.with_columns(**{_INTERNAL_CLUSTER_COL: work[cluster_col].cast(pl.String)})
         used_source = "dataset_column"
         missing = 0
     elif cluster_map_path:

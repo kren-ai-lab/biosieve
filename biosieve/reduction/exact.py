@@ -92,8 +92,8 @@ class ExactDedupReducer:
                     .alias("representative_id"),
                 )
                 .with_columns(
-                    pl.lit(1.0).alias("score"),
-                    (pl.lit("exact:") + pl.col("representative_id")).alias("cluster_id"),
+                    score=pl.lit(1.0),
+                    cluster_id=pl.lit("exact:") + pl.col("representative_id"),
                 )
                 .select(["removed_id", "representative_id", "cluster_id", "score"])
             )
@@ -107,9 +107,7 @@ class ExactDedupReducer:
                 }
             )
 
-        kept = kept.with_columns(
-            (pl.lit("exact:") + pl.col(cols.id_col).cast(pl.String)).alias("exact_cluster_id")
-        )
+        kept = kept.with_columns(exact_cluster_id=pl.lit("exact:") + pl.col(cols.id_col).cast(pl.String))
 
         stats: dict[str, Any] = {
             "n_total": work.height,

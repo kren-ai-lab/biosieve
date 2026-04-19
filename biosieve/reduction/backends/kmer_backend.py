@@ -53,5 +53,5 @@ def _build_mapping(
         )
     mapping = pl.DataFrame(removed_rows, schema=["removed_id", "representative_id", "score"], orient="row")
     return mapping.with_columns(
-        (pl.lit(f"{cluster_prefix}:") + pl.col("representative_id").cast(pl.String)).alias("cluster_id")
+        cluster_id=pl.lit(f"{cluster_prefix}:") + pl.col("representative_id").cast(pl.String)
     ).select(["removed_id", "representative_id", "cluster_id", "score"])

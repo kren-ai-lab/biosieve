@@ -198,7 +198,7 @@ class StructuralDistanceReducer:
         )
 
         kept_df = kept_df.with_columns(
-            (pl.lit("struct:") + pl.col(cols.id_col).cast(pl.String)).alias("structural_cluster_id")
+            structural_cluster_id=pl.lit("struct:") + pl.col(cols.id_col).cast(pl.String)
         )
 
         stats: dict[str, Any] = {

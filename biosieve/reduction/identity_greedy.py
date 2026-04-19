@@ -259,9 +259,7 @@ class IdentityGreedyReducer:
                     schema=["removed_id", "representative_id", "score"],
                     orient="row",
                 )
-                .with_columns(
-                    (pl.lit("ident:") + pl.col("representative_id").cast(pl.String)).alias("cluster_id")
-                )
+                .with_columns(cluster_id=pl.lit("ident:") + pl.col("representative_id").cast(pl.String))
                 .select(["removed_id", "representative_id", "cluster_id", "score"])
             )
         else:
@@ -274,9 +272,7 @@ class IdentityGreedyReducer:
                 }
             )
 
-        kept = kept.with_columns(
-            (pl.lit("ident:") + pl.col(cols.id_col).cast(pl.String)).alias("identity_cluster_id")
-        )
+        kept = kept.with_columns(identity_cluster_id=pl.lit("ident:") + pl.col(cols.id_col).cast(pl.String))
 
         stats: dict[str, Any] = {
             "n_total": work.height,

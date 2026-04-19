@@ -334,7 +334,7 @@ class EmbeddingCosineReducer:
 
         # Attach cluster id for representatives (convenience)
         kept_df = kept_df.with_columns(
-            pl.col(cols.id_col)
+            embedding_cosine_cluster_id=pl.col(cols.id_col)
             .cast(pl.String)
             .map_elements(
                 lambda x: (
@@ -344,7 +344,6 @@ class EmbeddingCosineReducer:
                 ),
                 return_dtype=pl.String,
             )
-            .alias("embedding_cosine_cluster_id")
         )
 
         stats: dict[str, Any] = {

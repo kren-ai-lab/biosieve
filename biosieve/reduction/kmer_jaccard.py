@@ -193,9 +193,7 @@ class KmerJaccardReducer:
 
         mapping = _build_mapping(removed_rows)
 
-        kept = kept.with_columns(
-            (pl.lit("kmer:") + pl.col(cols.id_col).cast(pl.String)).alias("kmer_cluster_id")
-        )
+        kept = kept.with_columns(kmer_cluster_id=pl.lit("kmer:") + pl.col(cols.id_col).cast(pl.String))
 
         stats: dict[str, Any] = {
             "n_total": work.height,

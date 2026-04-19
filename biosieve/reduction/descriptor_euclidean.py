@@ -302,7 +302,7 @@ class DescriptorEuclideanReducer:
         )
 
         kept_df = kept_df.with_columns(
-            (pl.lit("deuc:") + pl.col(cols.id_col).cast(pl.String)).alias("descriptor_euclidean_cluster_id")
+            descriptor_euclidean_cluster_id=pl.lit("deuc:") + pl.col(cols.id_col).cast(pl.String)
         )
 
         stats: dict[str, Any] = {

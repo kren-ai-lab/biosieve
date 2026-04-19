@@ -110,7 +110,7 @@ class TimeSplitter:
         else:
             t = t_raw.cast(pl.Float64, strict=True)
 
-        work = work.with_columns(t.alias("_biosieve_time__")).sort(
+        work = work.with_columns(_biosieve_time__=t).sort(
             "_biosieve_time__", descending=not self.ascending, maintain_order=True
         )
 
