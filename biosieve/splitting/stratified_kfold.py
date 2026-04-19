@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import polars as pl
@@ -12,36 +12,16 @@ from biosieve.splitting.base import SplitResult
 from biosieve.splitting.common import (
     sklearn_required_message,
     split_train_val,
-    try_import_train_test_split,
     validate_kfold,
     value_counts_dict,
 )
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
 MIN_KFOLD_SPLITS = 2
-
-
-class _StratifiedKFold(Protocol):
-    def split(self, X: object, y: object) -> Iterator[tuple[list[int], list[int]]]: ...
-
-
-class _StratifiedKFoldFactory(Protocol):
-    def __call__(self, *, n_splits: int, shuffle: bool, random_state: int) -> _StratifiedKFold: ...
-
-
-def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
-    try:
-        from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
-
-        return cast("_StratifiedKFoldFactory", StratifiedKFold)
-    except ImportError:
-        return None
 
 
 @dataclass(frozen=True)
@@ -79,11 +59,13 @@ class StratifiedKFoldSplitter:
         """Return the strategy identifier."""
         return "stratified_kfold"
 
-    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901
+    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:
         """Create stratified k-fold splits with optional per-fold validation."""
-        StratifiedKFold = _try_import_stratified_kfold()
-        if StratifiedKFold is None:
-            raise ImportError(sklearn_required_message("StratifiedKFoldSplitter"))
+        try:
+            from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
+        except ImportError as e:
+            msg = sklearn_required_message("StratifiedKFoldSplitter")
+            raise ImportError(msg) from e
 
         if self.label_col not in df.columns:
             msg = f"Missing label column '{self.label_col}'. Columns: {df.columns}"
@@ -123,12 +105,6 @@ class StratifiedKFoldSplitter:
 
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
 
-        tts = None
-        if self.val_size and self.val_size > 0:
-            tts = try_import_train_test_split()
-            if tts is None:
-                raise ImportError(sklearn_required_message("StratifiedKFoldSplitter with val_size > 0"))
-
         folds: list[SplitResult] = []
 
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(np.arange(n), y.to_numpy())):
@@ -142,10 +118,7 @@ class StratifiedKFoldSplitter:
                     train_df,
                     val_size=self.val_size,
                     seed=int(self.seed + fold_idx),
-                    train_test_split=tts,
-                    import_error_message=sklearn_required_message(
-                        "StratifiedKFoldSplitter with val_size > 0"
-                    ),
+                    feature="StratifiedKFoldSplitter with val_size > 0",
                 )
 
             folds.append(

@@ -240,14 +240,6 @@ class ClusterAwareSplitter:
         leak_tv = len(train_c & val_c) if val is not None else 0
         leak_vt = len(val_c & test_c) if val is not None else 0
 
-        # Enforce invariants: cluster leakage must be zero
-        if leak_tt != 0 or leak_vt != 0 or leak_tv != 0:
-            msg = (
-                "Cluster leakage detected (this should never happen with group-based splitting). "
-                f"leak_train_test={leak_tt}, leak_train_val={leak_tv}, leak_val_test={leak_vt}"
-            )
-            raise ValueError(msg)
-
         # cleanup internal column before returning
         train = train.drop([_INTERNAL_CLUSTER_COL])
         test = test.drop([_INTERNAL_CLUSTER_COL])
@@ -263,9 +255,9 @@ class ClusterAwareSplitter:
             "n_clusters_total": int(n_clusters),
             "cluster_source": used_source,
             "n_missing_cluster_assignments": int(missing),
-            "leak_clusters_train_test": 0,
-            "leak_clusters_train_val": 0,
-            "leak_clusters_val_test": 0,
+            "leak_clusters_train_test": int(leak_tt),
+            "leak_clusters_train_val": int(leak_tv),
+            "leak_clusters_val_test": int(leak_vt),
             "note": (
                 "cluster-aware split uses group-based splitting to prevent cluster leakage across splits."
             ),

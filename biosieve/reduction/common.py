@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 import polars as pl
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    import numpy as np
 
 EMPTY_MAPPING_SCHEMA = {
     "removed_id": pl.String,
@@ -15,11 +17,41 @@ EMPTY_MAPPING_SCHEMA = {
     "cluster_id": pl.String,
     "score": pl.Float64,
 }
+SKLEARN_REQUIRED_MESSAGE = (
+    "scikit-learn could not be imported, but it is a required biosieve dependency. "
+    "Check that biosieve was installed correctly in this environment."
+)
 
 
 def empty_mapping_df() -> pl.DataFrame:
     """Return an empty mapping DataFrame with the stable schema used by reducers."""
     return pl.DataFrame(schema=EMPTY_MAPPING_SCHEMA)
+
+
+class _NearestNeighborsModel(Protocol):
+    def fit(self, X: object) -> object: ...
+
+    def radius_neighbors(
+        self,
+        X: np.ndarray,
+        *,
+        radius: float,
+        return_distance: bool,
+    ) -> tuple[np.ndarray, np.ndarray]: ...
+
+
+class _NearestNeighborsFactory(Protocol):
+    def __call__(self, *, metric: str, algorithm: str, n_jobs: int) -> _NearestNeighborsModel: ...
+
+
+def require_sklearn_neighbors(feature: str) -> _NearestNeighborsFactory:
+    """Return sklearn.neighbors.NearestNeighbors or raise a consistent ImportError."""
+    try:
+        from sklearn.neighbors import NearestNeighbors  # noqa: PLC0415
+    except ImportError as e:
+        msg = f"{feature} requires scikit-learn. {SKLEARN_REQUIRED_MESSAGE}"
+        raise ImportError(msg) from e
+    return cast("_NearestNeighborsFactory", NearestNeighbors)
 
 
 def prepare_reduction_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:

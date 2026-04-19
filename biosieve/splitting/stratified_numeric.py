@@ -13,8 +13,7 @@ import polars as pl
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.common import (
     derive_val_fraction,
-    sklearn_required_message,
-    try_import_train_test_split,
+    require_train_test_split,
     validate_sizes,
 )
 from biosieve.utils.logging import get_logger
@@ -92,9 +91,7 @@ class StratifiedNumericSplitter:
         return "stratified_numeric"
 
     def run(self, df: pl.DataFrame, _cols: Any) -> SplitResult:
-        tts = try_import_train_test_split()
-        if tts is None:
-            raise ImportError(sklearn_required_message("StratifiedNumericSplitter"))
+        tts = require_train_test_split("StratifiedNumericSplitter")
         validate_sizes(self.test_size, self.val_size)
         if self.label_col not in df.columns:
             raise ValueError(f"Missing numeric label column '{self.label_col}'. Columns: {df.columns}")

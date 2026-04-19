@@ -63,12 +63,13 @@ def derive_val_fraction(test_size: float, val_size: float) -> float:
     return frac
 
 
-def try_import_train_test_split() -> _TrainTestSplitFn | None:
-    """Try to import sklearn.model_selection.train_test_split lazily."""
+def require_train_test_split(feature: str) -> _TrainTestSplitFn:
+    """Return sklearn.model_selection.train_test_split with a consistent ImportError."""
     try:
         from sklearn.model_selection import train_test_split  # noqa: PLC0415
-    except ImportError:
-        return None
+    except ImportError as e:
+        msg = sklearn_required_message(feature)
+        raise ImportError(msg) from e
     return cast("_TrainTestSplitFn", train_test_split)
 
 
@@ -82,17 +83,16 @@ def split_train_val(
     *,
     val_size: float,
     seed: int,
+    feature: str,
     stratify: object = None,
     train_test_split: _TrainTestSplitFn | None = None,
-    import_error_message: str,
-) -> tuple[pl.DataFrame, pl.DataFrame | None]:
+) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Split a training frame into train/val using sklearn when val is enabled."""
     if val_size <= 0:
-        return train_df, None
+        msg = "split_train_val requires val_size > 0"
+        raise ValueError(msg)
 
-    tts = train_test_split or try_import_train_test_split()
-    if tts is None:
-        raise ImportError(import_error_message)
+    tts = train_test_split or require_train_test_split(feature)
 
     inner_idx = np.arange(train_df.height)
     train_keep_idx, val_idx = tts(

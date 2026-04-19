@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
@@ -13,29 +13,10 @@ from biosieve.splitting.common import derive_val_fraction, sklearn_required_mess
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
 MIN_GROUPS_FOR_SPLIT = 2
-
-
-class _GroupShuffleSplit(Protocol):
-    def split(self, X: object, *, groups: object) -> Iterator[tuple[list[int], list[int]]]: ...
-
-
-class _GroupShuffleSplitFactory(Protocol):
-    def __call__(self, *, n_splits: int, test_size: float, random_state: int) -> _GroupShuffleSplit: ...
-
-
-def _try_import_gss() -> _GroupShuffleSplitFactory | None:
-    try:
-        from sklearn.model_selection import GroupShuffleSplit  # noqa: PLC0415
-
-        return cast("_GroupShuffleSplitFactory", GroupShuffleSplit)
-    except ImportError:
-        return None
 
 
 def _validate_inputs(
@@ -83,9 +64,11 @@ def _split_groups(
         ImportError: If scikit-learn is not installed.
 
     """
-    GroupShuffleSplit = _try_import_gss()
-    if GroupShuffleSplit is None:
-        raise ImportError(sklearn_required_message("GroupSplitter"))
+    try:
+        from sklearn.model_selection import GroupShuffleSplit  # noqa: PLC0415
+    except ImportError as e:
+        msg = sklearn_required_message("GroupSplitter")
+        raise ImportError(msg) from e
 
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
     idx = np.arange(df.height)

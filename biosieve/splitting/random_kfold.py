@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -11,37 +11,17 @@ from biosieve.splitting.base import SplitResult
 from biosieve.splitting.common import (
     sklearn_required_message,
     split_train_val,
-    try_import_train_test_split,
     validate_kfold,
 )
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     import polars as pl
 
     from biosieve.types import Columns
 
 log = get_logger(__name__)
 MIN_KFOLD_SPLITS = 2
-
-
-class _KFold(Protocol):
-    def split(self, X: object) -> Iterator[tuple[list[int], list[int]]]: ...
-
-
-class _KFoldFactory(Protocol):
-    def __call__(self, *, n_splits: int, shuffle: bool, random_state: int) -> _KFold: ...
-
-
-def _try_import_kfold() -> _KFoldFactory | None:
-    try:
-        from sklearn.model_selection import KFold  # noqa: PLC0415
-
-        return cast("_KFoldFactory", KFold)
-    except ImportError:
-        return None
 
 
 @dataclass(frozen=True)
@@ -73,21 +53,17 @@ class RandomKFoldSplitter:
 
     def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:
         """Create random k-fold splits with optional per-fold validation."""
-        KFold = _try_import_kfold()
-        if KFold is None:
-            raise ImportError(sklearn_required_message("RandomKFoldSplitter"))
+        try:
+            from sklearn.model_selection import KFold  # noqa: PLC0415
+        except ImportError as e:
+            msg = sklearn_required_message("RandomKFoldSplitter")
+            raise ImportError(msg) from e
 
         work = df.clone()
         n = work.height
         validate_kfold(self.n_splits, self.val_size, n_samples=n)
 
         kf = KFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
-
-        tts = None
-        if self.val_size and self.val_size > 0:
-            tts = try_import_train_test_split()
-            if tts is None:
-                raise ImportError(sklearn_required_message("RandomKFoldSplitter with val_size > 0"))
 
         folds: list[SplitResult] = []
 
@@ -102,8 +78,7 @@ class RandomKFoldSplitter:
                     train_df,
                     val_size=self.val_size,
                     seed=int(self.seed + fold_idx),
-                    train_test_split=tts,
-                    import_error_message=sklearn_required_message("RandomKFoldSplitter with val_size > 0"),
+                    feature="RandomKFoldSplitter with val_size > 0",
                 )
 
             folds.append(

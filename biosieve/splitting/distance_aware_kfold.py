@@ -11,9 +11,8 @@ import numpy as np
 
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.common import (
-    sklearn_required_message,
+    require_train_test_split,
     split_train_val,
-    try_import_train_test_split,
     validate_kfold,
 )
 from biosieve.splitting.distance_aware import _dist_stats, _distance_to_centroid, build_distance_features
@@ -64,7 +63,11 @@ class DistanceAwareKFoldSplitter:
         order = np.argsort(key)
         ranked = feat_idx[order]
         test_slices = np.array_split(ranked, self.n_splits)
-        tts = try_import_train_test_split() if self.val_size > 0 else None
+        tts = (
+            require_train_test_split("DistanceAwareKFoldSplitter with val_size > 0")
+            if self.val_size > 0
+            else None
+        )
         folds: list[SplitResult] = []
         pos = {int(df_i): k for k, df_i in enumerate(feat_idx.tolist())}
 
@@ -79,10 +82,8 @@ class DistanceAwareKFoldSplitter:
                     train,
                     val_size=self.val_size,
                     seed=self.seed + fold_idx,
+                    feature="DistanceAwareKFoldSplitter with val_size > 0",
                     train_test_split=tts,
-                    import_error_message=sklearn_required_message(
-                        "DistanceAwareKFoldSplitter with val_size > 0"
-                    ),
                 )
 
             train_rowids = train["__rowid"].to_list()
