@@ -15,7 +15,6 @@ from biosieve.core.common import (
     validate_unique_ids,
     write_json,
 )
-from biosieve.core.factory import instantiate_strategy
 from biosieve.splitting.base import KFoldSplitter, SplitResult, Splitter
 from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
@@ -254,7 +253,7 @@ def run_split(
     # Instantiate strategy (lazy-safe)
     splitter_cls = registry.get_splitter_class(strategy)
     log.debug("split:strategy_class | %s.%s", splitter_cls.__module__, splitter_cls.__name__)
-    splitter = instantiate_strategy(splitter_cls, strategy_params)
+    splitter = registry.create_splitter(strategy, strategy_params)
 
     rp: Path
     if isinstance(splitter, KFoldSplitter):

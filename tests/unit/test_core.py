@@ -1,8 +1,7 @@
 """
 Unit tests for core infrastructure:
   - StrategyRegistry  (biosieve/core/registry.py)
-  - instantiate_strategy  (biosieve/core/factory.py)
-  - lazy_import_class / StrategySpec  (biosieve/core/spec.py)
+  - instantiate_strategy / lazy_import_class  (biosieve/core/registry.py)
   - load_params / params_for_strategy  (biosieve/io/params.py)
 """
 
@@ -24,9 +23,7 @@ from typing import cast
 
 import pytest
 
-from biosieve.core.factory import instantiate_strategy
-from biosieve.core.registry import StrategyRegistry
-from biosieve.core.spec import StrategySpec, lazy_import_class
+from biosieve.core.registry import StrategyRegistry, instantiate_strategy, lazy_import_class
 from biosieve.io.params import load_params, params_for_strategy
 
 # ---------------------------------------------------------------------------
@@ -47,14 +44,12 @@ class _DummySplitter:
 
 
 def test_add_and_get_reducer() -> None:
-    reg = StrategyRegistry()
-    reg.add_reducer("dummy", _DummyReducer)
+    reg = StrategyRegistry(reducers={"dummy": _DummyReducer})
     assert reg.get_reducer_class("dummy") is _DummyReducer
 
 
 def test_add_and_get_splitter() -> None:
-    reg = StrategyRegistry()
-    reg.add_splitter("dummy", _DummySplitter)
+    reg = StrategyRegistry(splitters={"dummy": _DummySplitter})
     assert reg.get_splitter_class("dummy") is _DummySplitter
 
 
@@ -71,23 +66,19 @@ def test_unknown_splitter_raises() -> None:
 
 
 def test_has_reducer_true_false() -> None:
-    reg = StrategyRegistry()
-    reg.add_reducer("r", _DummyReducer)
+    reg = StrategyRegistry(reducers={"r": _DummyReducer})
     assert reg.has_reducer("r") is True
     assert reg.has_reducer("missing") is False
 
 
 def test_has_splitter_true_false() -> None:
-    reg = StrategyRegistry()
-    reg.add_splitter("s", _DummySplitter)
+    reg = StrategyRegistry(splitters={"s": _DummySplitter})
     assert reg.has_splitter("s") is True
     assert reg.has_splitter("missing") is False
 
 
 def test_list_reducers_returns_registered() -> None:
-    reg = StrategyRegistry()
-    reg.add_reducer("a", _DummyReducer)
-    reg.add_reducer("b", _DummyReducer2)
+    reg = StrategyRegistry(reducers={"a": _DummyReducer, "b": _DummyReducer2})
     listed = reg.list_reducers()
     assert "a" in listed
     assert "b" in listed
@@ -95,9 +86,7 @@ def test_list_reducers_returns_registered() -> None:
 
 
 def test_lazy_spec_resolves_to_real_class() -> None:
-    reg = StrategyRegistry()
-    spec = StrategySpec("exact", "reducer", "biosieve.reduction.exact:ExactDedupReducer")
-    reg.add_reducer("exact", spec)
+    reg = StrategyRegistry(reducers={"exact": "biosieve.reduction.exact:ExactDedupReducer"})
     cls = reg.get_reducer_class("exact")
     from biosieve.reduction.exact import ExactDedupReducer
 

@@ -16,7 +16,6 @@ from biosieve.core.common import (
     validate_unique_ids,
     write_json,
 )
-from biosieve.core.factory import instantiate_strategy
 from biosieve.reduction.common import empty_mapping_df
 from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
@@ -119,8 +118,7 @@ def run_reduce(
     # We do not raise here to keep descriptor/structural reducers usable.
     # Reducers SHOULD raise if they require sequence and it is missing.
 
-    reducer_cls = registry.get_reducer_class(strategy)
-    reducer = cast("Reducer", instantiate_strategy(reducer_cls, strategy_params))
+    reducer = cast("Reducer", registry.create_reducer(strategy, strategy_params))
 
     res = reducer.run(df, cols)
 
