@@ -11,6 +11,7 @@ same assertions into every individual test module.
 
 from __future__ import annotations
 
+import importlib.util
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
     from biosieve.reduction.base import Reducer, ReductionResult
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from biosieve.types import Columns
@@ -31,12 +32,7 @@ COLS = Columns(id_col="id", seq_col="sequence")
 # ---------------------------------------------------------------------------
 
 
-try:
-    import datasketch as _datasketch_mod  # noqa: F401
-
-    _has_datasketch = True
-except ImportError:
-    _has_datasketch = False
+_has_datasketch = importlib.util.find_spec("datasketch") is not None
 
 
 @pytest.fixture(
@@ -58,11 +54,11 @@ except ImportError:
 )
 def reducer_and_df(
     request: pytest.FixtureRequest,
-    df_base: pd.DataFrame,
-    df_descriptors: pd.DataFrame,
+    df_base: pl.DataFrame,
+    df_descriptors: pl.DataFrame,
     embeddings_files: tuple[Path, Path],
     edges_file: Path,
-) -> tuple[Reducer, pd.DataFrame]:
+) -> tuple[Reducer, pl.DataFrame]:
     """Return (reducer_instance, input_df) for every non-mmseqs2 reducer."""
     from biosieve.reduction.descriptor_euclidean import DescriptorEuclideanReducer
     from biosieve.reduction.embedding_cosine import EmbeddingCosineReducer
@@ -73,9 +69,8 @@ def reducer_and_df(
     from biosieve.reduction.structural_distance import StructuralDistanceReducer
 
     emb_path, ids_path = embeddings_files
-    dupes = df_base.head(3).copy()
-    dupes["id"] = ["dup_000", "dup_001", "dup_002"]
-    df_with_dupes = pd.concat([df_base, dupes], ignore_index=True)
+    dupes = df_base.head(3).with_columns(pl.Series("id", ["dup_000", "dup_001", "dup_002"]))
+    df_with_dupes = pl.concat([df_base, dupes], how="vertical")
 
     cases: dict[str, Any] = {
         "exact": (ExactDedupReducer(), df_with_dupes),
@@ -108,26 +103,26 @@ def reducer_and_df(
 # ---------------------------------------------------------------------------
 
 
-def test_mapping_schema(reducer_and_df: tuple[Reducer, pd.DataFrame]) -> None:
+def test_mapping_schema(reducer_and_df: tuple[Reducer, pl.DataFrame]) -> None:
     """Non-empty mapping must have 'removed_id' and 'representative_id' columns."""
     reducer, df = reducer_and_df
     res: ReductionResult = reducer.run(df, COLS)
-    if res.mapping is not None and len(res.mapping) > 0:
+    if res.mapping is not None and res.mapping.height > 0:
         assert "removed_id" in res.mapping.columns
         assert "representative_id" in res.mapping.columns
 
 
-def test_no_ids_lost(reducer_and_df: tuple[Reducer, pd.DataFrame]) -> None:
+def test_no_ids_lost(reducer_and_df: tuple[Reducer, pl.DataFrame]) -> None:
     """Partition completeness: kept | removed == all_ids, kept & removed == empty."""
     reducer, df = reducer_and_df
     res: ReductionResult = reducer.run(df, COLS)
-    if res.mapping is None or len(res.mapping) == 0:
+    if res.mapping is None or res.mapping.height == 0:
         # Nothing removed -- the kept set must equal the full input.
-        assert set(res.df["id"].astype(str)) == set(df["id"].astype(str))
+        assert set(res.df["id"].cast(pl.String).to_list()) == set(df["id"].cast(pl.String).to_list())
         return
 
-    kept = set(res.df["id"].astype(str))
-    removed = set(res.mapping["removed_id"].astype(str))
-    all_ids = set(df["id"].astype(str))
+    kept = set(res.df["id"].cast(pl.String).to_list())
+    removed = set(res.mapping["removed_id"].cast(pl.String).to_list())
+    all_ids = set(df["id"].cast(pl.String).to_list())
     assert kept & removed == set(), "A sample appears in both kept and removed"
     assert kept | removed == all_ids, "Some samples are neither kept nor in the mapping"

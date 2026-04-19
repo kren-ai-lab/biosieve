@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+import numpy as np
+import polars as pl
+
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    import pandas as pd
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
@@ -19,13 +20,13 @@ log = get_logger(__name__)
 class _TrainTestSplitFn(Protocol):
     def __call__(
         self,
-        df: pd.DataFrame,
+        X: object,
         *,
         test_size: float,
         random_state: int,
         shuffle: bool,
-        stratify: pd.Series | None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+        stratify: object,
+    ) -> tuple[np.ndarray, np.ndarray]: ...
 
 
 def _try_import_train_test_split() -> _TrainTestSplitFn | None:
@@ -50,26 +51,30 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
 
 def _validate_inputs(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     label_col: str,
     test_size: float,
     val_size: float,
     *,
     dropna: bool,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     _validate_sizes(test_size, val_size)
     if label_col not in df.columns:
-        msg = f"Missing label column '{label_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing label column '{label_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
     y = df[label_col]
-    if y.isna().any():
+    if y.is_null().any():
         if not dropna:
             msg = f"Found NaN labels in '{label_col}'. Set dropna=true or clean dataset."
             raise ValueError(msg)
-        keep = ~y.isna()
-        return df.loc[keep].reset_index(drop=True)
+        keep = y.is_not_null()
+        return df.filter(keep)
     return df
+
+
+def _value_counts_dict(series: pl.Series) -> dict[str, int]:
+    return {str(row[0]): int(row[1]) for row in series.cast(pl.String).value_counts().iter_rows()}
 
 
 @dataclass(frozen=True)
@@ -124,7 +129,7 @@ class StratifiedSplitter:
         """Return the strategy identifier."""
         return "stratified"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> SplitResult:
         """Create stratified train/test/(val) partitions."""
         log.info(
             "stratified:start | label_col=%s | test_size=%.3f | val_size=%.3f",
@@ -142,22 +147,25 @@ class StratifiedSplitter:
             raise ImportError(msg)
 
         work = _validate_inputs(
-            df.copy().reset_index(drop=True),
+            df.clone(),
             self.label_col,
             self.test_size,
             self.val_size,
             dropna=self.dropna,
         )
-        y = work[self.label_col]
+        y = work[self.label_col].to_numpy()
 
         # 1) split off test
-        trainval, test = tts(
-            work,
+        all_idx = np.arange(work.height)
+        trainval_idx, test_idx = tts(
+            all_idx,
             test_size=self.test_size,
             random_state=self.seed,
             shuffle=True,
             stratify=y,
         )
+        trainval = work[trainval_idx]
+        test = work[test_idx]
 
         val = None
         train = trainval
@@ -169,43 +177,40 @@ class StratifiedSplitter:
                 msg = "Derived val fraction invalid. Check test_size/val_size."
                 raise ValueError(msg)
 
-            y_tv = trainval[self.label_col]
-            train, val = tts(
-                trainval,
+            y_tv = trainval[self.label_col].to_numpy()
+            inner_idx = np.arange(trainval.height)
+            train_idx, val_idx = tts(
+                inner_idx,
                 test_size=frac,
                 random_state=self.seed,
                 shuffle=True,
                 stratify=y_tv,
             )
-
-        train = train.reset_index(drop=True)
-        test = test.reset_index(drop=True)
-
-        if val is not None:
-            val = val.reset_index(drop=True)
+            train = trainval[train_idx]
+            val = trainval[val_idx]
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_train": len(train),
-            "n_test": len(test),
-            "n_val": len(val) if val is not None else 0,
+            "n_total": work.height,
+            "n_train": train.height,
+            "n_test": test.height,
+            "n_val": val.height if val is not None else 0,
             "label_col": self.label_col,
             "seed": int(self.seed),
             "test_size": float(self.test_size),
             "val_size": float(self.val_size),
-            "train_label_counts": train[self.label_col].astype(str).value_counts(dropna=False).to_dict(),
-            "test_label_counts": test[self.label_col].astype(str).value_counts(dropna=False).to_dict(),
+            "train_label_counts": _value_counts_dict(train[self.label_col]),
+            "test_label_counts": _value_counts_dict(test[self.label_col]),
         }
 
         log.info(
             "stratified:stats | train=%d | val=%d | test=%d",
-            len(train),
-            int(len(val) if val is not None else 0),
-            len(test),
+            train.height,
+            int(val.height if val is not None else 0),
+            test.height,
         )
 
         if val is not None:
-            stats["val_label_counts"] = val[self.label_col].astype(str).value_counts(dropna=False).to_dict()
+            stats["val_label_counts"] = _value_counts_dict(val[self.label_col])
 
         return SplitResult(
             train=train,

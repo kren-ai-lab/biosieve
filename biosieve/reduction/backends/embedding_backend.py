@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 
 @dataclass(frozen=True)
@@ -18,8 +18,8 @@ class EmbeddingStore:
 
 
 def _read_ids_csv(ids_path: Path, id_col: str = "id") -> list[str]:
-    df = pd.read_csv(ids_path)
-    ids = df[id_col].astype(str).tolist() if id_col in df.columns else df.iloc[:, 0].astype(str).tolist()
+    df = pl.read_csv(ids_path)
+    ids = df[id_col].cast(pl.String).to_list() if id_col in df.columns else df[:, 0].cast(pl.String).to_list()
     if len(ids) == 0:
         msg = f"No ids found in ids file: {ids_path}"
         raise ValueError(msg)

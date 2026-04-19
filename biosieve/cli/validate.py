@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
@@ -152,30 +152,30 @@ def _check_exists(path: str | None, label: str) -> tuple[bool, str]:
     return True, f"OK   {label}: found '{path}'"
 
 
-def _check_unique_ids(df: pd.DataFrame, id_col: str) -> tuple[bool, str]:
+def _check_unique_ids(df: pl.DataFrame, id_col: str) -> tuple[bool, str]:
     if id_col not in df.columns:
         return False, f"FAIL dataset: missing id column '{id_col}'"
-    n = len(df)
-    u = df[id_col].astype(str).nunique()
+    n = df.height
+    u = df[id_col].cast(pl.String).n_unique()
     if u != n:
         return False, f"FAIL dataset: ids not unique ({u} unique for {n} rows)"
     return True, f"OK   dataset: ids unique ({n} rows)"
 
 
-def _check_seq_col(df: pd.DataFrame, seq_col: str | None) -> tuple[bool, str]:
+def _check_seq_col(df: pl.DataFrame, seq_col: str | None) -> tuple[bool, str]:
     if not seq_col:
         return True, "SKIP dataset: seq_col not configured"
     if seq_col not in df.columns:
         return False, f"FAIL dataset: missing sequence column '{seq_col}'"
     # allow empty sequences in validate? safer to flag
-    empty = (df[seq_col].astype(str).str.len() == 0).sum()
+    empty = int((df[seq_col].cast(pl.String).str.len_chars() == 0).sum())
     if empty > 0:
         return False, f"FAIL dataset: {empty} empty sequences in '{seq_col}'"
     return True, f"OK   dataset: sequence column present ('{seq_col}')"
 
 
 def _check_embeddings_alignment(  # noqa: PLR0911
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     id_col: str,
     embeddings_path: str | None,
     ids_path: str | None,
@@ -197,12 +197,12 @@ def _check_embeddings_alignment(  # noqa: PLR0911
         return False, f"FAIL embeddings: missing file(s): {missing}"
 
     # Load ids CSV
-    ids_df = pd.read_csv(pI)
+    ids_df = pl.read_csv(pI)
     ids_col_eff = ids_df.columns[0] if ids_col not in ids_df.columns and len(ids_df.columns) == 1 else ids_col
     if ids_col_eff not in ids_df.columns:
         return False, f"FAIL embeddings: ids column '{ids_col}' not found in {list(ids_df.columns)}"
 
-    emb_ids = ids_df[ids_col_eff].astype(str).tolist()
+    emb_ids = ids_df[ids_col_eff].cast(pl.String).to_list()
 
     # Load embeddings array shape only
     X = np.load(pX, mmap_mode="r")
@@ -212,7 +212,7 @@ def _check_embeddings_alignment(  # noqa: PLR0911
         return False, f"FAIL embeddings: ids length {len(emb_ids)} != embeddings rows {X.shape[0]}"
 
     # Coverage check relative to dataset
-    ds_ids = set(df[id_col].astype(str).tolist())
+    ds_ids = set(df[id_col].cast(pl.String).to_list())
     emb_set = set(emb_ids)
     present = len([x for x in ds_ids if x in emb_set])
     coverage = present / len(ds_ids) if ds_ids else 0.0
@@ -225,14 +225,12 @@ def _check_embeddings_alignment(  # noqa: PLR0911
     )
 
 
-def _check_descriptors(df: pd.DataFrame, prefix: str) -> tuple[bool, str]:
+def _check_descriptors(df: pl.DataFrame, prefix: str) -> tuple[bool, str]:
     cols = [c for c in df.columns if c.startswith(prefix)]
     if not cols:
         return True, f"SKIP descriptors: no columns with prefix '{prefix}'"
-    sub = df[cols]
-    # numeric coercion check
-    coerced = sub.apply(pd.to_numeric, errors="coerce")
-    n_nans = int(coerced.isna().sum().sum())
+    coerced = df.select([pl.col(c).cast(pl.Float64, strict=False).alias(c) for c in cols])
+    n_nans = sum(int(coerced[c].is_null().sum()) for c in cols)
     if n_nans > 0:
         return (
             False,
@@ -242,7 +240,7 @@ def _check_descriptors(df: pd.DataFrame, prefix: str) -> tuple[bool, str]:
 
 
 def _check_edges(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     id_col: str,
     edges_path: str | None,
     id1_col: str,
@@ -255,19 +253,19 @@ def _check_edges(
     if not p.exists():
         return False, f"FAIL edges: missing path '{edges_path}'"
 
-    e = pd.read_csv(p)
+    e = pl.read_csv(p)
     for c in (id1_col, id2_col, value_col):
         if c not in e.columns:
             return False, f"FAIL edges: missing column '{c}' in edges CSV. Found: {list(e.columns)}"
 
     # ids coverage
-    ds_ids = set(df[id_col].astype(str).tolist())
-    id1 = e[id1_col].astype(str)
-    id2 = e[id2_col].astype(str)
-    present_any = int(((id1.isin(ds_ids)) | (id2.isin(ds_ids))).sum())
+    ds_ids = set(df[id_col].cast(pl.String).to_list())
+    id1 = e[id1_col].cast(pl.String)
+    id2 = e[id2_col].cast(pl.String)
+    present_any = int(((id1.is_in(ds_ids)) | (id2.is_in(ds_ids))).sum())
     if present_any == 0:
         return False, "FAIL edges: no edges connect to dataset ids (check id space)"
-    return True, f"OK   edges: loaded {len(e)} edges; connects to dataset ids (at least {present_any} rows)"
+    return True, f"OK   edges: loaded {e.height} edges; connects to dataset ids (at least {present_any} rows)"
 
 
 def _check_mmseqs2(binary: str) -> tuple[bool, str]:
@@ -331,7 +329,7 @@ def _check_required_col(
     configured: str | None,
     col_name: str,
     label: str,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     record: _RecordFn,
 ) -> None:
     prefix = f"[strategy={strategy}]"
@@ -348,7 +346,7 @@ def _run_strategy_requirements(
     *,
     args: SimpleNamespace,
     cols: Columns,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     record: _RecordFn,
 ) -> None:
     strategy = args.strategy
@@ -478,7 +476,7 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
     # --- dataset read ---
     ok, msg = _check_exists(args.in_path, "dataset")
     record(ok=ok, msg=msg)
-    df = pd.read_csv(args.in_path)
+    df = pl.read_csv(args.in_path)
 
     base_checks = [
         _check_unique_ids(df, cols.id_col),

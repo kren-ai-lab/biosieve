@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import polars as pl
+
 from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set, _prepare_work
 from biosieve.reduction.base import ReductionResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    import pandas as pd
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
@@ -35,7 +35,7 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     return inter / union if union else 0.0
 
 
-def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float, k: int, max_candidates: int) -> None:
+def _validate_inputs(df: pl.DataFrame, cols: Columns, threshold: float, k: int, max_candidates: int) -> None:
     if not (0.0 <= threshold <= 1.0):
         msg = "threshold must be in [0, 1]"
         raise ValueError(msg)
@@ -46,10 +46,10 @@ def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float, k: int, 
         msg = "max_candidates must be >= 1"
         raise ValueError(msg)
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     if cols.seq_col not in df.columns:
-        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
@@ -121,7 +121,7 @@ class KmerJaccardReducer:
         """Return the strategy identifier."""
         return "kmer_jaccard"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901
         """Reduce sequence redundancy with k-mer candidate pruning."""
         _validate_inputs(df, cols, self.threshold, self.k, self.max_candidates)
         work, _ids = _prepare_work(df, cols.id_col)
@@ -143,9 +143,9 @@ class KmerJaccardReducer:
             for token in km:
                 kmer_to_rep.setdefault(token, []).append(rep_pos)
 
-        for i in range(len(work)):
-            seq = str(work.loc[i, cols.seq_col])
-            cur_id = str(work.loc[i, cols.id_col])
+        for i in range(work.height):
+            seq = str(work[i, cols.seq_col])
+            cur_id = str(work[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
                 msg = (
@@ -184,22 +184,22 @@ class KmerJaccardReducer:
 
             if best_rep_pos is not None and best_score >= self.threshold:
                 rep_work_idx = reps_idx[best_rep_pos]
-                rep_id = str(work.loc[rep_work_idx, cols.id_col])
+                rep_id = str(work[rep_work_idx, cols.id_col])
                 removed_rows.append((cur_id, rep_id, float(best_score)))
             else:
                 add_rep(i, seq)
 
-        kept = work.iloc[reps_idx].reset_index(drop=True)
+        kept = work[reps_idx]
 
         mapping = _build_mapping(removed_rows)
 
-        kept["kmer_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"kmer:{x}")
+        kept = kept.with_columns(kmer_cluster_id=pl.lit("kmer:") + pl.col(cols.id_col).cast(pl.String))
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_kept": len(kept),
-            "n_removed": len(mapping),
-            "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
+            "n_total": work.height,
+            "n_kept": kept.height,
+            "n_removed": mapping.height,
+            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
             "k": int(self.k),
             "threshold": float(self.threshold),
             "max_candidates": int(self.max_candidates),

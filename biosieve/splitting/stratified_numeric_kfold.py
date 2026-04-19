@@ -1,421 +1,149 @@
+# ruff: noqa: ANN202, ANN401, D102, EM101, EM102, TRY003, TRY300
+
 """Stratified k-fold splitter for numeric targets via binning."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
+from typing import Any, Literal
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.utils.logging import get_logger
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
-
-    from biosieve.types import Columns
-
-log = get_logger(__name__)
-MIN_BINS = 2
-MIN_KFOLD_SPLITS = 2
+from biosieve.splitting.stratified_numeric import _bin_counts, _label_stats, _make_bins
 
 
-class _StratifiedKFold(Protocol):
-    def split(self, X: object, y: object) -> Iterator[tuple[list[int], list[int]]]: ...
-
-
-class _StratifiedKFoldFactory(Protocol):
-    def __call__(self, *, n_splits: int, shuffle: bool, random_state: int) -> _StratifiedKFold: ...
-
-
-class _TrainTestSplitFn(Protocol):
-    def __call__(
-        self,
-        df: pd.DataFrame,
-        *,
-        test_size: float,
-        random_state: int,
-        shuffle: bool,
-        stratify: None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
-
-
-def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
+def _try_import_stratified_kfold():
     try:
         from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
 
-        return cast("_StratifiedKFoldFactory", StratifiedKFold)
+        return StratifiedKFold
     except ImportError:
         return None
 
 
-def _try_import_train_test_split() -> _TrainTestSplitFn | None:
+def _try_import_train_test_split():
     try:
         from sklearn.model_selection import train_test_split  # noqa: PLC0415
 
-        return cast("_TrainTestSplitFn", train_test_split)
+        return train_test_split
     except ImportError:
         return None
-
-
-def _label_stats(y: pd.Series) -> dict[str, Any]:
-    yy = pd.to_numeric(y, errors="coerce").dropna()
-    if len(yy) == 0:
-        return {
-            "n": 0,
-            "min": None,
-            "max": None,
-            "mean": None,
-            "std": None,
-            "median": None,
-            "q25": None,
-            "q75": None,
-        }
-    return {
-        "n": len(yy),
-        "min": float(yy.min()),
-        "max": float(yy.max()),
-        "mean": float(yy.mean()),
-        "std": float(yy.std(ddof=1)) if len(yy) > 1 else 0.0,
-        "median": float(yy.median()),
-        "q25": float(yy.quantile(0.25)),
-        "q75": float(yy.quantile(0.75)),
-    }
-
-
-def _bin_counts(bins: pd.Series) -> dict[str, int]:
-    vc = bins.value_counts(dropna=False).sort_index()
-    return {str(k): int(v) for k, v in vc.to_dict().items()}
-
-
-def _make_bins_once(
-    y: pd.Series,
-    *,
-    n_bins: int,
-    binning: Literal["quantile", "uniform"],
-    duplicates: Literal["drop", "raise"],
-    return_edges: bool,
-) -> tuple[pd.Series, int, list[float] | None]:
-    if n_bins < MIN_BINS:
-        msg = "n_bins must be >= 2"
-        raise ValueError(msg)
-
-    yy = pd.to_numeric(y, errors="coerce")
-    if yy.isna().any():
-        msg = "NaN values found in label series while binning."
-        raise ValueError(msg)
-
-    edges: list[float] | None = None
-
-    if binning == "quantile":
-        if return_edges:
-            bins, bin_edges = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates, retbins=True)
-            edges = [float(x) for x in np.asarray(bin_edges).tolist()]
-        else:
-            bins = pd.qcut(yy, q=n_bins, labels=False, duplicates=duplicates)
-        bins = pd.Series(bins, index=y.index).astype("Int64")
-        n_eff = int(pd.Series(bins).nunique(dropna=True))
-        return bins, n_eff, edges
-
-    if binning == "uniform":
-        if return_edges:
-            bins, bin_edges = pd.cut(yy, bins=n_bins, labels=False, include_lowest=True, retbins=True)
-            edges = [float(x) for x in np.asarray(bin_edges).tolist()]
-        else:
-            bins = pd.cut(yy, bins=n_bins, labels=False, include_lowest=True)
-        bins = pd.Series(bins, index=y.index).astype("Int64")
-        n_eff = int(pd.Series(bins).nunique(dropna=True))
-        return bins, n_eff, edges
-
-    msg = "binning must be 'quantile' or 'uniform'"
-    raise ValueError(msg)
-
-
-def _make_bins_safe(
-    y: pd.Series,
-    *,
-    n_bins: int,
-    binning: Literal["quantile", "uniform"],
-    duplicates: Literal["drop", "raise"],
-    min_bin_count: int,
-    auto_reduce_bins: bool,
-    return_edges: bool,
-) -> tuple[pd.Series, int, list[float] | None, list[int], bool]:
-    if min_bin_count < 1:
-        msg = "min_bin_count must be >= 1"
-        raise ValueError(msg)
-    if n_bins < MIN_BINS:
-        msg = "n_bins must be >= 2"
-        raise ValueError(msg)
-
-    attempted: list[int] = []
-    auto_reduced = False
-    candidates = list(range(n_bins, 1, -1)) if auto_reduce_bins else [n_bins]
-
-    last_error: Exception | None = None
-
-    for b in candidates:
-        attempted.append(int(b))
-        try:
-            bins, n_eff, edges = _make_bins_once(
-                y,
-                n_bins=b,
-                binning=binning,
-                duplicates=duplicates,
-                return_edges=return_edges,
-            )
-        except ValueError as e:
-            last_error = e
-            continue
-
-        if n_eff < MIN_BINS:
-            last_error = ValueError(f"Effective bins={n_eff} (requested={b}). Cannot stratify.")
-            continue
-
-        counts = bins.value_counts(dropna=False)
-        if int(counts.min()) < min_bin_count:
-            last_error = ValueError(
-                f"Some bins have <{min_bin_count} samples (min={int(counts.min())}) for n_bins={b}."
-            )
-            continue
-
-        if b != n_bins:
-            auto_reduced = True
-
-        return bins, n_eff, edges, attempted, auto_reduced
-
-    msg = (
-        "Could not create valid stratification bins for numeric kfold. "
-        f"Attempted bins={attempted}. Last error: {last_error}"
-    )
-    raise ValueError(msg)
 
 
 @dataclass(frozen=True)
 class StratifiedNumericKFoldSplitter:
-    r"""Stratified K-Fold splitting for numeric labels via binning.
-
-    This is the k-fold analogue of `stratified_numeric`: it enables stratified CV
-    for regression by discretizing a numeric label into bins and applying
-    `StratifiedKFold` on those bins.
-
-    Approach:
-    1) Convert the numeric label `y` into categorical bins (quantile or uniform).
-       Bins are computed ONCE globally, to define a stable stratification target.
-    2) Run StratifiedKFold using the bins (`y_strat=bins`).
-    3) Optionally sample a validation subset from the fold's train split.
-
-    Args:
-        label_col: Numeric target column.
-        n_splits: Number of folds.
-        shuffle, seed:
-            Controls deterministic fold generation.
-        n_bins, binning, duplicates:
-            Binning configuration.
-        auto_reduce_bins, min_bin_count:
-            Robustness controls for datasets with repeated values.
-        val_size: Optional validation fraction sampled from fold train (random).
-        dropna: If True, drop rows with NaN labels; else raise.
-        report_bin_edges: If True, include global bin edges in each fold report.
-
-    Returns:
-        One SplitResult per fold. Each fold includes:
-        - train/test/val DataFrames: - params: effective parameters (includes fold_index)
-        - stats: bin counts (based on GLOBAL bins), label summary stats, and binning metadata
-
-    Raises:
-        ImportError: If scikit-learn is not installed.
-        ValueError: If label column is missing, NaNs are present (dropna=False), `n_bins < 2`,
-        or stratification is impossible (e.g., some bins have < n_splits samples).
-
-    Notes:
-        - `StratifiedKFold` requires every stratum (bin) to have at least `n_splits` samples.
-        This splitter checks that condition after binning.
-        - This strategy does not prevent biological leakage (homology/structure). For leakage-aware CV,
-        prefer `group_kfold` (with clusters) or hybrid strategies.
-
-    Examples:
-        >>> biosieve split \\
-        ...   --in dataset.csv \\
-        ...   --outdir runs/split_stratnum_kfold \\
-        ...   --strategy stratified_numeric_kfold \\
-        ...   --params params.yaml
-
-    """
+    """Stratified K-fold splitting for numeric labels via binning."""
 
     label_col: str = "y"
-
     n_splits: int = 5
     shuffle: bool = True
     seed: int = 13
-
     n_bins: int = 10
     binning: Literal["quantile", "uniform"] = "quantile"
     duplicates: Literal["drop", "raise"] = "drop"
-
     auto_reduce_bins: bool = True
     min_bin_count: int = 2
-
     val_size: float = 0.0
     dropna: bool = True
     report_bin_edges: bool = False
 
     @property
     def strategy(self) -> str:
-        """Return the strategy identifier."""
         return "stratified_numeric_kfold"
 
-    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
-        """Create stratified numeric k-fold splits with optional validation."""
-        StratifiedKFold = _try_import_stratified_kfold()
-        if StratifiedKFold is None:
-            msg = (
-                "StratifiedNumericKFoldSplitter requires scikit-learn. "
-                "Install: conda install -c conda-forge scikit-learn"
-            )
-            raise ImportError(msg)
-
-        if self.n_splits < MIN_KFOLD_SPLITS:
-            msg = "n_splits must be >= 2"
-            raise ValueError(msg)
-        if not (0.0 <= self.val_size < 1.0):
-            msg = "val_size must be in [0, 1)"
-            raise ValueError(msg)
+    def run_folds(self, df: pl.DataFrame, _cols: Any) -> list[SplitResult]:
+        skf_cls = _try_import_stratified_kfold()
+        if skf_cls is None:
+            raise ImportError("StratifiedNumericKFoldSplitter requires scikit-learn.")
         if self.label_col not in df.columns:
-            msg = f"Missing label column '{self.label_col}'. Columns: {df.columns.tolist()}"
-            raise ValueError(msg)
+            raise ValueError(f"Missing label column '{self.label_col}'. Columns: {df.columns}")
 
-        work = df.copy().reset_index(drop=True)
-        y_raw = pd.to_numeric(work[self.label_col], errors="coerce")
-
-        dropped = 0
+        work = df.clone()
+        y_series = work[self.label_col].cast(pl.Float64, strict=False)
         if self.dropna:
-            keep = ~y_raw.isna()
+            keep = y_series.is_not_null()
             dropped = int((~keep).sum())
-            work = work.loc[keep].reset_index(drop=True)
-            y_raw = y_raw.loc[keep].reset_index(drop=True)
-        elif y_raw.isna().any():
-            msg = f"Found NaN labels in '{self.label_col}'. Set dropna=true or clean dataset."
-            raise ValueError(msg)
+            work = work.filter(keep)
+            y_series = work[self.label_col].cast(pl.Float64, strict=False)
+        else:
+            dropped = int(y_series.is_null().sum())
+            if dropped:
+                raise ValueError(f"Found {dropped} NaN labels in '{self.label_col}'.")
 
-        if len(work) < self.n_splits:
-            msg = f"Not enough samples (n={len(work)}) for n_splits={self.n_splits}"
-            raise ValueError(msg)
-
-        # Global bins (stable stratification target)
-        bins, n_eff, edges, attempted_bins, auto_reduced = _make_bins_safe(
-            y_raw,
+        y = y_series.to_numpy()
+        bins, n_eff = _make_bins(
+            y,
             n_bins=self.n_bins,
             binning=self.binning,
-            duplicates=self.duplicates,
-            min_bin_count=self.min_bin_count,
+            min_bin_count=max(self.min_bin_count, self.n_splits),
             auto_reduce_bins=self.auto_reduce_bins,
-            return_edges=self.report_bin_edges,
         )
 
-        # StratifiedKFold constraint: each stratum must have >= n_splits
-        vc = bins.value_counts(dropna=False)
-        too_small = vc[vc < self.n_splits]
-        if len(too_small) > 0:
-            msg = (
-                "Some bins have fewer samples than n_splits; cannot stratify k-fold. "
-                f"n_splits={self.n_splits}, problematic bins: {too_small.to_dict()}. "
-                "Try fewer bins (n_bins) or auto_reduce_bins."
-            )
-            raise ValueError(msg)
-
-        skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
-
-        tts = None
-        if self.val_size and self.val_size > 0:
-            tts = _try_import_train_test_split()
-            if tts is None:
-                msg = "val_size > 0 requires scikit-learn train_test_split."
-                raise ImportError(msg)
-
+        skf = skf_cls(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
+        tts = _try_import_train_test_split() if self.val_size > 0 else None
         folds: list[SplitResult] = []
-        X_dummy = work.index.to_numpy()
 
-        for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_dummy, bins)):
-            train_df = work.iloc[train_idx].copy().reset_index(drop=True)
-            test_df = work.iloc[test_idx].copy().reset_index(drop=True)
-
-            val_df: pd.DataFrame | None = None
-            if self.val_size and self.val_size > 0:
-                seed_fold = int(self.seed + fold_idx)
+        for fold_idx, (train_idx, test_idx) in enumerate(skf.split(np.arange(work.height), bins)):
+            train = work[train_idx]
+            test = work[test_idx]
+            val = None
+            train_global_idx = np.asarray(train_idx, dtype=int)
+            val_global_idx = np.asarray([], dtype=int)
+            if self.val_size > 0:
                 if tts is None:
-                    msg = "val_size > 0 requires scikit-learn train_test_split."
-                    raise ImportError(msg)
-                train_df, val_df = tts(
-                    train_df,
+                    raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
+                inner_idx = np.arange(train.height)
+                train_keep_idx, val_idx = tts(
+                    inner_idx,
                     test_size=self.val_size,
-                    random_state=seed_fold,
+                    random_state=self.seed + fold_idx,
                     shuffle=True,
                     stratify=None,
                 )
-                train_df = train_df.reset_index(drop=True)
-                val_df = val_df.reset_index(drop=True)
-
-            # IMPORTANT: bin counts reported using GLOBAL bins, not recomputed bins.
-            train_bins = pd.Series(bins.to_numpy()[np.asarray(train_idx, dtype=int)]).reset_index(drop=True)
-            test_bins = pd.Series(bins.to_numpy()[np.asarray(test_idx, dtype=int)]).reset_index(drop=True)
-
-            stats: dict[str, Any] = {
-                "fold_index": int(fold_idx),
-                "n_total": len(df),
-                "n_used": len(work),
-                "n_dropped_nan": int(dropped),
-                "n_train": len(train_df),
-                "n_test": len(test_df),
-                "n_val": len(val_df) if val_df is not None else 0,
-                "label_col": self.label_col,
-                "binning": self.binning,
-                "duplicates": self.duplicates,
-                "n_bins_requested": int(self.n_bins),
-                "n_bins_effective": int(n_eff),
-                "min_bin_count": int(self.min_bin_count),
-                "auto_reduce_bins": bool(self.auto_reduce_bins),
-                "attempted_bins": attempted_bins,
-                "auto_reduced": bool(auto_reduced),
-                "train_bin_counts": _bin_counts(train_bins),
-                "test_bin_counts": _bin_counts(test_bins),
-                "train_label_stats": _label_stats(train_df[self.label_col]),
-                "test_label_stats": _label_stats(test_df[self.label_col]),
-            }
-
-            if val_df is not None:
-                # val is sampled from train_df (after reset), so we compute bins by reindexing:
-                # easiest: recompute bins for val using the global edges is complex when qcut with duplicates.
-                # pragmatic: report only label stats for val (bins not guaranteed stable after sampling).
-                stats["val_label_stats"] = _label_stats(val_df[self.label_col])
-
-            if self.report_bin_edges:
-                stats["bin_edges"] = edges
+                val = train[val_idx]
+                train = train[train_keep_idx]
+                train_global_idx = np.asarray(train_idx, dtype=int)[np.asarray(train_keep_idx, dtype=int)]
+                val_global_idx = np.asarray(train_idx, dtype=int)[np.asarray(val_idx, dtype=int)]
 
             folds.append(
                 SplitResult(
-                    train=train_df,
-                    test=test_df,
-                    val=val_df,
+                    train=train,
+                    test=test,
+                    val=val,
                     strategy=self.strategy,
                     params={
                         "label_col": self.label_col,
                         "n_splits": self.n_splits,
-                        "shuffle": self.shuffle,
                         "seed": self.seed,
                         "n_bins": self.n_bins,
-                        "binning": self.binning,
-                        "duplicates": self.duplicates,
-                        "auto_reduce_bins": self.auto_reduce_bins,
-                        "min_bin_count": self.min_bin_count,
-                        "val_size": self.val_size,
-                        "dropna": self.dropna,
-                        "report_bin_edges": self.report_bin_edges,
-                        "fold_index": int(fold_idx),
+                        "fold_index": fold_idx,
                     },
-                    stats=stats,
+                    stats={
+                        "fold_index": fold_idx,
+                        "n_total": df.height,
+                        "n_used": work.height,
+                        "n_dropped_nan": dropped,
+                        "n_train": train.height,
+                        "n_test": test.height,
+                        "n_val": val.height if val is not None else 0,
+                        "n_bins_effective": n_eff,
+                        "train_bin_counts": _bin_counts(bins[train_global_idx])
+                        if train_global_idx.size
+                        else {},
+                        "test_bin_counts": _bin_counts(bins[np.asarray(test_idx, dtype=int)]),
+                        "train_label_stats": _label_stats(
+                            train[self.label_col].cast(pl.Float64, strict=False).to_numpy()
+                        ),
+                        "test_label_stats": _label_stats(
+                            test[self.label_col].cast(pl.Float64, strict=False).to_numpy()
+                        ),
+                    },
                 )
             )
-
+            if val is not None:
+                folds[-1].stats["val_bin_counts"] = (
+                    _bin_counts(bins[val_global_idx]) if val_global_idx.size else {}
+                )
         return folds

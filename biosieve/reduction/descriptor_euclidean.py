@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from biosieve.reduction.backends.descriptor_backend import (
     extract_descriptor_matrix,
@@ -53,14 +53,14 @@ def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray
 
 def _validate_inputs(
     *,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: Columns,
     threshold: float,
     metric: str,
     n_jobs: int,
 ) -> None:
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     if threshold < 0:
         msg = "threshold must be >= 0"
@@ -73,9 +73,9 @@ def _validate_inputs(
         raise ValueError(msg)
 
 
-def _build_work_ids(df: pd.DataFrame, id_col: str) -> tuple[pd.DataFrame, list[str]]:
-    work = df.copy().sort_values(id_col, kind="mergesort").reset_index(drop=True)
-    ids = work[id_col].astype(str).tolist()
+def _build_work_ids(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
+    work = df.clone().sort(id_col, maintain_order=True)
+    ids = work[id_col].cast(pl.String).to_list()
     if len(ids) != len(set(ids)):
         msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
         raise ValueError(msg)
@@ -227,7 +227,7 @@ class DescriptorEuclideanReducer:
         """Return the strategy identifier."""
         return "descriptor_euclidean"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:
         """Reduce descriptor redundancy and return representatives plus mapping."""
         _validate_inputs(
             df=df,
@@ -276,8 +276,7 @@ class DescriptorEuclideanReducer:
             removed, rep_of, score_of, cluster_of = reduced
 
         keep_ids = [sid for sid in ids if sid not in removed]
-        kept_df = work[work[cols.id_col].astype(str).isin(set(keep_ids))].copy()
-        kept_df = kept_df.sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
+        kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(set(keep_ids)))
 
         rows = []
         for rid, rep in rep_of.items():
@@ -289,17 +288,28 @@ class DescriptorEuclideanReducer:
                     "score": score_of.get(rid),  # distance
                 }
             )
-        mapping = pd.DataFrame(rows, columns=["removed_id", "representative_id", "cluster_id", "score"])
+        mapping = (
+            pl.DataFrame(rows)
+            if rows
+            else pl.DataFrame(
+                schema={
+                    "removed_id": pl.String,
+                    "representative_id": pl.String,
+                    "cluster_id": pl.String,
+                    "score": pl.Float64,
+                }
+            )
+        )
 
-        kept_df["descriptor_euclidean_cluster_id"] = (
-            kept_df[cols.id_col].astype(str).apply(lambda x: f"deuc:{x}")
+        kept_df = kept_df.with_columns(
+            descriptor_euclidean_cluster_id=pl.lit("deuc:") + pl.col(cols.id_col).cast(pl.String)
         )
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_kept": len(kept_df),
-            "n_removed": len(mapping),
-            "reduction_ratio": float(len(kept_df) / len(work)) if len(work) else 0.0,
+            "n_total": work.height,
+            "n_kept": kept_df.height,
+            "n_removed": mapping.height,
+            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
             "n_descriptors": len(dcols),
         }
 

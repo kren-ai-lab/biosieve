@@ -5,13 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
 
+import numpy as np
+
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    import pandas as pd
+    import polars as pl
 
     from biosieve.types import Columns
 
@@ -30,13 +32,13 @@ class _KFoldFactory(Protocol):
 class _TrainTestSplitFn(Protocol):
     def __call__(
         self,
-        df: pd.DataFrame,
+        X: object,
         *,
         test_size: float,
         random_state: int,
         shuffle: bool,
         stratify: None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+    ) -> tuple[np.ndarray, np.ndarray]: ...
 
 
 def _try_import_kfold() -> _KFoldFactory | None:
@@ -84,7 +86,7 @@ class RandomKFoldSplitter:
         """Return the strategy identifier."""
         return "random_kfold"
 
-    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:
+    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:
         """Create random k-fold splits with optional per-fold validation."""
         KFold = _try_import_kfold()
         if KFold is None:
@@ -101,8 +103,8 @@ class RandomKFoldSplitter:
             msg = "val_size must be in [0, 1)"
             raise ValueError(msg)
 
-        work = df.copy().reset_index(drop=True)
-        n = len(work)
+        work = df.clone()
+        n = work.height
         if n < self.n_splits:
             msg = f"Not enough samples (n={n}) for n_splits={self.n_splits}"
             raise ValueError(msg)
@@ -118,27 +120,27 @@ class RandomKFoldSplitter:
 
         folds: list[SplitResult] = []
 
-        for fold_idx, (train_idx, test_idx) in enumerate(kf.split(work)):
-            train_df = work.iloc[train_idx].copy().reset_index(drop=True)
-            test_df = work.iloc[test_idx].copy().reset_index(drop=True)
+        for fold_idx, (train_idx, test_idx) in enumerate(kf.split(np.arange(n))):
+            train_df = work[train_idx]
+            test_df = work[test_idx]
 
-            val_df: pd.DataFrame | None = None
+            val_df: pl.DataFrame | None = None
 
             if self.val_size and self.val_size > 0:
-                # deterministic per-fold val split
                 seed_fold = int(self.seed + fold_idx)
                 if tts is None:
                     msg = "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
                     raise ImportError(msg)
-                train_df, val_df = tts(
-                    train_df,
+                inner_idx = np.arange(train_df.height)
+                train_keep_idx, val_idx = tts(
+                    inner_idx,
                     test_size=self.val_size,
                     random_state=seed_fold,
                     shuffle=True,
                     stratify=None,
                 )
-                train_df = train_df.reset_index(drop=True)
-                val_df = val_df.reset_index(drop=True)
+                val_df = train_df[val_idx]
+                train_df = train_df[train_keep_idx]
 
             folds.append(
                 SplitResult(
@@ -156,9 +158,9 @@ class RandomKFoldSplitter:
                     stats={
                         "fold_index": int(fold_idx),
                         "n_total": int(n),
-                        "n_train": len(train_df),
-                        "n_test": len(test_df),
-                        "n_val": len(val_df) if val_df is not None else 0,
+                        "n_train": train_df.height,
+                        "n_test": test_df.height,
+                        "n_val": val_df.height if val_df is not None else 0,
                     },
                 )
             )

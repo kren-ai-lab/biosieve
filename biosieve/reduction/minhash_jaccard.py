@@ -11,6 +11,7 @@ Requires the optional `datasketch` package:
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -19,7 +20,7 @@ from biosieve.reduction.base import ReductionResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    import pandas as pd
+    import polars as pl
 
     from biosieve.types import Columns
 
@@ -29,14 +30,14 @@ log = get_logger(__name__)
 def _try_import_datasketch() -> tuple[Any, Any]:
     """Try to import MinHash and MinHashLSH from datasketch."""
     try:
-        from datasketch import MinHash, MinHashLSH  # noqa: PLC0415
+        datasketch = importlib.import_module("datasketch")
     except ImportError:
         return None, None
     else:
-        return MinHash, MinHashLSH
+        return datasketch.MinHash, datasketch.MinHashLSH
 
 
-def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float, k: int, num_perm: int) -> None:
+def _validate_inputs(df: pl.DataFrame, cols: Columns, threshold: float, k: int, num_perm: int) -> None:
     if not (0.0 <= threshold <= 1.0):
         msg = "threshold must be in [0, 1]"
         raise ValueError(msg)
@@ -47,10 +48,10 @@ def _validate_inputs(df: pd.DataFrame, cols: Columns, threshold: float, k: int, 
         msg = "num_perm must be >= 2"
         raise ValueError(msg)
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     if cols.seq_col not in df.columns:
-        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
@@ -123,7 +124,7 @@ class MinHashJaccardReducer:
         """Return the strategy identifier."""
         return "minhash_jaccard"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:
         """Reduce sequence redundancy with MinHash LSH candidate lookup."""
         MinHash, MinHashLSH = _try_import_datasketch()
         if MinHash is None:
@@ -136,14 +137,18 @@ class MinHashJaccardReducer:
         _validate_inputs(df, cols, self.threshold, self.k, self.num_perm)
         work, _ids = _prepare_work(df, cols.id_col)
 
-        lsh = MinHashLSH(threshold=self.threshold, num_perm=self.num_perm)
+        # datasketch rejects threshold=1.0 for LSH configuration. In that edge case,
+        # only identical MinHash signatures can match, so a direct signature lookup
+        # preserves the intended behavior without going through LSH.
+        lsh = None if self.threshold >= 1.0 else MinHashLSH(threshold=self.threshold, num_perm=self.num_perm)
         rep_minhashes: dict[str, Any] = {}
+        rep_signature_to_id: dict[tuple[int, ...], str] = {}
         reps_idx: list[int] = []
         removed_rows: list[tuple[str, str, float]] = []
 
-        for i in range(len(work)):
-            seq = str(work.loc[i, cols.seq_col])
-            cur_id = str(work.loc[i, cols.id_col])
+        for i in range(work.height):
+            seq = str(work[i, cols.seq_col])
+            cur_id = str(work[i, cols.id_col])
 
             if not seq or seq.lower() == "nan":
                 msg = (
@@ -156,25 +161,31 @@ class MinHashJaccardReducer:
             for token in _kmer_set(seq, self.k):
                 mh.update(token.encode())
 
-            candidates: list[str] = lsh.query(mh)
+            if lsh is None:
+                candidate = rep_signature_to_id.get(tuple(int(x) for x in mh.hashvalues))
+                candidates = [candidate] if candidate is not None else []
+            else:
+                candidates = lsh.query(mh)
 
             if candidates:
                 best_rep_id = max(candidates, key=lambda rid: mh.jaccard(rep_minhashes[rid]))
                 best_score = float(mh.jaccard(rep_minhashes[best_rep_id]))
                 removed_rows.append((cur_id, best_rep_id, best_score))
             else:
-                lsh.insert(cur_id, mh)
+                if lsh is not None:
+                    lsh.insert(cur_id, mh)
                 rep_minhashes[cur_id] = mh
+                rep_signature_to_id[tuple(int(x) for x in mh.hashvalues)] = cur_id
                 reps_idx.append(i)
 
-        kept = work.iloc[reps_idx].reset_index(drop=True)
+        kept = work[reps_idx]
         mapping = _build_mapping(removed_rows, cluster_prefix="minhash")
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_kept": len(kept),
-            "n_removed": len(mapping),
-            "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
+            "n_total": work.height,
+            "n_kept": kept.height,
+            "n_removed": mapping.height,
+            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
             "k": self.k,
             "threshold": self.threshold,
             "num_perm": self.num_perm,

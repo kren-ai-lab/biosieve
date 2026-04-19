@@ -5,13 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+import numpy as np
+import polars as pl
+
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-
-    import pandas as pd
 
     from biosieve.types import Columns
 
@@ -20,7 +21,7 @@ MIN_GROUPS_FOR_SPLIT = 2
 
 
 class _GroupShuffleSplit(Protocol):
-    def split(self, X: object, *, groups: pd.Series) -> Iterator[tuple[list[int], list[int]]]: ...
+    def split(self, X: object, *, groups: object) -> Iterator[tuple[list[int], list[int]]]: ...
 
 
 class _GroupShuffleSplitFactory(Protocol):
@@ -49,22 +50,22 @@ def _validate_sizes(test_size: float, val_size: float) -> None:
 
 
 def _validate_inputs(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     group_col: str,
     test_size: float,
     val_size: float,
-) -> tuple[pd.Series, int]:
+) -> tuple[pl.Series, int]:
     _validate_sizes(test_size, val_size)
     if group_col not in df.columns:
-        msg = f"Missing group column '{group_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing group column '{group_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
-    groups = df[group_col].astype(str)
-    if groups.isna().any():
+    groups = df[group_col].cast(pl.String)
+    if groups.is_null().any():
         msg = f"Found NaN group ids in '{group_col}'. Clean dataset before splitting."
         raise ValueError(msg)
 
-    n_groups = int(groups.nunique(dropna=False))
+    n_groups = int(groups.n_unique())
     if n_groups < MIN_GROUPS_FOR_SPLIT:
         msg = f"Need at least 2 groups to split. Found {n_groups} unique groups in '{group_col}'."
         raise ValueError(msg)
@@ -72,11 +73,11 @@ def _validate_inputs(
 
 
 def _split_groups(
-    df: pd.DataFrame,
-    groups: pd.Series,
+    df: pl.DataFrame,
+    groups: pl.Series,
     test_size: float,
     seed: int,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Split a DataFrame into train/test using GroupShuffleSplit.
 
     Args:
@@ -99,11 +100,10 @@ def _split_groups(
         raise ImportError(msg)
 
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-    idx = df.index.to_numpy()
-
-    train_idx, test_idx = next(gss.split(idx, groups=groups))
-    train = df.iloc[train_idx].copy()
-    test = df.iloc[test_idx].copy()
+    idx = np.arange(df.height)
+    train_idx, test_idx = next(gss.split(idx, groups=groups.to_numpy()))
+    train = df[train_idx]
+    test = df[test_idx]
     return train, test
 
 
@@ -163,7 +163,7 @@ class GroupSplitter:
         """Return the strategy identifier."""
         return "group"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> SplitResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> SplitResult:
         """Split data into group-disjoint train/test/(val) sets."""
         log.info(
             "group:start | group_col=%s | test_size=%.3f | val_size=%.3f",
@@ -173,7 +173,7 @@ class GroupSplitter:
         )
         log.debug("group:params | %s", self.__dict__)
 
-        work = df.copy().reset_index(drop=True)
+        work = df.clone()
         groups, n_groups = _validate_inputs(
             work,
             self.group_col,
@@ -194,8 +194,8 @@ class GroupSplitter:
                 msg = "Derived val fraction invalid. Check test_size/val_size."
                 raise ValueError(msg)
 
-            tv_groups = trainval[self.group_col].astype(str)
-            tv_n_groups = int(tv_groups.nunique(dropna=False))
+            tv_groups = trainval[self.group_col].cast(pl.String)
+            tv_n_groups = int(tv_groups.n_unique())
             if tv_n_groups < MIN_GROUPS_FOR_SPLIT:
                 msg = (
                     f"Not enough groups left after test split to create validation. "
@@ -206,14 +206,8 @@ class GroupSplitter:
             train, val = _split_groups(trainval, tv_groups, test_size=frac, seed=self.seed)
 
         # reset indices
-        train = train.reset_index(drop=True)
-        test = test.reset_index(drop=True)
-        if val is not None:
-            val = val.reset_index(drop=True)
-
-        # leakage checks
-        def _group_set(x: pd.DataFrame) -> set[str]:
-            return set(x[self.group_col].astype(str).tolist())
+        def _group_set(x: pl.DataFrame) -> set[str]:
+            return set(x[self.group_col].cast(pl.String).to_list())
 
         train_g = _group_set(train)
         test_g = _group_set(test)
@@ -224,10 +218,10 @@ class GroupSplitter:
         leak_vt = len(val_g & test_g)
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_train": len(train),
-            "n_test": len(test),
-            "n_val": len(val) if val is not None else 0,
+            "n_total": work.height,
+            "n_train": train.height,
+            "n_test": test.height,
+            "n_val": val.height if val is not None else 0,
             "group_col": self.group_col,
             "n_groups_total": int(n_groups),
             "n_groups_train": len(train_g),

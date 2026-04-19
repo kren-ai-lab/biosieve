@@ -5,13 +5,13 @@ Output: biosieve_example_dataset_1000_desc.csv
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
-df = pd.read_csv("biosieve_example_dataset_1000.csv")
+df = pl.read_csv("biosieve_example_dataset_1000.csv")
 
 rng = np.random.default_rng(13)
 for i in range(32):
-    df[f"desc_{i:03d}"] = rng.normal(size=len(df)).astype("float32")
+    df = df.with_columns(pl.Series(f"desc_{i:03d}", rng.normal(size=df.height).astype("float32")))
 
-df.to_csv("biosieve_example_dataset_1000_desc.csv", index=False)
-print(f"Saved biosieve_example_dataset_1000_desc.csv ({len(df)} rows, {len(df.columns)} cols)")
+df.write_csv("biosieve_example_dataset_1000_desc.csv")
+print(f"Saved biosieve_example_dataset_1000_desc.csv ({df.height} rows, {len(df.columns)} cols)")

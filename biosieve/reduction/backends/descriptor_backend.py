@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    import pandas as pd
+    import polars as pl
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ class DescriptorMatrix:
 
 
 def infer_descriptor_columns(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     prefix: str = "desc_",
     explicit_cols: list[str] | None = None,
 ) -> list[str]:
@@ -46,7 +46,7 @@ def infer_descriptor_columns(
 
 
 def extract_descriptor_matrix(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: list[str],
     dtype: str = "float32",
 ) -> DescriptorMatrix:

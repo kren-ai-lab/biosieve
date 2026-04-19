@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import polars as pl
 
 from biosieve.reduction.base import ReductionResult
 from biosieve.utils.logging import get_logger
@@ -16,12 +16,12 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _validate_inputs(df: pd.DataFrame, cols: Columns) -> None:
+def _validate_inputs(df: pl.DataFrame, cols: Columns) -> None:
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}'. Columns: {df.columns}"
         raise ValueError(msg)
     if cols.seq_col not in df.columns:
-        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns.tolist()}"
+        msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns}"
         raise ValueError(msg)
 
 
@@ -67,41 +67,53 @@ class ExactDedupReducer:
         """Return the strategy identifier."""
         return "exact"
 
-    def run(self, df: pd.DataFrame, cols: Columns) -> ReductionResult:
+    def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:
         """Remove exact sequence duplicates and return representative mapping."""
         _validate_inputs(df, cols)
 
-        work = df.copy().sort_values(cols.id_col, kind="mergesort").reset_index(drop=True)
-
-        dup_mask = work.duplicated(subset=[cols.seq_col], keep="first")
-
-        kept = work.loc[~dup_mask].reset_index(drop=True)
-        removed = work.loc[dup_mask, [cols.id_col, cols.seq_col]].copy()
-
-        # Map: sequence -> representative_id
-        rep_by_seq = kept.set_index(cols.seq_col)[cols.id_col].astype(str).to_dict()
-
-        mapping = pd.DataFrame(
-            {
-                "removed_id": removed[cols.id_col].astype(str).to_numpy(),
-                "representative_id": removed[cols.seq_col].map(rep_by_seq).astype(str).to_numpy(),
-            }
+        work = df.clone().sort(cols.id_col, maintain_order=True)
+        kept = work.unique(subset=[cols.seq_col], keep="first", maintain_order=True)
+        kept_ids = set(kept[cols.id_col].cast(pl.String).to_list())
+        removed = work.filter(~pl.col(cols.id_col).cast(pl.String).is_in(kept_ids)).select(
+            [cols.id_col, cols.seq_col]
         )
 
-        if len(mapping) > 0:
-            mapping["cluster_id"] = mapping["representative_id"].astype(str).apply(lambda x: f"exact:{x}")
-            mapping["score"] = 1.0
-            mapping = mapping[["removed_id", "representative_id", "cluster_id", "score"]]
-        else:
-            mapping = pd.DataFrame(columns=["removed_id", "representative_id", "cluster_id", "score"])
+        rep_by_seq = dict(
+            zip(kept[cols.seq_col].to_list(), kept[cols.id_col].cast(pl.String).to_list(), strict=False)
+        )
 
-        kept["exact_cluster_id"] = kept[cols.id_col].astype(str).apply(lambda x: f"exact:{x}")
+        if removed.height > 0:
+            mapping = (
+                removed.select(
+                    pl.col(cols.id_col).cast(pl.String).alias("removed_id"),
+                    pl.col(cols.seq_col)
+                    .replace_strict(rep_by_seq, default=None)
+                    .cast(pl.String)
+                    .alias("representative_id"),
+                )
+                .with_columns(
+                    score=pl.lit(1.0),
+                    cluster_id=pl.lit("exact:") + pl.col("representative_id"),
+                )
+                .select(["removed_id", "representative_id", "cluster_id", "score"])
+            )
+        else:
+            mapping = pl.DataFrame(
+                schema={
+                    "removed_id": pl.String,
+                    "representative_id": pl.String,
+                    "cluster_id": pl.String,
+                    "score": pl.Float64,
+                }
+            )
+
+        kept = kept.with_columns(exact_cluster_id=pl.lit("exact:") + pl.col(cols.id_col).cast(pl.String))
 
         stats: dict[str, Any] = {
-            "n_total": len(work),
-            "n_kept": len(kept),
-            "n_removed": len(mapping),
-            "reduction_ratio": float(len(kept) / len(work)) if len(work) else 0.0,
+            "n_total": work.height,
+            "n_kept": kept.height,
+            "n_removed": mapping.height,
+            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
             "note": "Exact sequence duplicates removed (string equality).",
         }
 

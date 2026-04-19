@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-import pandas as pd
+import polars as pl
 
 from biosieve.core.factory import instantiate_strategy
 from biosieve.splitting.base import KFoldSplitter, SplitResult, Splitter
@@ -33,10 +33,10 @@ def _ensure_dir(path: str) -> Path:
     return p
 
 
-def _write_csv(path: Path, df: pd.DataFrame) -> None:
+def _write_csv(path: Path, df: pl.DataFrame) -> None:
     """Write a DataFrame to CSV (UTF-8, no index)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(df.to_csv(index=False), encoding="utf-8")
+    df.write_csv(path)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -45,7 +45,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
+def _validate_input_df(df: pl.DataFrame, cols: Columns) -> None:
     """Validate required columns and id uniqueness.
 
     Raises:
@@ -53,11 +53,11 @@ def _validate_input_df(df: pd.DataFrame, cols: Columns) -> None:
 
     """
     if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns.tolist()}"
+        msg = f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns}"
         raise ValueError(msg)
 
-    n_in = len(df)
-    unique_ids = df[cols.id_col].astype(str).nunique()
+    n_in = df.height
+    unique_ids = df[cols.id_col].cast(pl.String).n_unique()
     if unique_ids != n_in:
         msg = (
             f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
@@ -133,7 +133,7 @@ def _build_single_report(
 def _run_kfold(
     *,
     splitter: KFoldSplitter,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: Columns,
     strategy: str,
     out: Path,
@@ -154,13 +154,13 @@ def _run_kfold(
         fold_idx = int(res.stats.get("fold_index", i)) if isinstance(res.stats, dict) else i
         fdir = _ensure_dir(str(out / f"fold_{fold_idx:02d}"))
         _write_split_outputs(fdir, res)
-        n_val = len(res.val) if res.val is not None else 0
+        n_val = res.val.height if res.val is not None else 0
         log.info(
             "split:fold | idx=%d | train=%d | val=%d | test=%d",
             fold_idx,
-            len(res.train),
+            res.train.height,
             n_val,
-            len(res.test),
+            res.test.height,
         )
         folds_meta.append({"fold_index": fold_idx, "split_params": res.params, "stats": res.stats})
 
@@ -180,7 +180,7 @@ def _run_kfold(
 def _run_single(
     *,
     splitter: Splitter,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     cols: Columns,
     strategy: str,
     out: Path,
@@ -190,8 +190,8 @@ def _run_single(
 ) -> Path:
     res = splitter.run(df, cols)
     _write_split_outputs(out, res)
-    n_val = len(res.val) if res.val is not None else 0
-    log.info("split:result | train=%d | val=%d | test=%d", len(res.train), n_val, len(res.test))
+    n_val = res.val.height if res.val is not None else 0
+    log.info("split:result | train=%d | val=%d | test=%d", res.train.height, n_val, res.test.height)
     report = _build_single_report(
         in_path=in_path,
         out=out,
@@ -244,13 +244,13 @@ def run_split(
         strategy_params:
             Parameters to instantiate the strategy dataclass.
             Unknown keys raise ValueError (strict contract).
-        read_csv_kwargs: Extra kwargs passed to pandas.read_csv (e.g., sep, dtype, usecols).
+        read_csv_kwargs: Extra kwargs passed to polars.read_csv (e.g., separator, dtypes, columns).
 
     Raises:
         ValueError: If strategy is unknown, required columns are missing, ids are not unique,
         or the splitter returns invalid outputs.
         ImportError: If a strategy requires optional dependencies (e.g., scikit-learn) that are missing.
-        FileNotFoundError: If `in_path` does not exist (raised by pandas).
+        FileNotFoundError: If `in_path` does not exist (raised by polars).
 
     """
     t0 = time.time()
@@ -260,6 +260,9 @@ def run_split(
 
     strategy_params = strategy_params or {}
     read_csv_kwargs = read_csv_kwargs or {}
+    if "sep" in read_csv_kwargs and "separator" not in read_csv_kwargs:
+        read_csv_kwargs = {**read_csv_kwargs, "separator": read_csv_kwargs["sep"]}
+        read_csv_kwargs.pop("sep")
 
     # Validate strategy name early (avoid silent typos)
     if not registry.has_splitter(strategy):
@@ -273,11 +276,11 @@ def run_split(
     log.info("split:params | %s", strategy_params)
 
     # Read + validate input
-    df = pd.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
+    df = pl.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
     _validate_input_df(df, cols)
 
-    log.info("split:input | n_rows=%d | n_cols=%d", len(df), len(df.columns))
-    log.debug("split:columns | %s", df.columns.tolist())
+    log.info("split:input | n_rows=%d | n_cols=%d", df.height, len(df.columns))
+    log.debug("split:columns | %s", df.columns)
 
     # Instantiate strategy (lazy-safe)
     splitter_cls = registry.get_splitter_class(strategy)

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
 
-import pandas as pd
+import numpy as np
+import polars as pl
 
 from biosieve.splitting.base import SplitResult
 from biosieve.utils.logging import get_logger
@@ -30,13 +31,13 @@ class _GroupKFoldFactory(Protocol):
 class _TrainTestSplitFn(Protocol):
     def __call__(
         self,
-        df: pd.DataFrame,
+        X: object,
         *,
         test_size: float,
         random_state: int,
         shuffle: bool,
         stratify: None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]: ...
+    ) -> tuple[np.ndarray, np.ndarray]: ...
 
 
 def _try_import_group_kfold() -> _GroupKFoldFactory | None:
@@ -57,8 +58,8 @@ def _try_import_train_test_split() -> _TrainTestSplitFn | None:
         return None
 
 
-def _group_set(df: pd.DataFrame, group_col: str) -> set[str]:
-    return set(df[group_col].astype(str).unique())
+def _group_set(df: pl.DataFrame, group_col: str) -> set[str]:
+    return set(df[group_col].cast(pl.String).unique().to_list())
 
 
 @dataclass(frozen=True)
@@ -122,7 +123,7 @@ class GroupKFoldSplitter:
         """Return the strategy identifier."""
         return "group_kfold"
 
-    def run_folds(self, df: pd.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
+    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
         """Build group-disjoint folds with optional per-fold validation splits."""
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
@@ -138,26 +139,26 @@ class GroupKFoldSplitter:
             msg = "val_size must be in [0, 1)"
             raise ValueError(msg)
         if self.group_col not in df.columns:
-            msg = f"Missing group column '{self.group_col}'. Columns: {df.columns.tolist()}"
+            msg = f"Missing group column '{self.group_col}'. Columns: {df.columns}"
             raise ValueError(msg)
 
-        work = df.copy().reset_index(drop=True)
+        work = df.clone()
         g = work[self.group_col]
 
         # handle missing groups
         if self.dropna:
-            keep = ~g.isna()
+            keep = g.is_not_null()
             dropped = int((~keep).sum())
-            work = work.loc[keep].reset_index(drop=True)
-            g = work[self.group_col].astype(str).reset_index(drop=True)
+            work = work.filter(keep)
+            g = work[self.group_col].cast(pl.String)
         else:
-            if g.isna().any():
+            if g.is_null().any():
                 msg = f"Found NaN groups in '{self.group_col}'. Set dropna=true or clean dataset."
                 raise ValueError(msg)
             dropped = 0
-            g = g.astype(str)
+            g = g.cast(pl.String)
 
-        n_groups = int(pd.Series(g).nunique(dropna=False))
+        n_groups = int(g.n_unique())
         if n_groups < self.n_splits:
             msg = (
                 f"Not enough unique groups for n_splits={self.n_splits}. "
@@ -177,11 +178,11 @@ class GroupKFoldSplitter:
         folds: list[SplitResult] = []
 
         # X can be dummy; GroupKFold uses indices + groups only
-        X_dummy = work.index.to_numpy()
+        X_dummy = np.arange(work.height)
 
-        for fold_idx, (train_idx, test_idx) in enumerate(gkf.split(X_dummy, y=None, groups=g)):
-            train_df = work.iloc[train_idx].copy().reset_index(drop=True)
-            test_df = work.iloc[test_idx].copy().reset_index(drop=True)
+        for fold_idx, (train_idx, test_idx) in enumerate(gkf.split(X_dummy, y=None, groups=g.to_numpy())):
+            train_df = work[train_idx]
+            test_df = work[test_idx]
 
             # leakage check (group disjointness)
             train_groups = _group_set(train_df, self.group_col)
@@ -195,7 +196,7 @@ class GroupKFoldSplitter:
                 )
                 raise ValueError(msg)
 
-            val_df: pd.DataFrame | None = None
+            val_df: pl.DataFrame | None = None
             leak_vt = 0
             leak_vr = 0
 
@@ -204,15 +205,16 @@ class GroupKFoldSplitter:
                 if tts is None:
                     msg = "val_size > 0 requires scikit-learn train_test_split."
                     raise ImportError(msg)
-                train_df, val_df = tts(
-                    train_df,
+                inner_idx = np.arange(train_df.height)
+                train_keep_idx, val_idx = tts(
+                    inner_idx,
                     test_size=self.val_size,
                     random_state=seed_fold,
                     shuffle=True,
                     stratify=None,
                 )
-                train_df = train_df.reset_index(drop=True)
-                val_df = val_df.reset_index(drop=True)
+                val_df = train_df[val_idx]
+                train_df = train_df[train_keep_idx]
 
                 val_groups = _group_set(val_df, self.group_col)
                 train_groups2 = _group_set(train_df, self.group_col)

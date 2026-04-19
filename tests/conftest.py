@@ -13,14 +13,14 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import numpy as np
-    import pandas as pd
+    import polars as pl
     import pytest
 
     from biosieve.core.registry import StrategyRegistry
 
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from biosieve.core.strategies import build_registry
@@ -52,58 +52,58 @@ def _make_ids(n: int) -> list[str]:
 
 
 @pytest.fixture
-def df_base() -> pd.DataFrame:
+def df_base() -> pl.DataFrame:
     """50 rows: id + sequence. No duplicates."""
     rng = np.random.default_rng(SEED)
     ids = _make_ids(N)
     seqs = [_random_sequence(rng) for _ in range(N)]
-    return pd.DataFrame({"id": ids, "sequence": seqs})
+    return pl.DataFrame({"id": ids, "sequence": seqs})
 
 
 @pytest.fixture
-def df_labeled(df_base: pd.DataFrame) -> pd.DataFrame:
+def df_labeled(df_base: pl.DataFrame) -> pl.DataFrame:
     """df_base + binary label column (~balanced)."""
     rng = np.random.default_rng(SEED + 1)
     labels = rng.integers(0, 2, size=N).tolist()
-    return df_base.assign(label=labels)
+    return df_base.with_columns(pl.Series("label", labels))
 
 
 @pytest.fixture
-def df_grouped(df_base: pd.DataFrame) -> pd.DataFrame:
+def df_grouped(df_base: pl.DataFrame) -> pl.DataFrame:
     """df_base + group column (5 groups, 10 rows each)."""
     groups = [f"study_{c}" for c in "ABCDE"]
     group_col = [groups[i // 10] for i in range(N)]
-    return df_base.assign(group=group_col)
+    return df_base.with_columns(pl.Series("group", group_col))
 
 
 @pytest.fixture
-def df_timed(df_base: pd.DataFrame) -> pd.DataFrame:
+def df_timed(df_base: pl.DataFrame) -> pl.DataFrame:
     """df_base + date column (string, ascending from 2019 to 2024)."""
     import datetime
 
     start = datetime.date(2019, 1, 1)
     dates = [str(start + datetime.timedelta(days=i * 40)) for i in range(N)]
-    return df_base.assign(date=dates)
+    return df_base.with_columns(pl.Series("date", dates))
 
 
 @pytest.fixture
-def df_clustered(df_base: pd.DataFrame) -> pd.DataFrame:
+def df_clustered(df_base: pl.DataFrame) -> pl.DataFrame:
     """df_base + cluster_id column (10 clusters, 5 rows each)."""
     cluster_col = [f"clust_{(i // 5):02d}" for i in range(N)]
-    return df_base.assign(cluster_id=cluster_col)
+    return df_base.with_columns(pl.Series("cluster_id", cluster_col))
 
 
 @pytest.fixture
-def df_descriptors(df_base: pd.DataFrame) -> pd.DataFrame:
+def df_descriptors(df_base: pl.DataFrame) -> pl.DataFrame:
     """df_base + 10 numeric descriptor columns (desc_000..desc_009)."""
     rng = np.random.default_rng(SEED + 2)
     desc = rng.standard_normal((N, 10)).astype(np.float32)
-    desc_df = pd.DataFrame(desc, columns=[f"desc_{i:03d}" for i in range(10)])
-    return pd.concat([df_base, desc_df], axis=1)
+    desc_df = pl.DataFrame({f"desc_{i:03d}": desc[:, i] for i in range(10)})
+    return df_base.hstack(desc_df.get_columns())
 
 
 @pytest.fixture
-def df_full(df_base: pd.DataFrame) -> pd.DataFrame:
+def df_full(df_base: pl.DataFrame) -> pl.DataFrame:
     """All columns combined: id, sequence, label, group, cluster_id, date, target, desc_*."""
     import datetime
 
@@ -119,8 +119,14 @@ def df_full(df_base: pd.DataFrame) -> pd.DataFrame:
         "target": rng.random(size=N).tolist(),
     }
     desc = rng.standard_normal((N, 10)).astype(np.float32)
-    desc_df = pd.DataFrame(desc, columns=[f"desc_{i:03d}" for i in range(10)])
-    return pd.concat([df_base.assign(**extra), desc_df], axis=1)
+    desc_df = pl.DataFrame({f"desc_{i:03d}": desc[:, i] for i in range(10)})
+    return df_base.with_columns(
+        pl.Series("label", extra["label"]),
+        pl.Series("group", extra["group"]),
+        pl.Series("cluster_id", extra["cluster_id"]),
+        pl.Series("date", extra["date"]),
+        pl.Series("target", extra["target"]),
+    ).hstack(desc_df.get_columns())
 
 
 # ---------------------------------------------------------------------------
@@ -129,14 +135,14 @@ def df_full(df_base: pd.DataFrame) -> pd.DataFrame:
 
 
 @pytest.fixture
-def embeddings_fixture(df_base: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
+def embeddings_fixture(df_base: pl.DataFrame) -> tuple[np.ndarray, list[str]]:
     """(N, 32) float32 embedding matrix aligned to df_base ids."""
     rng = np.random.default_rng(SEED + 4)
     X = rng.standard_normal((N, 32)).astype(np.float32)
     # L2-normalize so cosine similarity is well-defined
     norms = np.linalg.norm(X, axis=1, keepdims=True)
     X = X / np.where(norms == 0, 1.0, norms)
-    ids = df_base["id"].tolist()
+    ids = df_base["id"].to_list()
     return X, ids
 
 
@@ -146,10 +152,10 @@ def embeddings_fixture(df_base: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
 
 
 @pytest.fixture
-def edges_fixture(df_base: pd.DataFrame) -> pd.DataFrame:
+def edges_fixture(df_base: pl.DataFrame) -> pl.DataFrame:
     """~150 sparse (id1, id2, distance) pairs between the 50 ids."""
     rng = np.random.default_rng(SEED + 5)
-    ids = df_base["id"].tolist()
+    ids = df_base["id"].to_list()
     rows = []
     for i in range(N):
         # Each node gets 3 random neighbours (no self-loops)
@@ -157,7 +163,7 @@ def edges_fixture(df_base: pd.DataFrame) -> pd.DataFrame:
         rows.extend(
             {"id1": ids[i], "id2": ids[j], "distance": float(rng.random())} for j in neighbours if i < j
         )
-    return pd.DataFrame(rows)
+    return pl.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -166,10 +172,10 @@ def edges_fixture(df_base: pd.DataFrame) -> pd.DataFrame:
 
 
 @pytest.fixture
-def csv_path(df_base: pd.DataFrame, tmp_path: Path) -> Path:
+def csv_path(df_base: pl.DataFrame, tmp_path: Path) -> Path:
     """Write df_base to a CSV file; return the Path."""
     p = tmp_path / "dataset.csv"
-    df_base.to_csv(p, index=False)
+    df_base.write_csv(p)
     return p
 
 
@@ -180,23 +186,23 @@ def embeddings_files(embeddings_fixture: tuple[np.ndarray, list[str]], tmp_path:
     emb_path = tmp_path / "embeddings.npy"
     ids_path = tmp_path / "embedding_ids.csv"
     np.save(emb_path, X)
-    pd.DataFrame({"id": ids}).to_csv(ids_path, index=False)
+    pl.DataFrame({"id": ids}).write_csv(ids_path)
     return emb_path, ids_path
 
 
 @pytest.fixture
-def edges_file(edges_fixture: pd.DataFrame, tmp_path: Path) -> Path:
+def edges_file(edges_fixture: pl.DataFrame, tmp_path: Path) -> Path:
     """Write edges CSV; return the Path."""
     p = tmp_path / "struct_edges.csv"
-    edges_fixture.to_csv(p, index=False)
+    edges_fixture.write_csv(p)
     return p
 
 
 @pytest.fixture
-def cluster_map_file(df_clustered: pd.DataFrame, tmp_path: Path) -> Path:
+def cluster_map_file(df_clustered: pl.DataFrame, tmp_path: Path) -> Path:
     """Write (id, cluster_id) mapping CSV; return the Path."""
     p = tmp_path / "cluster_map.csv"
-    df_clustered[["id", "cluster_id"]].to_csv(p, index=False)
+    df_clustered.select(["id", "cluster_id"]).write_csv(p)
     return p
 
 
