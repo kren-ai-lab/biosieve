@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, cast
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -12,20 +12,6 @@ SKLEARN_REQUIRED_MESSAGE = (
     "scikit-learn could not be imported, but it is a required biosieve dependency. "
     "Check that biosieve was installed correctly in this environment."
 )
-
-
-class _TrainTestSplitFn(Protocol):
-    """Callable protocol for sklearn's train_test_split helper."""
-
-    def __call__(
-        self,
-        X: object,
-        *,
-        test_size: float,
-        random_state: int,
-        shuffle: bool,
-        stratify: object,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
 
 
 def validate_sizes(test_size: float, val_size: float) -> None:
@@ -63,14 +49,14 @@ def derive_val_fraction(test_size: float, val_size: float) -> float:
     return frac
 
 
-def require_train_test_split(feature: str) -> _TrainTestSplitFn:
+def require_train_test_split(feature: str) -> Any:  # noqa: ANN401
     """Return sklearn.model_selection.train_test_split with a consistent ImportError."""
     try:
         from sklearn.model_selection import train_test_split  # noqa: PLC0415
     except ImportError as e:
         msg = sklearn_required_message(feature)
         raise ImportError(msg) from e
-    return cast("_TrainTestSplitFn", train_test_split)
+    return train_test_split
 
 
 def sklearn_required_message(feature: str) -> str:
@@ -85,7 +71,7 @@ def split_train_val(
     seed: int,
     feature: str,
     stratify: object = None,
-    train_test_split: _TrainTestSplitFn | None = None,
+    train_test_split: Any | None = None,  # noqa: ANN401
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Split a training frame into train/val using sklearn when val is enabled."""
     if val_size <= 0:

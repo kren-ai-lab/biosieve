@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-    import numpy as np
 
 EMPTY_MAPPING_SCHEMA = {
     "removed_id": pl.String,
@@ -28,30 +26,14 @@ def empty_mapping_df() -> pl.DataFrame:
     return pl.DataFrame(schema=EMPTY_MAPPING_SCHEMA)
 
 
-class _NearestNeighborsModel(Protocol):
-    def fit(self, X: object) -> object: ...
-
-    def radius_neighbors(
-        self,
-        X: np.ndarray,
-        *,
-        radius: float,
-        return_distance: bool,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
-
-
-class _NearestNeighborsFactory(Protocol):
-    def __call__(self, *, metric: str, algorithm: str, n_jobs: int) -> _NearestNeighborsModel: ...
-
-
-def require_sklearn_neighbors(feature: str) -> _NearestNeighborsFactory:
+def require_sklearn_neighbors(feature: str) -> Any:  # noqa: ANN401
     """Return sklearn.neighbors.NearestNeighbors or raise a consistent ImportError."""
     try:
         from sklearn.neighbors import NearestNeighbors  # noqa: PLC0415
     except ImportError as e:
         msg = f"{feature} requires scikit-learn. {SKLEARN_REQUIRED_MESSAGE}"
         raise ImportError(msg) from e
-    return cast("_NearestNeighborsFactory", NearestNeighbors)
+    return NearestNeighbors
 
 
 def prepare_reduction_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:

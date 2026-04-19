@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
@@ -20,19 +20,9 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-class _FaissIndex(Protocol):
-    def add(self, X: np.ndarray) -> None: ...
-
-    def search(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]: ...
-
-
-class _FaissModule(Protocol):
-    def IndexFlatIP(self, d: int) -> _FaissIndex: ...
-
-
-def _try_import_faiss() -> _FaissModule | None:
+def _try_import_faiss() -> Any:  # noqa: ANN401
     try:
-        return cast("_FaissModule", importlib.import_module("faiss"))
+        return importlib.import_module("faiss")
     except ImportError:
         return None
 
@@ -269,17 +259,11 @@ class EmbeddingCosineReducer:
         )
 
         # Attach cluster id for representatives (convenience)
+        # All kept IDs are either from present_set (embcos) or missing (singleton)
         kept_df = kept_df.with_columns(
-            embedding_cosine_cluster_id=pl.col(cols.id_col)
-            .cast(pl.String)
-            .map_elements(
-                lambda x: (
-                    f"embcos:{x}"
-                    if (x in present_set and x not in removed)
-                    else (f"singleton:{x}" if x in missing else None)
-                ),
-                return_dtype=pl.String,
-            )
+            embedding_cosine_cluster_id=pl.when(pl.col(cols.id_col).cast(pl.String).is_in(present_set))
+            .then(pl.lit("embcos:") + pl.col(cols.id_col).cast(pl.String))
+            .otherwise(pl.lit("singleton:") + pl.col(cols.id_col).cast(pl.String))
         )
 
         stats: dict[str, Any] = build_reduction_stats(
