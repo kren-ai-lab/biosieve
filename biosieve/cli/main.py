@@ -6,6 +6,7 @@ import click
 import typer
 
 from biosieve.cli.common import version_callback
+from biosieve.cli.doctor import doctor
 from biosieve.cli.info import info
 from biosieve.cli.reduce import reduce
 from biosieve.cli.split import split
@@ -40,6 +41,7 @@ app.command("reduce", context_settings=CONTEXT_SETTINGS)(reduce)
 app.command("split", context_settings=CONTEXT_SETTINGS)(split)
 app.command("info", context_settings=CONTEXT_SETTINGS)(info)
 app.command("validate", context_settings=CONTEXT_SETTINGS)(validate)
+app.command("doctor", context_settings=CONTEXT_SETTINGS)(doctor)
 
 
 def main(argv: list[str] | None = None) -> int:

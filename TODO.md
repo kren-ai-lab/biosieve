@@ -1,14 +1,6 @@
 
 # BioSieve — Roadmap
 
-## CLI commands (missing)
-
-- `biosieve info` — list registered strategies + accepted params per strategy
-- `biosieve validate` — input + feature consistency checks (column types, embedding shape vs ids, etc.)
-- `biosieve doctor` — print versions, binary paths, optional dep availability (faiss, datasketch, mmseqs2)
-
----
-
 ## Reducers
 
 ### Representative selection policy (`rep_policy`)
@@ -49,4 +41,3 @@ Split based on precomputed structural distances (`id1, id2, dist` edge list):
 
 - Sylphy embedding export format: validate `embeddings.npy` + `embedding_ids.csv` + `meta.json` layout in `biosieve validate`
 - Eris-compatible output naming: `splits/train.csv`, `splits/test.csv`, `splits/val.csv`, `folds/fold_*/`
-- Report schema versioning (stable schema tag in JSON output for downstream consumers)
