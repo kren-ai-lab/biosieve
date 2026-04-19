@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from biosieve.reduction.common import build_mapping, prepare_reduction_work
+from biosieve.reduction.common import build_mapping
 
 if TYPE_CHECKING:
     import polars as pl
@@ -32,9 +32,13 @@ def _kmer_set(seq: str, k: int) -> set[str]:
     return {seq[i : i + k] for i in range(len(seq) - k + 1)}
 
 
-def _prepare_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
-    """Sort by id_col for determinism and validate uniqueness."""
-    return prepare_reduction_work(df, id_col)
+def _jaccard(a: set[str], b: set[str]) -> float:
+    """Jaccard similarity in [0, 1]."""
+    if not a and not b:
+        return 1.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
 
 
 def _build_mapping(

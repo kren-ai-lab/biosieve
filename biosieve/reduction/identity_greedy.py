@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from biosieve.reduction.backends.kmer_backend import _kmer_set
+from biosieve.reduction.backends.kmer_backend import _jaccard, _kmer_set
 from biosieve.reduction.base import ReductionResult
 from biosieve.reduction.common import (
     attach_cluster_ids,
@@ -21,15 +21,6 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
-
-
-def _jaccard(a: set[str], b: set[str]) -> float:
-    """Jaccard similarity in [0, 1]."""
-    if not a and not b:
-        return 1.0
-    inter = len(a & b)
-    union = len(a | b)
-    return inter / union if union else 0.0
 
 
 def _approx_identity(a: str, b: str) -> float:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -32,14 +33,7 @@ def _write_csv(path: Path, df: pl.DataFrame) -> None:
 
 
 def _columns_payload(cols: Columns) -> dict[str, str | None]:
-    return {
-        "id_col": cols.id_col,
-        "seq_col": cols.seq_col,
-        "label_col": cols.label_col,
-        "group_col": cols.group_col,
-        "cluster_col": cols.cluster_col,
-        "date_col": cols.date_col,
-    }
+    return asdict(cols)
 
 
 def _write_split_outputs(out: Path, res: SplitResult) -> None:

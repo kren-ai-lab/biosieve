@@ -4,23 +4,20 @@ from __future__ import annotations
 
 import json
 import shutil
-from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 import polars as pl
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
+from biosieve.core.common import JSONValue, safe_jsonable
 from biosieve.types import Columns
 
 if TYPE_CHECKING:
     from biosieve.core.registry import StrategyRegistry
-
-JSONScalar: TypeAlias = str | int | float | bool | None  # noqa: UP040
-JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]  # noqa: UP040
 
 
 class _RecordFn(Protocol):
@@ -127,20 +124,6 @@ def _load_cols(cols_arg: str | None) -> Columns:
 
     d = json.loads(text)
     return Columns(**d)
-
-
-def _jsonable(x: object) -> JSONValue:
-    if x is None:
-        return None
-    if isinstance(x, (str, int, float, bool)):
-        return x
-    if isinstance(x, (list, tuple)):
-        return [_jsonable(v) for v in x]
-    if isinstance(x, dict):
-        return {str(k): _jsonable(v) for k, v in x.items()}
-    if is_dataclass(x) and not isinstance(x, type):
-        return _jsonable(asdict(x))
-    return str(x)
 
 
 def _check_exists(path: str | None, label: str) -> tuple[bool, str]:
@@ -515,7 +498,7 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         payload = {
             "schema_version": "0.1",
             "in_path": args.in_path,
-            "columns": _jsonable(cols),
+            "columns": safe_jsonable(cols),
             "strategy": args.strategy,
             "kind": args.kind,
             "results": results,

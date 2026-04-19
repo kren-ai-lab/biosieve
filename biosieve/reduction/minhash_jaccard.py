@@ -15,9 +15,9 @@ import importlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set, _prepare_work
+from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set
 from biosieve.reduction.base import ReductionResult
-from biosieve.reduction.common import build_reduction_stats
+from biosieve.reduction.common import build_reduction_stats, prepare_reduction_work
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -136,7 +136,7 @@ class MinHashJaccardReducer:
             raise ImportError(msg)
 
         _validate_inputs(df, cols, self.threshold, self.k, self.num_perm)
-        work, _ids = _prepare_work(df, cols.id_col)
+        work, _ids = prepare_reduction_work(df, cols.id_col)
 
         # datasketch rejects threshold=1.0 for LSH configuration. In that edge case,
         # only identical MinHash signatures can match, so a direct signature lookup

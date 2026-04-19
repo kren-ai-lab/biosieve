@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set, _prepare_work
+from biosieve.reduction.backends.kmer_backend import _build_mapping, _jaccard, _kmer_set
 from biosieve.reduction.base import ReductionResult
-from biosieve.reduction.common import attach_cluster_ids, build_reduction_stats
+from biosieve.reduction.common import attach_cluster_ids, build_reduction_stats, prepare_reduction_work
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -16,24 +16,6 @@ if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
-
-
-def _jaccard(a: set[str], b: set[str]) -> float:
-    """Jaccard similarity between two sets.
-
-    Args:
-        a: First input set.
-        b: Second input set.
-
-    Returns:
-        Jaccard similarity in [0, 1]. If both empty, returns 1.0.
-
-    """
-    if not a and not b:
-        return 1.0
-    inter = len(a & b)
-    union = len(a | b)
-    return inter / union if union else 0.0
 
 
 def _validate_inputs(df: pl.DataFrame, cols: Columns, threshold: float, k: int, max_candidates: int) -> None:
@@ -125,7 +107,7 @@ class KmerJaccardReducer:
     def run(self, df: pl.DataFrame, cols: Columns) -> ReductionResult:  # noqa: C901
         """Reduce sequence redundancy with k-mer candidate pruning."""
         _validate_inputs(df, cols, self.threshold, self.k, self.max_candidates)
-        work, _ids = _prepare_work(df, cols.id_col)
+        work, _ids = prepare_reduction_work(df, cols.id_col)
 
         # Representatives are tracked by work index
         reps_idx: list[int] = []
