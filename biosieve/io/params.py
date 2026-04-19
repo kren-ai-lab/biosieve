@@ -38,8 +38,8 @@ def _load_file(path: Path) -> dict[str, object]:
         yaml = _try_import_yaml()
         if yaml is None:
             msg = (
-                "YAML params requested but PyYAML is not installed. "
-                "Install with: pip install pyyaml  (or conda install -c conda-forge pyyaml)"
+                "YAML params requested but PyYAML is not installed in this environment. "
+                "Install `pyyaml` in the same environment as biosieve, or use JSON params instead."
             )
             raise ImportError(msg)
         data = yaml.safe_load(text) or {}

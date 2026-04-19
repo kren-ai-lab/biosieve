@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Protocol, cast
 import numpy as np
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.common import split_train_val, try_import_train_test_split, validate_kfold
+from biosieve.splitting.common import (
+    sklearn_required_message,
+    split_train_val,
+    try_import_train_test_split,
+    validate_kfold,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -70,11 +75,7 @@ class RandomKFoldSplitter:
         """Create random k-fold splits with optional per-fold validation."""
         KFold = _try_import_kfold()
         if KFold is None:
-            msg = (
-                "RandomKFoldSplitter requires scikit-learn. "
-                "Install: conda install -c conda-forge scikit-learn"
-            )
-            raise ImportError(msg)
+            raise ImportError(sklearn_required_message("RandomKFoldSplitter"))
 
         work = df.clone()
         n = work.height
@@ -86,8 +87,7 @@ class RandomKFoldSplitter:
         if self.val_size and self.val_size > 0:
             tts = try_import_train_test_split()
             if tts is None:
-                msg = "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
-                raise ImportError(msg)
+                raise ImportError(sklearn_required_message("RandomKFoldSplitter with val_size > 0"))
 
         folds: list[SplitResult] = []
 
@@ -103,9 +103,7 @@ class RandomKFoldSplitter:
                     val_size=self.val_size,
                     seed=int(self.seed + fold_idx),
                     train_test_split=tts,
-                    import_error_message=(
-                        "val_size > 0 requires scikit-learn train_test_split. Install scikit-learn."
-                    ),
+                    import_error_message=sklearn_required_message("RandomKFoldSplitter with val_size > 0"),
                 )
 
             folds.append(

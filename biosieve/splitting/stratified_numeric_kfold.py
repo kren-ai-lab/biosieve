@@ -1,4 +1,4 @@
-# ruff: noqa: ANN202, ANN401, D102, EM101, EM102, TRY003, TRY300
+# ruff: noqa: ANN202, ANN401, D102, EM102, TRY003, TRY300
 
 """Stratified k-fold splitter for numeric targets via binning."""
 
@@ -11,7 +11,7 @@ import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.common import try_import_train_test_split, validate_kfold
+from biosieve.splitting.common import sklearn_required_message, try_import_train_test_split, validate_kfold
 from biosieve.splitting.stratified_numeric import _bin_counts, _label_stats, _make_bins
 
 
@@ -48,7 +48,7 @@ class StratifiedNumericKFoldSplitter:
     def run_folds(self, df: pl.DataFrame, _cols: Any) -> list[SplitResult]:
         skf_cls = _try_import_stratified_kfold()
         if skf_cls is None:
-            raise ImportError("StratifiedNumericKFoldSplitter requires scikit-learn.")
+            raise ImportError(sklearn_required_message("StratifiedNumericKFoldSplitter"))
         if self.label_col not in df.columns:
             raise ValueError(f"Missing label column '{self.label_col}'. Columns: {df.columns}")
 
@@ -86,7 +86,9 @@ class StratifiedNumericKFoldSplitter:
             val_global_idx = np.asarray([], dtype=int)
             if self.val_size > 0:
                 if tts is None:
-                    raise ImportError("val_size > 0 requires scikit-learn train_test_split.")
+                    raise ImportError(
+                        sklearn_required_message("StratifiedNumericKFoldSplitter with val_size > 0")
+                    )
                 inner_idx = np.arange(train.height)
                 train_keep_idx, val_idx = tts(
                     inner_idx,

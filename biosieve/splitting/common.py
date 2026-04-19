@@ -8,6 +8,10 @@ import numpy as np
 import polars as pl
 
 MIN_KFOLD_SPLITS = 2
+SKLEARN_REQUIRED_MESSAGE = (
+    "scikit-learn could not be imported, but it is a required biosieve dependency. "
+    "Check that biosieve was installed correctly in this environment."
+)
 
 
 class _TrainTestSplitFn(Protocol):
@@ -66,6 +70,11 @@ def try_import_train_test_split() -> _TrainTestSplitFn | None:
     except ImportError:
         return None
     return cast("_TrainTestSplitFn", train_test_split)
+
+
+def sklearn_required_message(feature: str) -> str:
+    """Build a consistent error message for required scikit-learn-backed features."""
+    return f"{feature} requires scikit-learn. {SKLEARN_REQUIRED_MESSAGE}"
 
 
 def split_train_val(

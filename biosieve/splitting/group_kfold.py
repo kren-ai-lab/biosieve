@@ -9,7 +9,12 @@ import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.common import split_train_val, try_import_train_test_split, validate_kfold
+from biosieve.splitting.common import (
+    sklearn_required_message,
+    split_train_val,
+    try_import_train_test_split,
+    validate_kfold,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -106,10 +111,7 @@ class GroupKFoldSplitter:
         """Build group-disjoint folds with optional per-fold validation splits."""
         GroupKFold = _try_import_group_kfold()
         if GroupKFold is None:
-            msg = (
-                "GroupKFoldSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
-            )
-            raise ImportError(msg)
+            raise ImportError(sklearn_required_message("GroupKFoldSplitter"))
 
         if self.group_col not in df.columns:
             msg = f"Missing group column '{self.group_col}'. Columns: {df.columns}"
@@ -146,8 +148,7 @@ class GroupKFoldSplitter:
         if self.val_size > 0:
             tts = try_import_train_test_split()
             if tts is None:
-                msg = "val_size > 0 requires scikit-learn train_test_split."
-                raise ImportError(msg)
+                raise ImportError(sklearn_required_message("GroupKFoldSplitter with val_size > 0"))
 
         folds: list[SplitResult] = []
 
@@ -180,7 +181,7 @@ class GroupKFoldSplitter:
                     val_size=self.val_size,
                     seed=int(self.seed + fold_idx),
                     train_test_split=tts,
-                    import_error_message="val_size > 0 requires scikit-learn train_test_split.",
+                    import_error_message=sklearn_required_message("GroupKFoldSplitter with val_size > 0"),
                 )
                 if val_df is None:
                     msg = "val_size > 0 should always produce a validation split."

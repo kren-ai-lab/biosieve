@@ -10,6 +10,7 @@ import numpy as np
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.common import (
     derive_val_fraction,
+    sklearn_required_message,
     split_train_val,
     try_import_train_test_split,
     validate_sizes,
@@ -112,10 +113,7 @@ class StratifiedSplitter:
 
         tts = try_import_train_test_split()
         if tts is None:
-            msg = (
-                "StratifiedSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
-            )
-            raise ImportError(msg)
+            raise ImportError(sklearn_required_message("StratifiedSplitter"))
 
         work = _validate_inputs(
             df.clone(),
@@ -151,10 +149,7 @@ class StratifiedSplitter:
                 seed=self.seed,
                 stratify=y_tv,
                 train_test_split=tts,
-                import_error_message=(
-                    "StratifiedSplitter requires scikit-learn. Install: "
-                    "conda install -c conda-forge scikit-learn"
-                ),
+                import_error_message=sklearn_required_message("StratifiedSplitter"),
             )
 
         stats: dict[str, Any] = {

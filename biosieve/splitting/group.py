@@ -9,7 +9,7 @@ import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.common import derive_val_fraction, validate_sizes
+from biosieve.splitting.common import derive_val_fraction, sklearn_required_message, validate_sizes
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -85,8 +85,7 @@ def _split_groups(
     """
     GroupShuffleSplit = _try_import_gss()
     if GroupShuffleSplit is None:
-        msg = "GroupSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
-        raise ImportError(msg)
+        raise ImportError(sklearn_required_message("GroupSplitter"))
 
     gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
     idx = np.arange(df.height)

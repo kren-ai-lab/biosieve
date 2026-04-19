@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.common import split_train_val, try_import_train_test_split, validate_kfold
+from biosieve.splitting.common import (
+    sklearn_required_message,
+    split_train_val,
+    try_import_train_test_split,
+    validate_kfold,
+)
 from biosieve.splitting.distance_aware import _dist_stats, _distance_to_centroid, build_distance_features
 
 if TYPE_CHECKING:
@@ -75,7 +80,9 @@ class DistanceAwareKFoldSplitter:
                     val_size=self.val_size,
                     seed=self.seed + fold_idx,
                     train_test_split=tts,
-                    import_error_message="val_size > 0 requires scikit-learn.",
+                    import_error_message=sklearn_required_message(
+                        "DistanceAwareKFoldSplitter with val_size > 0"
+                    ),
                 )
 
             train_rowids = train["__rowid"].to_list()
