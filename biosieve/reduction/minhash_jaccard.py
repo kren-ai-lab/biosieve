@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set, _prepare_work
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import build_reduction_stats
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -181,15 +182,13 @@ class MinHashJaccardReducer:
         kept = work[reps_idx]
         mapping = _build_mapping(removed_rows, cluster_prefix="minhash")
 
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
-            "k": self.k,
-            "threshold": self.threshold,
-            "num_perm": self.num_perm,
-        }
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept.height,
+            k=self.k,
+            threshold=self.threshold,
+            num_perm=self.num_perm,
+        )
 
         log.info(
             "minhash_jaccard: %d → %d sequences (removed %d, ratio=%.3f)",
@@ -208,6 +207,6 @@ class MinHashJaccardReducer:
                 "k": self.k,
                 "num_perm": self.num_perm,
                 "seed": self.seed,
-                "stats": stats,
             },
+            stats=stats,
         )

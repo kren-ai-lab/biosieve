@@ -9,6 +9,12 @@ import polars as pl
 
 from biosieve.reduction.backends.structure_backend import load_edges_csv
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import (
+    attach_cluster_ids,
+    build_mapping,
+    build_reduction_stats,
+    prepare_reduction_work,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -134,8 +140,7 @@ class StructuralDistanceReducer:
         _validate_inputs(df, cols, self.mode, self.threshold)
 
         # deterministic ordering
-        work = df.clone().sort(cols.id_col, maintain_order=True)
-        ids = work[cols.id_col].cast(pl.String).to_list()
+        work, ids = prepare_reduction_work(df, cols.id_col)
         id_set = set(ids)
 
         edges = load_edges_csv(
@@ -174,41 +179,23 @@ class StructuralDistanceReducer:
         keep_ids = [sid for sid in ids if sid not in removed]
         kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(set(keep_ids)))
 
-        rows = []
-        for rid, rep in rep_of.items():
-            rows.append(
-                {
-                    "removed_id": rid,
-                    "representative_id": rep,
-                    "cluster_id": cluster_of.get(rid, f"struct:{rep}"),
-                    "score": score_of.get(rid),
-                }
-            )
-        mapping = (
-            pl.DataFrame(rows)
-            if rows
-            else pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
+        mapping = build_mapping(
+            [(rid, rep, score_of.get(rid)) for rid, rep in rep_of.items()],
+            cluster_prefix="struct",
+        )
+        kept_df = attach_cluster_ids(
+            kept_df,
+            id_col=cols.id_col,
+            column_name="structural_cluster_id",
+            cluster_prefix="struct",
         )
 
-        kept_df = kept_df.with_columns(
-            structural_cluster_id=pl.lit("struct:") + pl.col(cols.id_col).cast(pl.String)
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept_df.height,
+            n_edges_loaded=int(edges.n_edges),
+            mode=self.mode,
         )
-
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept_df.height,
-            "n_removed": mapping.height,
-            "n_edges_loaded": int(edges.n_edges),
-            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
-            "mode": self.mode,
-        }
 
         return ReductionResult(
             df=kept_df,
@@ -221,6 +208,6 @@ class StructuralDistanceReducer:
                 "id1_col": self.id1_col,
                 "id2_col": self.id2_col,
                 "value_col": self.value_col,
-                "stats": stats,
             },
+            stats=stats,
         )

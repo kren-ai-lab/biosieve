@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
+from biosieve.splitting.common import (
+    split_train_val,
+    try_import_train_test_split,
+    validate_kfold,
+    value_counts_dict,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -28,32 +34,11 @@ class _StratifiedKFoldFactory(Protocol):
     def __call__(self, *, n_splits: int, shuffle: bool, random_state: int) -> _StratifiedKFold: ...
 
 
-class _TrainTestSplitFn(Protocol):
-    def __call__(
-        self,
-        X: object,
-        *,
-        test_size: float,
-        random_state: int,
-        shuffle: bool,
-        stratify: object,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
-
-
 def _try_import_stratified_kfold() -> _StratifiedKFoldFactory | None:
     try:
         from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
 
         return cast("_StratifiedKFoldFactory", StratifiedKFold)
-    except ImportError:
-        return None
-
-
-def _try_import_train_test_split() -> _TrainTestSplitFn | None:
-    try:
-        from sklearn.model_selection import train_test_split  # noqa: PLC0415
-
-        return cast("_TrainTestSplitFn", train_test_split)
     except ImportError:
         return None
 
@@ -93,7 +78,7 @@ class StratifiedKFoldSplitter:
         """Return the strategy identifier."""
         return "stratified_kfold"
 
-    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
+    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901
         """Create stratified k-fold splits with optional per-fold validation."""
         StratifiedKFold = _try_import_stratified_kfold()
         if StratifiedKFold is None:
@@ -103,12 +88,6 @@ class StratifiedKFoldSplitter:
             )
             raise ImportError(msg)
 
-        if self.n_splits < MIN_KFOLD_SPLITS:
-            msg = "n_splits must be >= 2"
-            raise ValueError(msg)
-        if self.val_size < 0 or self.val_size >= 1:
-            msg = "val_size must be in [0, 1)"
-            raise ValueError(msg)
         if self.label_col not in df.columns:
             msg = f"Missing label column '{self.label_col}'. Columns: {df.columns}"
             raise ValueError(msg)
@@ -133,9 +112,7 @@ class StratifiedKFoldSplitter:
             y = y.cast(pl.String)
 
         n = work.height
-        if n < self.n_splits:
-            msg = f"Not enough samples (n={n}) for n_splits={self.n_splits}"
-            raise ValueError(msg)
+        validate_kfold(self.n_splits, self.val_size, n_samples=n)
 
         # sanity: each class must have at least n_splits members for StratifiedKFold
         vc = {str(row[0]): int(row[1]) for row in y.cast(pl.String).value_counts().iter_rows()}
@@ -151,7 +128,7 @@ class StratifiedKFoldSplitter:
 
         tts = None
         if self.val_size and self.val_size > 0:
-            tts = _try_import_train_test_split()
+            tts = try_import_train_test_split()
             if tts is None:
                 msg = "val_size > 0 requires scikit-learn train_test_split."
                 raise ImportError(msg)
@@ -165,22 +142,13 @@ class StratifiedKFoldSplitter:
             val_df: pl.DataFrame | None = None
 
             if self.val_size and self.val_size > 0:
-                seed_fold = int(self.seed + fold_idx)
-
-                # default: random val from train (robust)
-                if tts is None:
-                    msg = "val_size > 0 requires scikit-learn train_test_split."
-                    raise ImportError(msg)
-                inner_idx = np.arange(train_df.height)
-                train_keep_idx, val_idx = tts(
-                    inner_idx,
-                    test_size=self.val_size,
-                    random_state=seed_fold,
-                    shuffle=True,
-                    stratify=None,
+                train_df, val_df = split_train_val(
+                    train_df,
+                    val_size=self.val_size,
+                    seed=int(self.seed + fold_idx),
+                    train_test_split=tts,
+                    import_error_message="val_size > 0 requires scikit-learn train_test_split.",
                 )
-                val_df = train_df[val_idx]
-                train_df = train_df[train_keep_idx]
 
             folds.append(
                 SplitResult(
@@ -206,14 +174,8 @@ class StratifiedKFoldSplitter:
                         "n_train": train_df.height,
                         "n_test": test_df.height,
                         "n_val": val_df.height if val_df is not None else 0,
-                        "train_label_counts": {
-                            str(row[0]): int(row[1])
-                            for row in train_df[self.label_col].cast(pl.String).value_counts().iter_rows()
-                        },
-                        "test_label_counts": {
-                            str(row[0]): int(row[1])
-                            for row in test_df[self.label_col].cast(pl.String).value_counts().iter_rows()
-                        },
+                        "train_label_counts": value_counts_dict(cast("Any", train_df[self.label_col])),
+                        "test_label_counts": value_counts_dict(cast("Any", test_df[self.label_col])),
                     },
                 )
             )

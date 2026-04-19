@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
 
 import typer
 
-from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
+from biosieve.cli.common import (
+    LOG_FILE_OPTION,
+    LOG_LEVEL_OPTION,
+    QUIET_OPTION,
+    build_run_inputs,
+    setup_runtime,
+)
 from biosieve.core.split_runner import run_split
-from biosieve.io.params import load_params, params_for_strategy
-from biosieve.types import Columns
-
-if TYPE_CHECKING:
-    from biosieve.core.registry import StrategyRegistry
 
 INPUT_DATA_OPTION = typer.Option(
     ...,
@@ -92,36 +91,22 @@ def split(
 ) -> None:
     """Split a dataset into train/test(/val) using a selected strategy."""
     registry = setup_runtime(log_level, quiet=quiet, log_file=log_file)
-    args = SimpleNamespace(
+    cols, strat_params, read_csv_kwargs = build_run_inputs(
+        strategy=strategy,
+        id_column=id_column,
+        sequence_column=sequence_column,
+        params_path=params,
+        set_values=set_values,
+        csv_separator=csv_separator,
+        encoding=encoding,
+    )
+    run_split(
         in_path=str(input_data),
         outdir=str(output_dir),
         strategy=strategy,
-        report_path=str(report_output) if report_output is not None else None,
-        id_col=id_column,
-        seq_col=sequence_column,
-        params_path=str(params) if params is not None else None,
-        overrides=list(set_values or []),
-        sep=csv_separator,
-        encoding=encoding,
-    )
-    _run_split(args, registry)
-
-
-def _run_split(args: SimpleNamespace, registry: StrategyRegistry) -> None:
-    cols = Columns(id_col=args.id_col, seq_col=args.seq_col)
-
-    all_params = load_params(args.params_path, overrides=args.overrides)
-    strat_params: dict[str, Any] = params_for_strategy(all_params, args.strategy)
-
-    read_csv_kwargs = {"sep": args.sep, "encoding": args.encoding}
-
-    run_split(
-        in_path=args.in_path,
-        outdir=args.outdir,
-        strategy=args.strategy,
         registry=registry,
         cols=cols,
-        report_path=args.report_path,
+        report_path=str(report_output) if report_output is not None else None,
         strategy_params=strat_params,
         read_csv_kwargs=read_csv_kwargs,
     )

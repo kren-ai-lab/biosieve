@@ -9,6 +9,8 @@ import typer
 
 import biosieve
 from biosieve.core.strategies import build_registry
+from biosieve.io.params import load_params, params_for_strategy
+from biosieve.types import Columns
 from biosieve.utils.logging import configure_logging
 
 if TYPE_CHECKING:
@@ -50,3 +52,23 @@ def setup_runtime(log_level: str, *, quiet: bool, log_file: Path | None) -> Stra
         log_file=str(log_file) if log_file is not None else None,
     )
     return build_registry()
+
+
+def build_run_inputs(
+    *,
+    strategy: str,
+    id_column: str,
+    sequence_column: str,
+    params_path: Path | None,
+    set_values: list[str] | None,
+    csv_separator: str,
+    encoding: str,
+) -> tuple[Columns, dict[str, object], dict[str, object]]:
+    """Build the shared runner inputs used by the split and reduce CLI commands."""
+    cols = Columns(id_col=id_column, seq_col=sequence_column)
+    all_params = load_params(
+        str(params_path) if params_path is not None else None, overrides=list(set_values or [])
+    )
+    strat_params = params_for_strategy(all_params, strategy)
+    read_csv_kwargs: dict[str, object] = {"sep": csv_separator, "encoding": encoding}
+    return cols, strat_params, read_csv_kwargs

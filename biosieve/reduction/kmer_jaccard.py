@@ -5,13 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import polars as pl
-
 from biosieve.reduction.backends.kmer_backend import _build_mapping, _kmer_set, _prepare_work
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import attach_cluster_ids, build_reduction_stats
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
+    import polars as pl
+
     from biosieve.types import Columns
 
 log = get_logger(__name__)
@@ -193,17 +194,17 @@ class KmerJaccardReducer:
 
         mapping = _build_mapping(removed_rows)
 
-        kept = kept.with_columns(kmer_cluster_id=pl.lit("kmer:") + pl.col(cols.id_col).cast(pl.String))
+        kept = attach_cluster_ids(
+            kept, id_col=cols.id_col, column_name="kmer_cluster_id", cluster_prefix="kmer"
+        )
 
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
-            "k": int(self.k),
-            "threshold": float(self.threshold),
-            "max_candidates": int(self.max_candidates),
-        }
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept.height,
+            k=int(self.k),
+            threshold=float(self.threshold),
+            max_candidates=int(self.max_candidates),
+        )
 
         return ReductionResult(
             df=kept,
@@ -213,6 +214,6 @@ class KmerJaccardReducer:
                 "threshold": self.threshold,
                 "k": self.k,
                 "max_candidates": self.max_candidates,
-                "stats": stats,
             },
+            stats=stats,
         )

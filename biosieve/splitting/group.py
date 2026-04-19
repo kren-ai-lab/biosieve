@@ -9,6 +9,7 @@ import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
+from biosieve.splitting.common import derive_val_fraction, validate_sizes
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -37,25 +38,13 @@ def _try_import_gss() -> _GroupShuffleSplitFactory | None:
         return None
 
 
-def _validate_sizes(test_size: float, val_size: float) -> None:
-    if not (0.0 < test_size < 1.0):
-        msg = "test_size must be in (0, 1)"
-        raise ValueError(msg)
-    if not (0.0 <= val_size < 1.0):
-        msg = "val_size must be in [0, 1)"
-        raise ValueError(msg)
-    if test_size + val_size >= 1.0:
-        msg = "test_size + val_size must be < 1.0"
-        raise ValueError(msg)
-
-
 def _validate_inputs(
     df: pl.DataFrame,
     group_col: str,
     test_size: float,
     val_size: float,
 ) -> tuple[pl.Series, int]:
-    _validate_sizes(test_size, val_size)
+    validate_sizes(test_size, val_size)
     if group_col not in df.columns:
         msg = f"Missing group column '{group_col}'. Columns: {df.columns}"
         raise ValueError(msg)
@@ -189,11 +178,7 @@ class GroupSplitter:
 
         # 2) optional val split from trainval
         if self.val_size and self.val_size > 0:
-            frac = self.val_size / (1.0 - self.test_size)
-            if frac <= 0 or frac >= 1:
-                msg = "Derived val fraction invalid. Check test_size/val_size."
-                raise ValueError(msg)
-
+            frac = derive_val_fraction(self.test_size, self.val_size)
             tv_groups = trainval[self.group_col].cast(pl.String)
             tv_n_groups = int(tv_groups.n_unique())
             if tv_n_groups < MIN_GROUPS_FOR_SPLIT:

@@ -11,6 +11,7 @@ import polars as pl
 
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import build_reduction_stats, empty_mapping_df
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -318,18 +319,7 @@ class EmbeddingCosineReducer:
                     "score": score_of.get(rid),
                 }
             )
-        mapping = (
-            pl.DataFrame(removed_rows)
-            if removed_rows
-            else pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
-        )
+        mapping = pl.DataFrame(removed_rows) if removed_rows else empty_mapping_df()
 
         # Attach cluster id for representatives (convenience)
         kept_df = kept_df.with_columns(
@@ -345,15 +335,13 @@ class EmbeddingCosineReducer:
             )
         )
 
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_present_embeddings": len(present),
-            "n_missing_embeddings": len(missing),
-            "coverage_embeddings": float(len(present) / work.height) if work.height else 0.0,
-            "n_kept": kept_df.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
-        }
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept_df.height,
+            n_present_embeddings=len(present),
+            n_missing_embeddings=len(missing),
+            coverage_embeddings=float(len(present) / work.height) if work.height else 0.0,
+        )
 
         return ReductionResult(
             df=kept_df,
@@ -368,6 +356,6 @@ class EmbeddingCosineReducer:
                 "n_jobs": self.n_jobs,
                 "dtype": self.dtype,
                 "note_missing_policy": "ids without embeddings are kept as standalone representatives",
-                "stats": stats,
             },
+            stats=stats,
         )

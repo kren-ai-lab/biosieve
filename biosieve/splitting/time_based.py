@@ -8,24 +8,13 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
+from biosieve.splitting.common import validate_sizes
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from biosieve.types import Columns
 
 log = get_logger(__name__)
-
-
-def _validate_sizes(test_size: float, val_size: float) -> None:
-    if not (0.0 < test_size < 1.0):
-        msg = "test_size must be in (0, 1)"
-        raise ValueError(msg)
-    if not (0.0 <= val_size < 1.0):
-        msg = "val_size must be in [0, 1)"
-        raise ValueError(msg)
-    if test_size + val_size >= 1.0:
-        msg = "test_size + val_size must be < 1.0"
-        raise ValueError(msg)
 
 
 def _to_datetime(s: pl.Series, fmt: str | None) -> pl.Series:
@@ -35,7 +24,7 @@ def _to_datetime(s: pl.Series, fmt: str | None) -> pl.Series:
 
 
 def _validate_inputs(df: pl.DataFrame, time_col: str, test_size: float, val_size: float) -> pl.Series:
-    _validate_sizes(test_size, val_size)
+    validate_sizes(test_size, val_size)
     if time_col not in df.columns:
         msg = f"Missing time column '{time_col}'. Columns: {df.columns}"
         raise ValueError(msg)

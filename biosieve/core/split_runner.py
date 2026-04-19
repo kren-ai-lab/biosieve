@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import polars as pl
 
+from biosieve.core.common import (
+    ensure_dir,
+    normalize_read_csv_kwargs,
+    utc_timestamp,
+    validate_unique_ids,
+    write_json,
+)
 from biosieve.core.factory import instantiate_strategy
 from biosieve.splitting.base import KFoldSplitter, SplitResult, Splitter
 from biosieve.types import Columns
@@ -21,49 +26,10 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _utc_timestamp() -> str:
-    """Return an ISO 8601 UTC timestamp with a trailing Z."""
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
-
-
-def _ensure_dir(path: str) -> Path:
-    """Ensure a directory exists and return its Path."""
-    p = Path(path)
-    p.mkdir(parents=True, exist_ok=True)
-    return p
-
-
 def _write_csv(path: Path, df: pl.DataFrame) -> None:
     """Write a DataFrame to CSV (UTF-8, no index)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     df.write_csv(path)
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    """Write a dict to JSON (UTF-8, pretty)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-def _validate_input_df(df: pl.DataFrame, cols: Columns) -> None:
-    """Validate required columns and id uniqueness.
-
-    Raises:
-        ValueError: If id column is missing or ids are not unique.
-
-    """
-    if cols.id_col not in df.columns:
-        msg = f"Missing id column '{cols.id_col}' in input data. Columns: {df.columns}"
-        raise ValueError(msg)
-
-    n_in = df.height
-    unique_ids = df[cols.id_col].cast(pl.String).n_unique()
-    if unique_ids != n_in:
-        msg = (
-            f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
-            f"BioSieve expects unique '{cols.id_col}'."
-        )
-        raise ValueError(msg)
 
 
 def _columns_payload(cols: Columns) -> dict[str, str | None]:
@@ -95,7 +61,7 @@ def _build_kfold_report(
 ) -> dict[str, Any]:
     return {
         "schema_version": "0.1",
-        "timestamp": _utc_timestamp(),
+        "timestamp": utc_timestamp(),
         "in_path": str(in_path),
         "outdir": str(out),
         "strategy": strategy,
@@ -118,13 +84,19 @@ def _build_single_report(
 ) -> dict[str, Any]:
     return {
         "schema_version": "0.1",
-        "timestamp": _utc_timestamp(),
+        "timestamp": utc_timestamp(),
         "in_path": str(in_path),
         "outdir": str(out),
         "strategy": strategy,
         "strategy_params": strategy_params,
         "kfold": False,
-        "split_params": res.params,
+        "effective_params": res.params,
+        "summary": {
+            "n_total": res.train.height + res.test.height + (res.val.height if res.val is not None else 0),
+            "n_train": res.train.height,
+            "n_test": res.test.height,
+            "n_val": res.val.height if res.val is not None else 0,
+        },
         "stats": res.stats,
         "columns": _columns_payload(cols),
     }
@@ -152,7 +124,7 @@ def _run_kfold(
     folds_meta: list[dict[str, Any]] = []
     for i, res in enumerate(folds):
         fold_idx = int(res.stats.get("fold_index", i)) if isinstance(res.stats, dict) else i
-        fdir = _ensure_dir(str(out / f"fold_{fold_idx:02d}"))
+        fdir = ensure_dir(str(out / f"fold_{fold_idx:02d}"))
         _write_split_outputs(fdir, res)
         n_val = res.val.height if res.val is not None else 0
         log.info(
@@ -162,7 +134,7 @@ def _run_kfold(
             n_val,
             res.test.height,
         )
-        folds_meta.append({"fold_index": fold_idx, "split_params": res.params, "stats": res.stats})
+        folds_meta.append({"fold_index": fold_idx, "effective_params": res.params, "stats": res.stats})
 
     report = _build_kfold_report(
         in_path=in_path,
@@ -173,7 +145,7 @@ def _run_kfold(
         folds_meta=folds_meta,
     )
     rp = Path(report_path) if report_path else (out / "kfold_report.json")
-    _write_json(rp, report)
+    write_json(rp, report)
     return rp
 
 
@@ -201,7 +173,7 @@ def _run_single(
         res=res,
     )
     rp = Path(report_path) if report_path else (out / "split_report.json")
-    _write_json(rp, report)
+    write_json(rp, report)
     return rp
 
 
@@ -259,10 +231,7 @@ def run_split(
         cols = Columns(id_col="id", seq_col="sequence")
 
     strategy_params = strategy_params or {}
-    read_csv_kwargs = read_csv_kwargs or {}
-    if "sep" in read_csv_kwargs and "separator" not in read_csv_kwargs:
-        read_csv_kwargs = {**read_csv_kwargs, "separator": read_csv_kwargs["sep"]}
-        read_csv_kwargs.pop("sep")
+    read_csv_kwargs = normalize_read_csv_kwargs(read_csv_kwargs)
 
     # Validate strategy name early (avoid silent typos)
     if not registry.has_splitter(strategy):
@@ -270,14 +239,14 @@ def run_split(
         msg = f"Unknown split strategy '{strategy}'. Available: {available}"
         raise ValueError(msg)
 
-    out = _ensure_dir(outdir)
+    out = ensure_dir(outdir)
 
     log.info("split:start | strategy=%s | in=%s | outdir=%s", strategy, in_path, str(out))
     log.info("split:params | %s", strategy_params)
 
     # Read + validate input
     df = pl.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
-    _validate_input_df(df, cols)
+    validate_unique_ids(df, cols.id_col)
 
     log.info("split:input | n_rows=%d | n_cols=%d", df.height, len(df.columns))
     log.debug("split:columns | %s", df.columns)

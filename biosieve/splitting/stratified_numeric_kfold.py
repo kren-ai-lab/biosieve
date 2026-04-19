@@ -11,6 +11,7 @@ import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
+from biosieve.splitting.common import try_import_train_test_split, validate_kfold
 from biosieve.splitting.stratified_numeric import _bin_counts, _label_stats, _make_bins
 
 
@@ -19,15 +20,6 @@ def _try_import_stratified_kfold():
         from sklearn.model_selection import StratifiedKFold  # noqa: PLC0415
 
         return StratifiedKFold
-    except ImportError:
-        return None
-
-
-def _try_import_train_test_split():
-    try:
-        from sklearn.model_selection import train_test_split  # noqa: PLC0415
-
-        return train_test_split
     except ImportError:
         return None
 
@@ -73,6 +65,7 @@ class StratifiedNumericKFoldSplitter:
                 raise ValueError(f"Found {dropped} NaN labels in '{self.label_col}'.")
 
         y = y_series.to_numpy()
+        validate_kfold(self.n_splits, self.val_size, n_samples=work.height)
         bins, n_eff = _make_bins(
             y,
             n_bins=self.n_bins,
@@ -82,7 +75,7 @@ class StratifiedNumericKFoldSplitter:
         )
 
         skf = skf_cls(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed)
-        tts = _try_import_train_test_split() if self.val_size > 0 else None
+        tts = try_import_train_test_split() if self.val_size > 0 else None
         folds: list[SplitResult] = []
 
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(np.arange(work.height), bins)):

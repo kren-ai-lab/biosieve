@@ -13,6 +13,12 @@ from biosieve.reduction.backends.descriptor_backend import (
     infer_descriptor_columns,
 )
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import (
+    attach_cluster_ids,
+    build_mapping,
+    build_reduction_stats,
+    prepare_reduction_work,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -71,15 +77,6 @@ def _validate_inputs(
     if n_jobs < 1:
         msg = "n_jobs must be >= 1"
         raise ValueError(msg)
-
-
-def _build_work_ids(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
-    work = df.clone().sort(id_col, maintain_order=True)
-    ids = work[id_col].cast(pl.String).to_list()
-    if len(ids) != len(set(ids)):
-        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-        raise ValueError(msg)
-    return work, ids
 
 
 def _reduce_with_sklearn(
@@ -236,7 +233,7 @@ class DescriptorEuclideanReducer:
             metric=self.metric,
             n_jobs=self.n_jobs,
         )
-        work, ids = _build_work_ids(df, cols.id_col)
+        work, ids = prepare_reduction_work(df, cols.id_col)
 
         dcols = infer_descriptor_columns(
             work,
@@ -278,40 +275,22 @@ class DescriptorEuclideanReducer:
         keep_ids = [sid for sid in ids if sid not in removed]
         kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(set(keep_ids)))
 
-        rows = []
-        for rid, rep in rep_of.items():
-            rows.append(
-                {
-                    "removed_id": rid,
-                    "representative_id": rep,
-                    "cluster_id": cluster_of.get(rid, f"deuc:{rep}"),
-                    "score": score_of.get(rid),  # distance
-                }
-            )
-        mapping = (
-            pl.DataFrame(rows)
-            if rows
-            else pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
+        mapping = build_mapping(
+            [(rid, rep, score_of.get(rid)) for rid, rep in rep_of.items()],
+            cluster_prefix="deuc",
+        )
+        kept_df = attach_cluster_ids(
+            kept_df,
+            id_col=cols.id_col,
+            column_name="descriptor_euclidean_cluster_id",
+            cluster_prefix="deuc",
         )
 
-        kept_df = kept_df.with_columns(
-            descriptor_euclidean_cluster_id=pl.lit("deuc:") + pl.col(cols.id_col).cast(pl.String)
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept_df.height,
+            n_descriptors=len(dcols),
         )
-
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept_df.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
-            "n_descriptors": len(dcols),
-        }
 
         return ReductionResult(
             df=kept_df,
@@ -330,6 +309,6 @@ class DescriptorEuclideanReducer:
                 + (["..."] if len(dcols) > DESCRIPTOR_PREVIEW_LIMIT else []),
                 "zscore_mean_saved": bool(mu is not None),
                 "zscore_std_saved": bool(sd is not None),
-                "stats": stats,
             },
+            stats=stats,
         )

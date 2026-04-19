@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.group import _split_groups, _validate_sizes
+from biosieve.splitting.common import derive_val_fraction, validate_sizes
+from biosieve.splitting.group import _split_groups
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -65,7 +66,7 @@ def _validate_inputs(
     map_cluster_col: str,
     assign_singletons_for_missing: bool,
 ) -> tuple[pl.DataFrame, str, int, int]:
-    _validate_sizes(test_size, val_size)
+    validate_sizes(test_size, val_size)
     work = df.clone()
 
     if cluster_col in work.columns:
@@ -224,10 +225,7 @@ class ClusterAwareSplitter:
 
         # 2) optional val split by clusters
         if self.val_size and self.val_size > 0:
-            frac = self.val_size / (1.0 - self.test_size)
-            if frac <= 0 or frac >= 1:
-                msg = "Derived val fraction invalid. Check test_size/val_size."
-                raise ValueError(msg)
+            frac = derive_val_fraction(self.test_size, self.val_size)
             tv_clusters = trainval[_INTERNAL_CLUSTER_COL].cast(pl.String)
             train, val = _split_groups(trainval, tv_clusters, test_size=frac, seed=self.seed)
 
