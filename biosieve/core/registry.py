@@ -64,16 +64,6 @@ class StrategyRegistry:
         """Return a copy of registered splitters."""
         return dict(self.splitters)
 
-    def get_reducer_import_path(self, name: str) -> str | None:
-        """Return the registered reducer import path when still unresolved."""
-        obj = self.reducers.get(name)
-        return obj if isinstance(obj, str) else None
-
-    def get_splitter_import_path(self, name: str) -> str | None:
-        """Return the registered splitter import path when still unresolved."""
-        obj = self.splitters.get(name)
-        return obj if isinstance(obj, str) else None
-
     def get_reducer_class(self, name: str) -> type[Any]:
         """Resolve and return a reducer class by name."""
         if name not in self.reducers:
