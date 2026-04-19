@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import shutil
+import subprocess
 import sys
 
 import typer
@@ -24,26 +25,29 @@ def _check_binary(name: str, binary: str) -> tuple[bool, str]:
     if path is None:
         return False, f"FAIL {name}: '{binary}' not found in PATH"
     try:
-        import subprocess
-
-        result = subprocess.run([binary, "version"], capture_output=True, text=True, timeout=5)  # noqa: S603
-        version = (result.stdout or result.stderr).strip().split("\n")[0]
-        return True, f"OK   {name}: {path} ({version})"
+        result = subprocess.run(  # noqa: S603
+            [binary, "version"], capture_output=True, text=True, timeout=5, check=False
+        )
     except Exception:  # noqa: BLE001
         return True, f"OK   {name}: {path}"
+    else:
+        version = (result.stdout or result.stderr).strip().split("\n")[0]
+        return True, f"OK   {name}: {path} ({version})"
 
 
 def _check_python_dep(import_name: str, dist_name: str | None = None) -> tuple[bool, str]:
     try:
         importlib.import_module(import_name)
+    except ImportError:
+        return False, f"MISS {import_name}: not installed"
+    else:
         pkg = dist_name or import_name
         try:
             version = importlib.metadata.version(pkg)
-            return True, f"OK   {import_name}: {version}"
         except importlib.metadata.PackageNotFoundError:
             return True, f"OK   {import_name}: installed (version unknown)"
-    except ImportError:
-        return False, f"MISS {import_name}: not installed"
+        else:
+            return True, f"OK   {import_name}: {version}"
 
 
 def doctor(
