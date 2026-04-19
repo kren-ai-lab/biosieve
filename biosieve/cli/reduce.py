@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path  # noqa: TC003
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
 
 import typer
 
-from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
+from biosieve.cli.common import (
+    LOG_FILE_OPTION,
+    LOG_LEVEL_OPTION,
+    QUIET_OPTION,
+    build_run_inputs,
+    setup_runtime,
+)
 from biosieve.core.runner import run_reduce
-from biosieve.io.params import load_params, params_for_strategy
-from biosieve.types import Columns
-
-if TYPE_CHECKING:
-    from biosieve.core.registry import StrategyRegistry
 
 INPUT_DATA_OPTION = typer.Option(
     ...,
@@ -98,44 +97,23 @@ def reduce(
 ) -> None:
     """Reduce redundancy in a dataset using a selected strategy."""
     registry = setup_runtime(log_level, quiet=quiet, log_file=log_file)
-    args = SimpleNamespace(
+    cols, strat_params, read_csv_kwargs = build_run_inputs(
+        strategy=strategy,
+        id_column=id_column,
+        sequence_column=sequence_column,
+        params_path=params,
+        set_values=set_values,
+        csv_separator=csv_separator,
+        encoding=encoding,
+    )
+    run_reduce(
         in_path=str(input_data),
         out_path=str(output),
         strategy=strategy,
-        map_path=str(mapping_output) if mapping_output is not None else None,
-        report_path=str(report_output) if report_output is not None else None,
-        id_col=id_column,
-        seq_col=sequence_column,
-        params_path=str(params) if params is not None else None,
-        overrides=list(set_values or []),
-        sep=csv_separator,
-        encoding=encoding,
-    )
-    _run_reduce(args, registry)
-
-
-def _run_reduce(args: SimpleNamespace, registry: StrategyRegistry) -> None:
-    """Run reduction with parsed CLI arguments."""
-    cols = Columns(id_col=args.id_col, seq_col=args.seq_col)
-
-    # Load and resolve params
-    all_params = load_params(args.params_path, overrides=args.overrides)
-    strat_params: dict[str, Any] = params_for_strategy(all_params, args.strategy)
-
-    # Read CSV kwargs
-    read_csv_kwargs = {
-        "sep": args.sep,
-        "encoding": args.encoding,
-    }
-
-    run_reduce(
-        in_path=args.in_path,
-        out_path=args.out_path,
-        strategy=args.strategy,
         registry=registry,
         cols=cols,
-        map_path=args.map_path,
-        report_path=args.report_path,
+        map_path=str(mapping_output) if mapping_output is not None else None,
+        report_path=str(report_output) if report_output is not None else None,
         strategy_params=strat_params,
         read_csv_kwargs=read_csv_kwargs,
     )

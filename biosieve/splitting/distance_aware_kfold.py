@@ -1,26 +1,24 @@
-# ruff: noqa: ANN202, ANN401, D102, EM101, PLC0415, SLF001, TC002, TRY003, TRY300
+# ruff: noqa: ANN401, D102
 
 """Distance-aware k-fold splitter for out-of-distribution validation."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.distance_aware import DistanceAwareSplitter, _dist_stats
+from biosieve.splitting.common import (
+    require_train_test_split,
+    split_train_val,
+    validate_kfold,
+)
+from biosieve.splitting.distance_aware import _dist_stats, _distance_to_centroid, build_distance_features
 
-
-def _try_import_train_test_split():
-    try:
-        from sklearn.model_selection import train_test_split
-
-        return train_test_split
-    except ImportError:
-        return None
+if TYPE_CHECKING:
+    import polars as pl
 
 
 @dataclass(frozen=True)
@@ -45,27 +43,31 @@ class DistanceAwareKFoldSplitter:
         return "distance_aware_kfold"
 
     def run_folds(self, df: pl.DataFrame, cols: Any) -> list[SplitResult]:
-        helper = DistanceAwareSplitter(
+        validate_kfold(self.n_splits, self.val_size)
+        work = df.with_row_index("__rowid")
+        X, feat_idx, _meta = build_distance_features(
+            work,
+            cols,
             feature_mode=self.feature_mode,
-            metric=self.metric,
             embeddings_path=self.embeddings_path or "embeddings.npy",
             ids_path=self.ids_path or "embedding_ids.csv",
+            ids_col="id",
             descriptor_cols=self.descriptor_cols,
             descriptor_prefix=self.descriptor_prefix or "desc_",
             standardize=self.standardize_descriptors,
-            seed=self.seed,
+            dtype="float32",
         )
-        work = df.with_row_index("__rowid")
-        X, feat_idx, _meta = helper._build_features(work, cols)
-        from biosieve.splitting.distance_aware import _distance_to_centroid
-
         d = _distance_to_centroid(X, self.metric)
         rng = np.random.default_rng(self.seed)
         key = -(d + rng.normal(0.0, 1e-12, size=d.shape[0])) if self.shuffle_ties else -d
         order = np.argsort(key)
         ranked = feat_idx[order]
         test_slices = np.array_split(ranked, self.n_splits)
-        tts = _try_import_train_test_split() if self.val_size > 0 else None
+        tts = (
+            require_train_test_split("DistanceAwareKFoldSplitter with val_size > 0")
+            if self.val_size > 0
+            else None
+        )
         folds: list[SplitResult] = []
         pos = {int(df_i): k for k, df_i in enumerate(feat_idx.tolist())}
 
@@ -76,18 +78,13 @@ class DistanceAwareKFoldSplitter:
             test = work[test_list]
             val = None
             if self.val_size > 0:
-                if tts is None:
-                    raise ImportError("val_size > 0 requires scikit-learn.")
-                inner_idx = np.arange(train.height)
-                train_keep_idx, val_idx = tts(
-                    inner_idx,
-                    test_size=self.val_size,
-                    random_state=self.seed + fold_idx,
-                    shuffle=True,
-                    stratify=None,
+                train, val = split_train_val(
+                    train,
+                    val_size=self.val_size,
+                    seed=self.seed + fold_idx,
+                    feature="DistanceAwareKFoldSplitter with val_size > 0",
+                    train_test_split=tts,
                 )
-                val = train[val_idx]
-                train = train[train_keep_idx]
 
             train_rowids = train["__rowid"].to_list()
             test_rowids = test["__rowid"].to_list()

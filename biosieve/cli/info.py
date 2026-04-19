@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from biosieve.core.spec import StrategySpec
 from biosieve.core.strategies import build_registry
 
 if TYPE_CHECKING:
@@ -40,13 +39,13 @@ def _defaults_for_cls(cls: type[object]) -> dict[str, object]:
     return out
 
 
-def _print_block(title: str, items: Mapping[str, StrategySpec | type[object]]) -> None:
+def _print_block(title: str, items: Mapping[str, str | type[object]]) -> None:
     typer.echo(f"\n{title}")
     typer.echo("-" * len(title))
     for name in sorted(items.keys()):
         obj = items[name]
-        if isinstance(obj, StrategySpec):
-            typer.echo(f"- {name}  [{obj.import_path}]")
+        if isinstance(obj, str):
+            typer.echo(f"- {name}  [{obj}]")
         else:
             typer.echo(f"- {name}  [{obj.__module__}:{obj.__name__}]")
 
@@ -72,7 +71,7 @@ def _run_info(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         _print_block("Splitters", registry.list_splitters())
 
     if args.show_defaults:
-        # This may import classes for StrategySpec entries (still OK if environment supports deps)
+        # This may import classes for lazy registry entries (still OK if environment supports deps)
         if args.kind in {"all", "reduce"}:
             typer.echo("\nReducer defaults")
             typer.echo("--------------")

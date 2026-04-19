@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import attach_cluster_ids, build_reduction_stats, empty_mapping_df
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -98,28 +99,22 @@ class ExactDedupReducer:
                 .select(["removed_id", "representative_id", "cluster_id", "score"])
             )
         else:
-            mapping = pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
+            mapping = empty_mapping_df()
 
-        kept = kept.with_columns(exact_cluster_id=pl.lit("exact:") + pl.col(cols.id_col).cast(pl.String))
+        kept = attach_cluster_ids(
+            kept, id_col=cols.id_col, column_name="exact_cluster_id", cluster_prefix="exact"
+        )
 
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
-            "note": "Exact sequence duplicates removed (string equality).",
-        }
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept.height,
+            note="Exact sequence duplicates removed (string equality).",
+        )
 
         return ReductionResult(
             df=kept,
             mapping=mapping,
             strategy=self.strategy,
-            params={"stats": stats},
+            params={},
+            stats=stats,
         )

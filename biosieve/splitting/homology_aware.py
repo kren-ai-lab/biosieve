@@ -13,7 +13,8 @@ from typing import Any
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
-from biosieve.splitting.group import _split_groups, _validate_sizes
+from biosieve.splitting.common import derive_val_fraction, validate_sizes
+from biosieve.splitting.group import _split_groups
 
 _INTERNAL_CLUSTER_COL = "_biosieve_cluster_id__"
 
@@ -152,7 +153,7 @@ class HomologyAwareSplitter:
         raise ValueError("mode must be 'mmseqs2' or 'precomputed'")
 
     def run(self, df: pl.DataFrame, cols: Any) -> SplitResult:
-        _validate_sizes(self.test_size, self.val_size)
+        validate_sizes(self.test_size, self.val_size)
         work = df.clone()
         cmap, meta = self._get_cluster_map(work, cols)
         ids = work[cols.id_col].cast(pl.String).to_list()
@@ -164,7 +165,7 @@ class HomologyAwareSplitter:
         train = trainval
         val = None
         if self.val_size > 0:
-            frac = self.val_size / (1.0 - self.test_size)
+            frac = derive_val_fraction(self.test_size, self.val_size)
             train, val = _split_groups(
                 trainval, trainval[_INTERNAL_CLUSTER_COL].cast(pl.String), test_size=frac, seed=self.seed
             )

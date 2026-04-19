@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import time
-from dataclasses import asdict, is_dataclass
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import polars as pl
 
-from biosieve.core.factory import instantiate_strategy
+from biosieve.core.common import (
+    JSONValue,
+    ensure_parent,
+    normalize_read_csv_kwargs,
+    safe_jsonable,
+    utc_timestamp,
+    validate_unique_ids,
+    write_json,
+)
+from biosieve.reduction.common import empty_mapping_df
 from biosieve.types import Columns
 from biosieve.utils.logging import get_logger
 
@@ -20,65 +25,6 @@ if TYPE_CHECKING:
     from biosieve.reduction.base import Reducer
 
 log = get_logger(__name__)
-
-JSONScalar: TypeAlias = str | int | float | bool | None  # noqa: UP040
-JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]  # noqa: UP040
-
-
-def _utc_timestamp() -> str:
-    """Return an ISO 8601 UTC timestamp with a trailing Z."""
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
-
-
-def _ensure_parent(path: str | None) -> None:
-    """Create parent directory for a file path if needed."""
-    if not path:
-        return
-    p = Path(path)
-    if p.parent and str(p.parent) not in ("", "."):
-        p.parent.mkdir(parents=True, exist_ok=True)
-
-
-def _safe_jsonable(x: object) -> JSONValue:
-    """Convert objects into JSON-serializable representations (best-effort).
-
-    Args:
-        x: Arbitrary Python object.
-
-    Returns:
-        JSON-serializable version of `x`.
-
-    Notes:
-        - Dataclasses are converted via `asdict`.
-        - Unknown objects are converted to `str(x)`.
-
-    """
-    if x is None:
-        return None
-    if isinstance(x, (str, int, float, bool)):
-        return x
-    if isinstance(x, (list, tuple)):
-        return [_safe_jsonable(v) for v in x]
-    if isinstance(x, dict):
-        return {str(k): _safe_jsonable(v) for k, v in x.items()}
-    if is_dataclass(x) and not isinstance(x, type):
-        return _safe_jsonable(asdict(x))
-    return str(x)
-
-
-def _validate_unique_ids(df: pl.DataFrame, id_col: str) -> None:
-    """Fail-fast check: BioSieve expects 1 row = 1 unique id."""
-    if id_col not in df.columns:
-        msg = f"Missing id column '{id_col}' in input data. Columns: {df.columns}"
-        raise ValueError(msg)
-    n_in = df.height
-    unique_ids = df[id_col].cast(pl.String).n_unique()
-    if unique_ids != n_in:
-        msg = (
-            f"Input ids are not unique: {unique_ids} unique ids for {n_in} rows. "
-            f"BioSieve expects unique '{id_col}'."
-        )
-        raise ValueError(msg)
 
 
 def run_reduce(
@@ -151,50 +97,37 @@ def run_reduce(
         cols = Columns(id_col="id", seq_col="sequence")
 
     strategy_params = strategy_params or {}
-    read_csv_kwargs = read_csv_kwargs or {}
-    if "sep" in read_csv_kwargs and "separator" not in read_csv_kwargs:
-        read_csv_kwargs = {**read_csv_kwargs, "separator": read_csv_kwargs["sep"]}
-        read_csv_kwargs.pop("sep")
+    read_csv_kwargs = normalize_read_csv_kwargs(read_csv_kwargs)
 
     if strategy not in registry.reducers:
         available = sorted(registry.reducers.keys())
         msg = f"Unknown reducer strategy '{strategy}'. Available: {available}"
         raise ValueError(msg)
 
-    _ensure_parent(out_path)
-    _ensure_parent(map_path)
-    _ensure_parent(report_path)
+    ensure_parent(out_path)
+    ensure_parent(map_path)
+    ensure_parent(report_path)
 
     df = pl.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
 
     log.info("reduce:input | n_rows=%d | n_cols=%d", df.height, len(df.columns))
 
-    _validate_unique_ids(df, cols.id_col)
+    validate_unique_ids(df, cols.id_col)
 
     # Soft check for sequence column (reducers decide if required)
     # We do not raise here to keep descriptor/structural reducers usable.
     # Reducers SHOULD raise if they require sequence and it is missing.
 
-    reducer_cls = registry.get_reducer_class(strategy)
-    reducer = cast("Reducer", instantiate_strategy(reducer_cls, strategy_params))
+    reducer = cast("Reducer", registry.create_reducer(strategy, strategy_params))
 
     res = reducer.run(df, cols)
 
     # --- write outputs ---
     res.df.write_csv(out_path)
 
+    mapping_df = res.mapping if res.mapping is not None else empty_mapping_df()
     if map_path is not None:
-        if res.mapping is None:
-            pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            ).write_csv(map_path)
-        else:
-            res.mapping.write_csv(map_path)
+        mapping_df.write_csv(map_path)
 
     # --- report ---
     if report_path is not None:
@@ -204,32 +137,29 @@ def run_reduce(
 
         report: dict[str, JSONValue] = {
             "schema_version": "0.1",
-            "timestamp": _utc_timestamp(),
+            "timestamp": utc_timestamp(),
             "in_path": str(in_path),
             "out_path": str(out_path),
             "map_path": str(map_path) if map_path else None,
             "strategy": str(strategy),
-            "strategy_params": _safe_jsonable(strategy_params),
-            "effective_params": _safe_jsonable(getattr(res, "params", {})),
-            "stats": {
+            "strategy_params": safe_jsonable(strategy_params),
+            "effective_params": safe_jsonable(res.params),
+            "summary": {
                 "n_in": n_in,
                 "n_out": n_out,
                 "n_removed": n_removed,
                 "fraction_removed": float(n_removed / n_in) if n_in else 0.0,
-                "n_mapped_removed": res.mapping.height if res.mapping is not None else 0,
+                "n_mapped_removed": mapping_df.height,
             },
-            "columns": _safe_jsonable(cols),
+            "stats": safe_jsonable(res.stats),
+            "columns": safe_jsonable(cols),
         }
-
-        if getattr(res, "stats", None) is not None:
-            report["reducer_stats"] = _safe_jsonable(res.stats)
-
-        Path(report_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+        write_json(report_path, report)
 
     log.info(
         "reduce:result | n_kept=%d | n_removed=%d | ratio=%.4f",
         len(res.df),
-        len(res.mapping) if res.mapping is not None else 0,
+        len(mapping_df),
         (len(res.df) / len(df)) if len(df) else 0.0,
     )
 

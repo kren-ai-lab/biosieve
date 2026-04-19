@@ -17,6 +17,7 @@ from biosieve.reduction.backends.mmseqs2_backend import (
     write_fasta,
 )
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import build_reduction_stats, empty_mapping_df
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -89,29 +90,16 @@ def _build_outputs(
         for member, rep in member_to_rep.items()
         if member != rep
     ]
-    mapping = (
-        pl.DataFrame(removed_rows)
-        if removed_rows
-        else pl.DataFrame(
-            schema={
-                "removed_id": pl.String,
-                "representative_id": pl.String,
-                "cluster_id": pl.String,
-                "score": pl.Float64,
-            }
-        )
-    )
+    mapping = pl.DataFrame(removed_rows) if removed_rows else empty_mapping_df()
     kept_df = kept_df.with_columns(
         mmseqs2_cluster_id=pl.col(cols.id_col).cast(pl.String).replace(member_to_cluster)
     )
-    stats: dict[str, Any] = {
-        "n_total": work.height,
-        "n_kept": kept_df.height,
-        "n_removed": mapping.height,
-        "n_clusters": len(reps),
-        "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
-        "note": "Representative selection delegated to MMseqs2 easy-cluster.",
-    }
+    stats: dict[str, Any] = build_reduction_stats(
+        n_total=work.height,
+        n_kept=kept_df.height,
+        n_clusters=len(reps),
+        note="Representative selection delegated to MMseqs2 easy-cluster.",
+    )
     return kept_df, mapping, stats
 
 
@@ -221,7 +209,6 @@ class MMseqs2Reducer:
                 member_to_cluster=member_to_cluster,
             )
 
-            # If ReductionResult supports stats, include it; if not, keep inside params.
             params = {
                 "min_seq_id": self.min_seq_id,
                 "coverage": self.coverage,
@@ -229,7 +216,6 @@ class MMseqs2Reducer:
                 "cluster_mode": self.cluster_mode,
                 "threads": self.threads,
                 "keep_tmp": self.keep_tmp,
-                "stats": stats,
             }
 
             return ReductionResult(
@@ -237,6 +223,7 @@ class MMseqs2Reducer:
                 mapping=mapping,
                 strategy=self.strategy,
                 params=params,
+                stats=stats,
             )
 
         finally:

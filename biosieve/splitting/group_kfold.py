@@ -3,59 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
+from biosieve.splitting.common import (
+    sklearn_required_message,
+    split_train_val,
+    validate_kfold,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
     from biosieve.types import Columns
 
 log = get_logger(__name__)
-MIN_KFOLD_SPLITS = 2
-
-
-class _GroupKFold(Protocol):
-    def split(self, X: object, y: object, groups: object) -> Iterator[tuple[list[int], list[int]]]: ...
-
-
-class _GroupKFoldFactory(Protocol):
-    def __call__(self, *, n_splits: int) -> _GroupKFold: ...
-
-
-class _TrainTestSplitFn(Protocol):
-    def __call__(
-        self,
-        X: object,
-        *,
-        test_size: float,
-        random_state: int,
-        shuffle: bool,
-        stratify: None,
-    ) -> tuple[np.ndarray, np.ndarray]: ...
-
-
-def _try_import_group_kfold() -> _GroupKFoldFactory | None:
-    try:
-        from sklearn.model_selection import GroupKFold  # noqa: PLC0415
-
-        return cast("_GroupKFoldFactory", GroupKFold)
-    except ImportError:
-        return None
-
-
-def _try_import_train_test_split() -> _TrainTestSplitFn | None:
-    try:
-        from sklearn.model_selection import train_test_split  # noqa: PLC0415
-
-        return cast("_TrainTestSplitFn", train_test_split)
-    except ImportError:
-        return None
 
 
 def _group_set(df: pl.DataFrame, group_col: str) -> set[str]:
@@ -123,21 +87,14 @@ class GroupKFoldSplitter:
         """Return the strategy identifier."""
         return "group_kfold"
 
-    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:  # noqa: C901,PLR0912,PLR0915
+    def run_folds(self, df: pl.DataFrame, _cols: Columns) -> list[SplitResult]:
         """Build group-disjoint folds with optional per-fold validation splits."""
-        GroupKFold = _try_import_group_kfold()
-        if GroupKFold is None:
-            msg = (
-                "GroupKFoldSplitter requires scikit-learn. Install: conda install -c conda-forge scikit-learn"
-            )
-            raise ImportError(msg)
+        try:
+            from sklearn.model_selection import GroupKFold  # noqa: PLC0415
+        except ImportError as e:
+            msg = sklearn_required_message("GroupKFoldSplitter")
+            raise ImportError(msg) from e
 
-        if self.n_splits < MIN_KFOLD_SPLITS:
-            msg = "n_splits must be >= 2"
-            raise ValueError(msg)
-        if not (0.0 <= self.val_size < 1.0):
-            msg = "val_size must be in [0, 1)"
-            raise ValueError(msg)
         if self.group_col not in df.columns:
             msg = f"Missing group column '{self.group_col}'. Columns: {df.columns}"
             raise ValueError(msg)
@@ -159,6 +116,7 @@ class GroupKFoldSplitter:
             g = g.cast(pl.String)
 
         n_groups = int(g.n_unique())
+        validate_kfold(self.n_splits, self.val_size)
         if n_groups < self.n_splits:
             msg = (
                 f"Not enough unique groups for n_splits={self.n_splits}. "
@@ -167,13 +125,6 @@ class GroupKFoldSplitter:
             raise ValueError(msg)
 
         gkf = GroupKFold(n_splits=self.n_splits)
-
-        tts = None
-        if self.val_size > 0:
-            tts = _try_import_train_test_split()
-            if tts is None:
-                msg = "val_size > 0 requires scikit-learn train_test_split."
-                raise ImportError(msg)
 
         folds: list[SplitResult] = []
 
@@ -184,37 +135,21 @@ class GroupKFoldSplitter:
             train_df = work[train_idx]
             test_df = work[test_idx]
 
-            # leakage check (group disjointness)
             train_groups = _group_set(train_df, self.group_col)
             test_groups = _group_set(test_df, self.group_col)
             leak_tt = len(train_groups & test_groups)
-
-            if leak_tt != 0:
-                msg = (
-                    f"Group leakage detected in fold {fold_idx}: "
-                    f"train/test share {leak_tt} group(s). This should never happen."
-                )
-                raise ValueError(msg)
 
             val_df: pl.DataFrame | None = None
             leak_vt = 0
             leak_vr = 0
 
             if self.val_size > 0:
-                seed_fold = int(self.seed + fold_idx)
-                if tts is None:
-                    msg = "val_size > 0 requires scikit-learn train_test_split."
-                    raise ImportError(msg)
-                inner_idx = np.arange(train_df.height)
-                train_keep_idx, val_idx = tts(
-                    inner_idx,
-                    test_size=self.val_size,
-                    random_state=seed_fold,
-                    shuffle=True,
-                    stratify=None,
+                train_df, val_df = split_train_val(
+                    train_df,
+                    val_size=self.val_size,
+                    seed=int(self.seed + fold_idx),
+                    feature="GroupKFoldSplitter with val_size > 0",
                 )
-                val_df = train_df[val_idx]
-                train_df = train_df[train_keep_idx]
 
                 val_groups = _group_set(val_df, self.group_col)
                 train_groups2 = _group_set(train_df, self.group_col)

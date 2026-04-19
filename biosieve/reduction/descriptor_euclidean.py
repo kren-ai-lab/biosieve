@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
@@ -13,6 +13,13 @@ from biosieve.reduction.backends.descriptor_backend import (
     infer_descriptor_columns,
 )
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import (
+    attach_cluster_ids,
+    build_mapping,
+    build_reduction_stats,
+    prepare_reduction_work,
+    require_sklearn_neighbors,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -20,27 +27,6 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 DESCRIPTOR_PREVIEW_LIMIT = 10
-
-
-class _NearestNeighborsModel(Protocol):
-    def fit(self, X: np.ndarray) -> object: ...
-
-    def radius_neighbors(
-        self, X: np.ndarray, *, radius: float, return_distance: bool
-    ) -> tuple[np.ndarray, np.ndarray]: ...
-
-
-class _NearestNeighborsFactory(Protocol):
-    def __call__(self, *, metric: str, algorithm: str, n_jobs: int) -> _NearestNeighborsModel: ...
-
-
-def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
-    try:
-        from sklearn.neighbors import NearestNeighbors  # noqa: PLC0415
-
-        return cast("_NearestNeighborsFactory", NearestNeighbors)
-    except ImportError:
-        return None
 
 
 def _zscore_fit_transform(X: np.ndarray, eps: float = 1e-12) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -73,35 +59,22 @@ def _validate_inputs(
         raise ValueError(msg)
 
 
-def _build_work_ids(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
-    work = df.clone().sort(id_col, maintain_order=True)
-    ids = work[id_col].cast(pl.String).to_list()
-    if len(ids) != len(set(ids)):
-        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-        raise ValueError(msg)
-    return work, ids
-
-
 def _reduce_with_sklearn(
     *,
     ids: list[str],
     X: np.ndarray,
     threshold: float,
     n_jobs: int,
-) -> tuple[set[str], dict[str, str], dict[str, float], dict[str, str]] | None:
+) -> tuple[set[str], dict[str, str], dict[str, float]]:
     removed: set[str] = set()
     rep_of: dict[str, str] = {}
     score_of: dict[str, float] = {}
-    cluster_of: dict[str, str] = {}
-    nn_factory = _try_import_sklearn_nn()
-    if nn_factory is None:
-        return None
-    nn = nn_factory(metric="euclidean", algorithm="auto", n_jobs=n_jobs)
+    NearestNeighbors = require_sklearn_neighbors("DescriptorEuclideanReducer")
+    nn = NearestNeighbors(metric="euclidean", algorithm="auto", n_jobs=n_jobs)
     nn.fit(X)
     for i, rep_id in enumerate(ids):
         if rep_id in removed:
             continue
-        rep_cluster = f"deuc:{rep_id}"
         dist, ind = nn.radius_neighbors(X[i : i + 1], radius=float(threshold), return_distance=True)
         pairs = sorted(zip(dist[0].tolist(), ind[0].tolist(), strict=False), key=lambda x: (x[0], x[1]))
         for d, j in pairs:
@@ -113,38 +86,7 @@ def _reduce_with_sklearn(
             removed.add(nbr_id)
             rep_of[nbr_id] = rep_id
             score_of[nbr_id] = float(d)
-            cluster_of[nbr_id] = rep_cluster
-    return removed, rep_of, score_of, cluster_of
-
-
-def _reduce_bruteforce(
-    *,
-    ids: list[str],
-    X: np.ndarray,
-    threshold: float,
-    removed: set[str],
-    rep_of: dict[str, str],
-    score_of: dict[str, float],
-    cluster_of: dict[str, str],
-) -> None:
-    for i, rep_id in enumerate(ids):
-        if rep_id in removed:
-            continue
-        rep_cluster = f"deuc:{rep_id}"
-        dists = np.sqrt(((X - X[i]) ** 2).sum(axis=1))
-        order = np.argsort(dists, kind="mergesort")
-        for j in order:
-            if j == i:
-                continue
-            if float(dists[j]) > threshold:
-                break
-            nbr_id = ids[int(j)]
-            if nbr_id in removed:
-                continue
-            removed.add(nbr_id)
-            rep_of[nbr_id] = rep_id
-            score_of[nbr_id] = float(dists[j])
-            cluster_of[nbr_id] = rep_cluster
+    return removed, rep_of, score_of
 
 
 @dataclass(frozen=True)
@@ -169,8 +111,7 @@ class DescriptorEuclideanReducer:
     This is recommended when descriptors have heterogeneous scales.
 
     Backend:
-    - Uses sklearn `NearestNeighbors(radius_neighbors)` when available.
-    - Falls back to O(N^2) brute force when sklearn is unavailable.
+    - Uses sklearn `NearestNeighbors(radius_neighbors)`.
 
     Args:
         threshold: Euclidean radius. Samples at distance <= threshold are considered
@@ -179,7 +120,7 @@ class DescriptorEuclideanReducer:
         descriptor_cols: Explicit list of descriptor columns to use (overrides prefix inference).
         standardize: If True, z-score descriptors prior to distance computations.
         metric: Distance metric. v0.1 supports only "euclidean".
-        n_jobs: Parallel jobs for sklearn backend. Must be >= 1 (ignored in brute-force).
+        n_jobs: Parallel jobs for sklearn backend. Must be >= 1.
         dtype: Floating dtype for descriptor matrix ("float32" recommended).
 
     Returns:
@@ -193,7 +134,7 @@ class DescriptorEuclideanReducer:
     Raises:
         ValueError: If id column is missing, ids are duplicated, threshold < 0, n_jobs < 1,
         descriptor columns cannot be inferred, or descriptor matrix contains NaNs/non-numerics.
-        ImportError: Not raised directly. If sklearn is missing, the reducer uses brute-force fallback.
+        ImportError: If scikit-learn is not importable in the current environment.
 
     Notes:
         - This is a greedy algorithm: results depend on representative ordering
@@ -236,7 +177,7 @@ class DescriptorEuclideanReducer:
             metric=self.metric,
             n_jobs=self.n_jobs,
         )
-        work, ids = _build_work_ids(df, cols.id_col)
+        work, ids = prepare_reduction_work(df, cols.id_col)
 
         dcols = infer_descriptor_columns(
             work,
@@ -252,66 +193,32 @@ class DescriptorEuclideanReducer:
         if self.standardize:
             X, mu, sd = _zscore_fit_transform(X)
 
-        reduced = _reduce_with_sklearn(
+        removed, rep_of, score_of = _reduce_with_sklearn(
             ids=ids,
             X=X,
             threshold=self.threshold,
             n_jobs=self.n_jobs,
         )
-        if reduced is None:
-            removed: set[str] = set()
-            rep_of: dict[str, str] = {}
-            score_of: dict[str, float] = {}
-            cluster_of: dict[str, str] = {}
-            _reduce_bruteforce(
-                ids=ids,
-                X=X,
-                threshold=self.threshold,
-                removed=removed,
-                rep_of=rep_of,
-                score_of=score_of,
-                cluster_of=cluster_of,
-            )
-        else:
-            removed, rep_of, score_of, cluster_of = reduced
 
         keep_ids = [sid for sid in ids if sid not in removed]
         kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(set(keep_ids)))
 
-        rows = []
-        for rid, rep in rep_of.items():
-            rows.append(
-                {
-                    "removed_id": rid,
-                    "representative_id": rep,
-                    "cluster_id": cluster_of.get(rid, f"deuc:{rep}"),
-                    "score": score_of.get(rid),  # distance
-                }
-            )
-        mapping = (
-            pl.DataFrame(rows)
-            if rows
-            else pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
+        mapping = build_mapping(
+            [(rid, rep, score_of.get(rid)) for rid, rep in rep_of.items()],
+            cluster_prefix="deuc",
+        )
+        kept_df = attach_cluster_ids(
+            kept_df,
+            id_col=cols.id_col,
+            column_name="descriptor_euclidean_cluster_id",
+            cluster_prefix="deuc",
         )
 
-        kept_df = kept_df.with_columns(
-            descriptor_euclidean_cluster_id=pl.lit("deuc:") + pl.col(cols.id_col).cast(pl.String)
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept_df.height,
+            n_descriptors=len(dcols),
         )
-
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept_df.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
-            "n_descriptors": len(dcols),
-        }
 
         return ReductionResult(
             df=kept_df,
@@ -330,6 +237,6 @@ class DescriptorEuclideanReducer:
                 + (["..."] if len(dcols) > DESCRIPTOR_PREVIEW_LIMIT else []),
                 "zscore_mean_saved": bool(mu is not None),
                 "zscore_std_saved": bool(sd is not None),
-                "stats": stats,
             },
+            stats=stats,
         )

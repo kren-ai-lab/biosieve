@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-import polars as pl
+from typing import TYPE_CHECKING
+
+from biosieve.reduction.common import build_mapping
+
+if TYPE_CHECKING:
+    import polars as pl
 
 
 def _kmer_set(seq: str, k: int) -> set[str]:
@@ -27,14 +32,13 @@ def _kmer_set(seq: str, k: int) -> set[str]:
     return {seq[i : i + k] for i in range(len(seq) - k + 1)}
 
 
-def _prepare_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
-    """Sort by id_col for determinism, reset index, validate uniqueness."""
-    work = df.clone().sort(id_col, maintain_order=True)
-    ids = work[id_col].cast(pl.String).to_list()
-    if len(ids) != len(set(ids)):
-        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-        raise ValueError(msg)
-    return work, ids
+def _jaccard(a: set[str], b: set[str]) -> float:
+    """Jaccard similarity in [0, 1]."""
+    if not a and not b:
+        return 1.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
 
 
 def _build_mapping(
@@ -42,16 +46,10 @@ def _build_mapping(
     cluster_prefix: str = "kmer",
 ) -> pl.DataFrame:
     """Build a mapping DataFrame from (removed_id, representative_id, score) triples."""
-    if not removed_rows:
-        return pl.DataFrame(
-            schema={
-                "removed_id": pl.String,
-                "representative_id": pl.String,
-                "cluster_id": pl.String,
-                "score": pl.Float64,
-            }
-        )
-    mapping = pl.DataFrame(removed_rows, schema=["removed_id", "representative_id", "score"], orient="row")
-    return mapping.with_columns(
-        cluster_id=pl.lit(f"{cluster_prefix}:") + pl.col("representative_id").cast(pl.String)
-    ).select(["removed_id", "representative_id", "cluster_id", "score"])
+    return build_mapping(
+        [
+            (removed_id, representative_id, float(score))
+            for removed_id, representative_id, score in removed_rows
+        ],
+        cluster_prefix=cluster_prefix,
+    )

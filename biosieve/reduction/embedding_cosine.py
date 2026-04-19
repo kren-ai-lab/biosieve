@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
 
 from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import build_mapping, build_reduction_stats, require_sklearn_neighbors
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
@@ -19,40 +20,9 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-class _FaissIndex(Protocol):
-    def add(self, X: np.ndarray) -> None: ...
-
-    def search(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]: ...
-
-
-class _FaissModule(Protocol):
-    def IndexFlatIP(self, d: int) -> _FaissIndex: ...
-
-
-class _NearestNeighborsModel(Protocol):
-    def fit(self, X: np.ndarray) -> object: ...
-
-    def radius_neighbors(
-        self, X: np.ndarray, *, radius: float, return_distance: bool
-    ) -> tuple[np.ndarray, np.ndarray]: ...
-
-
-class _NearestNeighborsFactory(Protocol):
-    def __call__(self, *, metric: str, algorithm: str, n_jobs: int) -> _NearestNeighborsModel: ...
-
-
-def _try_import_faiss() -> _FaissModule | None:
+def _try_import_faiss() -> Any:  # noqa: ANN401
     try:
-        return cast("_FaissModule", importlib.import_module("faiss"))
-    except ImportError:
-        return None
-
-
-def _try_import_sklearn_nn() -> _NearestNeighborsFactory | None:
-    try:
-        from sklearn.neighbors import NearestNeighbors  # noqa: PLC0415
-
-        return cast("_NearestNeighborsFactory", NearestNeighbors)
+        return importlib.import_module("faiss")
     except ImportError:
         return None
 
@@ -89,8 +59,7 @@ class EmbeddingCosineReducer:
 
     Neighbor search backends:
     - FAISS (if available and use_faiss=True): inner-product search on normalized vectors.
-    - sklearn NearestNeighbors (if available): radius neighbors with cosine distance.
-    - brute-force fallback: O(M^2), safe but slow.
+    - sklearn NearestNeighbors: radius neighbors with cosine distance.
 
     Missing embeddings policy:
     Dataset ids that do not exist in the embedding id list are kept as standalone
@@ -102,7 +71,7 @@ class EmbeddingCosineReducer:
         ids_col: Column name inside ids_path CSV containing ids. If the CSV has a single column,
             it will be used automatically by the embedding backend.
         threshold: Cosine similarity threshold in [0, 1]. Neighbors with sim >= threshold are removed.
-        use_faiss: If True, tries to use FAISS if installed; otherwise falls back to sklearn/brute-force.
+        use_faiss: If True, tries to use FAISS if installed; otherwise falls back to sklearn.
         n_jobs: Number of parallel jobs for sklearn NearestNeighbors (ignored for FAISS).
         dtype: Floating dtype to load/cast embeddings (recommended: "float32").
 
@@ -117,13 +86,12 @@ class EmbeddingCosineReducer:
         ValueError: If `threshold` is out of range, dataset id column is missing, or no dataset ids
         are present in the embedding ids file.
         FileNotFoundError: If embeddings_path or ids_path are missing (raised by embedding backend).
-        ImportError: Only raised implicitly if optional dependencies are partially broken; this reducer
-        uses safe fallbacks when FAISS/sklearn are missing.
+        ImportError: If scikit-learn is not importable in the current environment.
 
     Notes:
         - FAISS path uses a capped top-k search (`k=min(256, M)`) for speed. This is a heuristic:
         in extremely dense neighborhoods it may miss some neighbors above threshold.
-        For guaranteed exactness, use sklearn radius mode or brute-force.
+        For guaranteed exactness, use sklearn radius mode.
         - This is a greedy algorithm: results depend on the representative ordering
         (here: sorted by id for determinism).
         - This strategy removes redundancy in embedding space only; it does not ensure
@@ -190,7 +158,6 @@ class EmbeddingCosineReducer:
         present_set = set(present)
 
         faiss = _try_import_faiss() if self.use_faiss else None
-        NearestNeighbors = _try_import_sklearn_nn()
 
         # cosine distance radius r = 1 - threshold (for normalized vectors)
         radius = float(1.0 - self.threshold)
@@ -237,7 +204,8 @@ class EmbeddingCosineReducer:
                     score_of[nbr_id] = float(sim)
 
         # Backend B: sklearn radius neighbors
-        elif NearestNeighbors is not None:
+        else:
+            NearestNeighbors = require_sklearn_neighbors("EmbeddingCosineReducer")
             nn = NearestNeighbors(metric="cosine", algorithm="auto", n_jobs=self.n_jobs)
             nn.fit(X)
 
@@ -269,29 +237,6 @@ class EmbeddingCosineReducer:
                     representative_of[nbr_id] = sid
                     score_of[nbr_id] = float(sim)
 
-        # Backend C: brute force fallback
-        else:
-            for sid in present:
-                if sid in removed:
-                    continue
-
-                rep_local = present_id_to_local[sid]
-                sims = X @ X[rep_local]
-
-                order = np.argsort(-sims, kind="mergesort")
-                for j in order:
-                    if j == rep_local:
-                        continue
-                    sim = float(sims[j])
-                    if sim < self.threshold:
-                        break
-                    nbr_id = present[int(j)]
-                    if nbr_id in removed:
-                        continue
-                    removed.add(nbr_id)
-                    representative_of[nbr_id] = sid
-                    score_of[nbr_id] = sim
-
         # Build kept ids:
         # - keep all missing ids (no embeddings) as standalone reps
         # - keep all present ids that were not removed
@@ -308,52 +253,26 @@ class EmbeddingCosineReducer:
         kept_df = work.filter(pl.col(cols.id_col).cast(pl.String).is_in(keep_set))
 
         # mapping df
-        removed_rows = []
-        for rid, rep in representative_of.items():
-            removed_rows.append(
-                {
-                    "removed_id": rid,
-                    "representative_id": rep,
-                    "cluster_id": f"embcos:{rep}",
-                    "score": score_of.get(rid),
-                }
-            )
-        mapping = (
-            pl.DataFrame(removed_rows)
-            if removed_rows
-            else pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
+        mapping = build_mapping(
+            [(rid, rep, score_of.get(rid)) for rid, rep in representative_of.items()],
+            cluster_prefix="embcos",
         )
 
         # Attach cluster id for representatives (convenience)
+        # All kept IDs are either from present_set (embcos) or missing (singleton)
         kept_df = kept_df.with_columns(
-            embedding_cosine_cluster_id=pl.col(cols.id_col)
-            .cast(pl.String)
-            .map_elements(
-                lambda x: (
-                    f"embcos:{x}"
-                    if (x in present_set and x not in removed)
-                    else (f"singleton:{x}" if x in missing else None)
-                ),
-                return_dtype=pl.String,
-            )
+            embedding_cosine_cluster_id=pl.when(pl.col(cols.id_col).cast(pl.String).is_in(present_set))
+            .then(pl.lit("embcos:") + pl.col(cols.id_col).cast(pl.String))
+            .otherwise(pl.lit("singleton:") + pl.col(cols.id_col).cast(pl.String))
         )
 
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_present_embeddings": len(present),
-            "n_missing_embeddings": len(missing),
-            "coverage_embeddings": float(len(present) / work.height) if work.height else 0.0,
-            "n_kept": kept_df.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept_df.height / work.height) if work.height else 0.0,
-        }
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept_df.height,
+            n_present_embeddings=len(present),
+            n_missing_embeddings=len(missing),
+            coverage_embeddings=float(len(present) / work.height) if work.height else 0.0,
+        )
 
         return ReductionResult(
             df=kept_df,
@@ -368,6 +287,6 @@ class EmbeddingCosineReducer:
                 "n_jobs": self.n_jobs,
                 "dtype": self.dtype,
                 "note_missing_policy": "ids without embeddings are kept as standalone representatives",
-                "stats": stats,
             },
+            stats=stats,
         )

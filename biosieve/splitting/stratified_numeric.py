@@ -1,4 +1,4 @@
-# ruff: noqa: ANN202, ANN401, D102, EM101, EM102, PLR2004, TRY003, TRY300
+# ruff: noqa: ANN401, D102, EM101, EM102, PLR2004, TRY003
 
 """Stratified splitting strategy for numeric targets via binning."""
 
@@ -11,28 +11,15 @@ import numpy as np
 import polars as pl
 
 from biosieve.splitting.base import SplitResult
+from biosieve.splitting.common import (
+    derive_val_fraction,
+    require_train_test_split,
+    validate_sizes,
+)
 from biosieve.utils.logging import get_logger
 
 log = get_logger(__name__)
 MIN_BINS = 2
-
-
-def _try_import_train_test_split():
-    try:
-        from sklearn.model_selection import train_test_split  # noqa: PLC0415
-
-        return train_test_split
-    except ImportError:
-        return None
-
-
-def _validate_sizes(test_size: float, val_size: float) -> None:
-    if not (0.0 < test_size < 1.0):
-        raise ValueError("test_size must be in (0, 1)")
-    if not (0.0 <= val_size < 1.0):
-        raise ValueError("val_size must be in [0, 1)")
-    if test_size + val_size >= 1.0:
-        raise ValueError("test_size + val_size must be < 1.0")
 
 
 def _label_stats(y: np.ndarray) -> dict[str, Any]:
@@ -104,10 +91,8 @@ class StratifiedNumericSplitter:
         return "stratified_numeric"
 
     def run(self, df: pl.DataFrame, _cols: Any) -> SplitResult:
-        tts = _try_import_train_test_split()
-        if tts is None:
-            raise ImportError("StratifiedNumericSplitter requires scikit-learn.")
-        _validate_sizes(self.test_size, self.val_size)
+        tts = require_train_test_split("StratifiedNumericSplitter")
+        validate_sizes(self.test_size, self.val_size)
         if self.label_col not in df.columns:
             raise ValueError(f"Missing numeric label column '{self.label_col}'. Columns: {df.columns}")
 
@@ -144,7 +129,7 @@ class StratifiedNumericSplitter:
         val_global_idx = np.asarray([], dtype=int)
 
         if self.val_size > 0:
-            frac = self.val_size / (1.0 - self.test_size)
+            frac = derive_val_fraction(self.test_size, self.val_size)
             y_tv = trainval[self.label_col].cast(pl.Float64, strict=False).to_numpy()
             bins_tv, _ = _make_bins(
                 y_tv,

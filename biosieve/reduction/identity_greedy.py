@@ -5,34 +5,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import polars as pl
-
+from biosieve.reduction.backends.kmer_backend import _jaccard, _kmer_set
 from biosieve.reduction.base import ReductionResult
+from biosieve.reduction.common import (
+    attach_cluster_ids,
+    build_mapping,
+    build_reduction_stats,
+    prepare_reduction_work,
+)
 from biosieve.utils.logging import get_logger
 
 if TYPE_CHECKING:
+    import polars as pl
+
     from biosieve.types import Columns
 
 log = get_logger(__name__)
-
-
-def _kmer_set(seq: str, k: int) -> set[str]:
-    """Return set of k-mers for a sequence."""
-    if k <= 0:
-        msg = "k must be >= 1"
-        raise ValueError(msg)
-    if len(seq) < k:
-        return {seq}
-    return {seq[i : i + k] for i in range(len(seq) - k + 1)}
-
-
-def _jaccard(a: set[str], b: set[str]) -> float:
-    """Jaccard similarity in [0, 1]."""
-    if not a and not b:
-        return 1.0
-    inter = len(a & b)
-    union = len(a | b)
-    return inter / union if union else 0.0
 
 
 def _approx_identity(a: str, b: str) -> float:
@@ -80,15 +68,6 @@ def _validate_inputs(
     if cols.seq_col not in df.columns:
         msg = f"Missing sequence column '{cols.seq_col}'. Columns: {df.columns}"
         raise ValueError(msg)
-
-
-def _prepare_work(df: pl.DataFrame, id_col: str) -> tuple[pl.DataFrame, list[str]]:
-    work = df.clone().sort(id_col, maintain_order=True)
-    ids = work[id_col].cast(pl.String).to_list()
-    if len(ids) != len(set(ids)):
-        msg = "Duplicate ids detected. IDs must be unique for deterministic reduction mapping."
-        raise ValueError(msg)
-    return work, ids
 
 
 @dataclass(frozen=True)
@@ -167,7 +146,7 @@ class IdentityGreedyReducer:
             length_tolerance=self.length_tolerance,
             max_candidates=self.max_candidates,
         )
-        work, _ = _prepare_work(df, cols.id_col)
+        work, _ = prepare_reduction_work(df, cols.id_col)
 
         reps_idx: list[int] = []
         reps_kmers: list[set[str]] = []
@@ -252,40 +231,21 @@ class IdentityGreedyReducer:
 
         kept = work[reps_idx]
 
-        if removed_rows:
-            mapping = (
-                pl.DataFrame(
-                    removed_rows,
-                    schema=["removed_id", "representative_id", "score"],
-                    orient="row",
-                )
-                .with_columns(cluster_id=pl.lit("ident:") + pl.col("representative_id").cast(pl.String))
-                .select(["removed_id", "representative_id", "cluster_id", "score"])
-            )
-        else:
-            mapping = pl.DataFrame(
-                schema={
-                    "removed_id": pl.String,
-                    "representative_id": pl.String,
-                    "cluster_id": pl.String,
-                    "score": pl.Float64,
-                }
-            )
+        mapping = build_mapping(removed_rows, cluster_prefix="ident")
+        kept = attach_cluster_ids(
+            kept, id_col=cols.id_col, column_name="identity_cluster_id", cluster_prefix="ident"
+        )
 
-        kept = kept.with_columns(identity_cluster_id=pl.lit("ident:") + pl.col(cols.id_col).cast(pl.String))
-
-        stats: dict[str, Any] = {
-            "n_total": work.height,
-            "n_kept": kept.height,
-            "n_removed": mapping.height,
-            "reduction_ratio": float(kept.height / work.height) if work.height else 0.0,
-            "threshold": float(self.threshold),
-            "k": int(self.k),
-            "jaccard_prefilter": float(self.jaccard_prefilter),
-            "length_tolerance": float(self.length_tolerance),
-            "max_candidates": int(self.max_candidates),
-            "note": "Approx identity without alignment; k-mer Jaccard used as prefilter.",
-        }
+        stats: dict[str, Any] = build_reduction_stats(
+            n_total=work.height,
+            n_kept=kept.height,
+            threshold=float(self.threshold),
+            k=int(self.k),
+            jaccard_prefilter=float(self.jaccard_prefilter),
+            length_tolerance=float(self.length_tolerance),
+            max_candidates=int(self.max_candidates),
+            note="Approx identity without alignment; k-mer Jaccard used as prefilter.",
+        )
 
         return ReductionResult(
             df=kept,
@@ -297,6 +257,6 @@ class IdentityGreedyReducer:
                 "jaccard_prefilter": self.jaccard_prefilter,
                 "length_tolerance": self.length_tolerance,
                 "max_candidates": self.max_candidates,
-                "stats": stats,
             },
+            stats=stats,
         )

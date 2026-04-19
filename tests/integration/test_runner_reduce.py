@@ -61,8 +61,8 @@ def test_reduce_writes_json_report(df_base: pl.DataFrame, tmp_path: Path) -> Non
     assert report_path.exists()
     report = json.loads(report_path.read_text())
     assert report["schema_version"] == "0.1"
-    assert "stats" in report
-    assert report["stats"]["n_in"] == df_base.height
+    assert "summary" in report
+    assert report["summary"]["n_in"] == df_base.height
 
 
 def test_reduce_unknown_strategy_raises(df_base: pl.DataFrame, tmp_path: Path) -> None:
