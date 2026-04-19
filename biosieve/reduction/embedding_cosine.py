@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
@@ -42,9 +43,7 @@ class _NearestNeighborsFactory(Protocol):
 
 def _try_import_faiss() -> _FaissModule | None:
     try:
-        import faiss  # noqa: PLC0415
-
-        return cast("_FaissModule", faiss)
+        return cast("_FaissModule", importlib.import_module("faiss"))
     except ImportError:
         return None
 

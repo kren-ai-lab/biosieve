@@ -11,6 +11,7 @@ Requires the optional `datasketch` package:
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -29,11 +30,11 @@ log = get_logger(__name__)
 def _try_import_datasketch() -> tuple[Any, Any]:
     """Try to import MinHash and MinHashLSH from datasketch."""
     try:
-        from datasketch import MinHash, MinHashLSH  # noqa: PLC0415
+        datasketch = importlib.import_module("datasketch")
     except ImportError:
         return None, None
     else:
-        return MinHash, MinHashLSH
+        return datasketch.MinHash, datasketch.MinHashLSH
 
 
 def _validate_inputs(df: pl.DataFrame, cols: Columns, threshold: float, k: int, num_perm: int) -> None:

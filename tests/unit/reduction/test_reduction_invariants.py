@@ -11,6 +11,7 @@ same assertions into every individual test module.
 
 from __future__ import annotations
 
+import importlib.util
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -31,12 +32,7 @@ COLS = Columns(id_col="id", seq_col="sequence")
 # ---------------------------------------------------------------------------
 
 
-try:
-    import datasketch as _datasketch_mod  # noqa: F401
-
-    _has_datasketch = True
-except ImportError:
-    _has_datasketch = False
+_has_datasketch = importlib.util.find_spec("datasketch") is not None
 
 
 @pytest.fixture(
