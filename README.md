@@ -19,7 +19,7 @@ It covers two main workflows:
 BioSieve supports Python 3.11+.
 
 ```bash
-pip install git+https://github.com/kren-ai-lab/biosieve.git
+pip install biosieve
 ```
 
 Install optional extras as needed:
@@ -28,8 +28,8 @@ Install optional extras as needed:
 - `faiss` for GPU-accelerated embedding similarity search (`embedding_cosine` strategy)
 
 ```bash
-pip install 'biosieve[minhash] @ git+https://github.com/kren-ai-lab/biosieve.git'
-pip install 'biosieve[faiss] @ git+https://github.com/kren-ai-lab/biosieve.git'
+pip install 'biosieve[minhash]'
+pip install 'biosieve[faiss]'
 ```
 
 The `mmseqs2` reducer and `homology_aware` splitter require the [MMseqs2](https://github.com/soedinglab/MMseqs2) binary
