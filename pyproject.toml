@@ -70,7 +70,7 @@ addopts = "-q --tb=short"
 
 [tool.taskipy.tasks]
 sort-imports = "ruff check --fix --select I,F401 biosieve/ tests/"
-format = "task sort-imports && ruff format biosieve/ tests/"
+format = "task sort-imports && ruff format biosieve/ tests/ examples/"
 lint = "ruff check biosieve/ tests/"
 lint-fix = "ruff check --fix biosieve/ tests/"
 test = "pytest -q"

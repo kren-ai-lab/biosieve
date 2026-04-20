@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+set -euo pipefail
+
 # Run from examples/raw_data_examples/
 
 # Exact deduplication

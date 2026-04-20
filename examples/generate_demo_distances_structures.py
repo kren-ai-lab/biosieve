@@ -4,7 +4,6 @@ Run from examples/raw_data_examples/
 Output: struct_edges.csv
 """
 
-import numpy as np
 import polars as pl
 
 df = pl.read_csv("biosieve_example_dataset_1000.csv")

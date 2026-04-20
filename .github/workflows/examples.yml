@@ -1,0 +1,35 @@
+name: examples
+
+on:
+  push:
+    paths:
+      - "biosieve/**"
+      - "examples/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/examples.yml"
+  pull_request:
+    paths:
+      - "biosieve/**"
+      - "examples/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/examples.yml"
+
+jobs:
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: prefix-dev/setup-pixi@v0.9.5
+        with:
+          run-install: false
+          global-environments: |
+            -c bioconda -c conda-forge mmseqs2
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies for examples
+        run: uv sync --extra minhash
+      - name: Run examples
+        run: bash examples/run_ci_examples.sh
