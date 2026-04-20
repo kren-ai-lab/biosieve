@@ -38,7 +38,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.4.4",
-    "polars>=1.39.3",
+    "polars>=1.40.0",
     "polars-ds>=0.11.1",
     "pyyaml>=6.0",
     "scikit-learn>=1.8.0",
@@ -57,7 +57,7 @@ dev = [
 ]
 
 [project.optional-dependencies]
-minhash = ["datasketch>=1.9"]
+minhash = ["datasketch>=1.10"]
 faiss = ["faiss-cpu>=1.13.0"]
 
 [project.urls]
