@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-sylphy get-embedding run \
+sylphy get-embedding \
   --model facebook/esm2_t6_8M_UR50D \
   --input-data biosieve_example_dataset_1000.csv \
   --sequence-identifier sequence \
