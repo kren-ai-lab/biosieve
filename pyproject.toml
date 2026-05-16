@@ -7,33 +7,33 @@ name = "biosieve"
 dynamic = ["version"]
 description = "Redundancy reduction and leakage-aware dataset partitioning for biological ML."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [
    { name = "KrenAI-Lab", email = "krenai@umag.cl" }
 ]
 dependencies = [
-    "numpy>=2.4.4",
-    "polars>=1.39.3",
-    "polars-ds>=0.11.1",
+    "numpy>=2.4.0",
+    "polars>=1.40.0",
+    "polars-ds>=0.11.0",
     "scikit-learn>=1.8.0",
-    "typer>=0.16.0",
+    "typer>=0.25.0",
 ]
 
 [dependency-groups]
 dev = [
-    "prek>=0.3.8",
-    "pyrefly>=0.60.2",
+    "prek>=0.4.0",
+    "pyrefly>=1.0.0",
     "pytest>=8.0",
     "pytest-cov>=6.0",
-    "ruff>=0.15.10",
-    "taskipy>=1.14.1",
-    "ty>=0.0.29",
+    "ruff>=0.15.0",
+    "taskipy>=1.14.0",
+    "ty>=0.0.30",
 ]
 
 [project.optional-dependencies]
-minhash = ["datasketch>=1.9"]
+minhash = ["datasketch>=1.10"]
 faiss = ["faiss-cpu>=1.13.0"]
 
 [tool.hatch.version]
