@@ -141,7 +141,7 @@ Every run produces consistent artefacts:
 
 ## License
 
-**GPL-3.0-or-later**. See [LICENSE](LICENSE).
+**MIT**. See [LICENSE](LICENSE).
 
 ## Acknowledgements
 
