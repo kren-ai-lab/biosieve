@@ -63,8 +63,9 @@ def _make_bins(
             continue
         bins = np.digitize(values, edges[1:-1], right=True)
         _, counts = np.unique(bins, return_counts=True)
-        if counts.min() < min_bin_count:
-            last_error = f"minimum bin count {counts.min()} < {min_bin_count}"
+        min_count = int(np.min(counts))
+        if min_count < min_bin_count:
+            last_error = f"minimum bin count {min_count} < {min_bin_count}"
             continue
         return bins.astype(int), int(np.unique(bins).size)
     raise ValueError(f"Could not create valid stratification bins: {last_error}")
