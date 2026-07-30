@@ -1,11 +1,14 @@
+import math
 import random
 from datetime import date, timedelta
-import math
+
 import polars as pl
+
 
 def random_peptide(rng: random.Random, length: int) -> str:
     aa = "ACDEFGHIKLMNPQRSTVWY"
     return "".join(rng.choice(aa) for _ in range(length))
+
 
 def mutate_sequence(rng: random.Random, seq: str, n_mut: int = 1) -> str:
     aa = "ACDEFGHIKLMNPQRSTVWY"
@@ -16,12 +19,15 @@ def mutate_sequence(rng: random.Random, seq: str, n_mut: int = 1) -> str:
         s[i] = rng.choice(choices)
     return "".join(s)
 
+
 def make_dates(rng: random.Random, n: int, start=date(2018, 1, 1), end=date(2025, 12, 31)):
     delta_days = (end - start).days
     return [start + timedelta(days=rng.randint(0, delta_days)) for _ in range(n)]
 
+
 def clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
+
 
 def generate_biosieve_dataset(
     n: int = 1000,
@@ -32,8 +38,7 @@ def generate_biosieve_dataset(
     near_dup_rate: float = 0.25,
     target_name: str = "target",
 ) -> pl.DataFrame:
-    """
-    Generates a synthetic dataset with:
+    """Generates a synthetic dataset with:
     - exact duplicates (same sequence)
     - near-duplicates (mutations within cluster)
     - group labels (e.g., study/patient/batch)
@@ -54,7 +59,7 @@ def generate_biosieve_dataset(
     ]
 
     cluster_ids = [f"clust_{i:03d}" for i in range(1, n_clusters + 1)]
-    group_ids = [f"study_{chr(65 + (i % 26))}{i//26:02d}" for i in range(n_groups)]
+    group_ids = [f"study_{chr(65 + (i % 26))}{i // 26:02d}" for i in range(n_groups)]
 
     # Cluster prototypes + a latent cluster-level target mean
     cluster_proto = {}
@@ -93,7 +98,7 @@ def generate_biosieve_dataset(
         if rng.random() < 0.35:
             structure_id = f"PDB_{int(cid.split('_')[1]):04d}"
 
-        embedding_id = f"emb_{i+1:04d}"
+        embedding_id = f"emb_{i + 1:04d}"
 
         # label: weakly correlated with cluster
         base_prob = 0.35 + (int(cid.split("_")[1]) % 7) * 0.05
@@ -108,7 +113,7 @@ def generate_biosieve_dataset(
 
         rows.append(
             {
-                "id": f"pep_{i+1:04d}",
+                "id": f"pep_{i + 1:04d}",
                 "sequence": seq,
                 "label": label,
                 "group": gid,
@@ -178,6 +183,7 @@ def generate_biosieve_dataset(
         )
 
     return pl.DataFrame(rows).sample(fraction=1.0, shuffle=True, seed=seed)
+
 
 if __name__ == "__main__":
     df = generate_biosieve_dataset(n=1000, seed=13, target_name="target")

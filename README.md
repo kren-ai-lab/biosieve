@@ -1,5 +1,7 @@
 # BioSieve
 
+[![PyPI](https://img.shields.io/pypi/v/biosieve?style=flat-square)](https://pypi.org/project/biosieve/)
+[![PyVersions](https://img.shields.io/pypi/pyversions/biosieve?style=flat-square)](https://github.com/kren-ai-lab/biosieve)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kren-ai-lab/biosieve/tests.yml?style=flat-square)](https://github.com/kren-ai-lab/biosieve/actions/workflows/tests.yml)
 ![License](https://img.shields.io/github/license/kren-ai-lab/biosieve?style=flat-square)
 
@@ -17,7 +19,7 @@ It covers two main workflows:
 BioSieve supports Python 3.11+.
 
 ```bash
-pip install git+https://github.com/kren-ai-lab/biosieve.git
+pip install biosieve
 ```
 
 Install optional extras as needed:
@@ -26,8 +28,8 @@ Install optional extras as needed:
 - `faiss` for GPU-accelerated embedding similarity search (`embedding_cosine` strategy)
 
 ```bash
-pip install 'biosieve[minhash] @ git+https://github.com/kren-ai-lab/biosieve.git'
-pip install 'biosieve[faiss] @ git+https://github.com/kren-ai-lab/biosieve.git'
+pip install 'biosieve[minhash]'
+pip install 'biosieve[faiss]'
 ```
 
 The `mmseqs2` reducer and `homology_aware` splitter require the [MMseqs2](https://github.com/soedinglab/MMseqs2) binary
