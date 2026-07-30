@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import click
 import typer
 
 from biosieve.cli.common import version_callback
@@ -45,17 +44,13 @@ app.command("validate", context_settings=CONTEXT_SETTINGS)(validate)
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI application and return a process exit code."""
     try:
-        typer.main.get_command(app).main(
-            args=argv,
-            prog_name="biosieve",
-            standalone_mode=False,
-        )
-    except click.ClickException as exc:
-        exc.show()
-        return exc.exit_code
-    except (click.Abort, KeyboardInterrupt):
-        typer.echo("Interrupted.", err=True)
-        return 130
+        # Typer handles usage errors, aborts and interrupts itself, then calls
+        # sys.exit(); we translate that into a return code for the entry point.
+        typer.main.get_command(app).main(args=argv, prog_name="biosieve")
+    except SystemExit as exc:
+        if exc.code is None:
+            return 0
+        return exc.code if isinstance(exc.code, int) else 1
     except Exception as exc:  # noqa: BLE001
         typer.echo(f"ERROR: {exc}", err=True)
         return 1
