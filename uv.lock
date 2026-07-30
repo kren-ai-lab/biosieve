@@ -22,6 +22,7 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "polars" },
+    { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "typer" },
 ]
@@ -51,6 +52,7 @@ requires-dist = [
     { name = "faiss-cpu", marker = "extra == 'faiss'", specifier = ">=1.12.0,<2" },
     { name = "numpy", specifier = ">=2.3.2,<3" },
     { name = "polars", specifier = ">=1.0.0,<2" },
+    { name = "pyyaml", specifier = ">=6.0.0,<7" },
     { name = "scikit-learn", specifier = ">=1.7.2,<2" },
     { name = "typer", specifier = ">=0.12.0,<0.28" },
 ]
