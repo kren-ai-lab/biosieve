@@ -22,7 +22,6 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "polars" },
-    { name = "polars-ds" },
     { name = "scikit-learn" },
     { name = "typer" },
 ]
@@ -48,25 +47,24 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "datasketch", marker = "extra == 'minhash'", specifier = ">=1.10" },
-    { name = "faiss-cpu", marker = "extra == 'faiss'", specifier = ">=1.13.0" },
-    { name = "numpy", specifier = ">=2.4.0" },
-    { name = "polars", specifier = ">=1.40.0" },
-    { name = "polars-ds", specifier = ">=0.11.0" },
-    { name = "scikit-learn", specifier = ">=1.8.0" },
-    { name = "typer", specifier = ">=0.25.0" },
+    { name = "datasketch", marker = "extra == 'minhash'", specifier = ">=1.6.0,<3" },
+    { name = "faiss-cpu", marker = "extra == 'faiss'", specifier = ">=1.12.0,<2" },
+    { name = "numpy", specifier = ">=2.3.2,<3" },
+    { name = "polars", specifier = ">=1.0.0,<2" },
+    { name = "scikit-learn", specifier = ">=1.7.2,<2" },
+    { name = "typer", specifier = ">=0.12.0,<0.28" },
 ]
 provides-extras = ["faiss", "minhash"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "prek", specifier = ">=0.4.0" },
-    { name = "pyrefly", specifier = ">=1.0.0" },
-    { name = "pytest", specifier = ">=8.0" },
+    { name = "prek", specifier = ">=0.4.0,<1" },
+    { name = "pyrefly", specifier = ">=1.1.1,<2" },
+    { name = "pytest", specifier = ">=9.0" },
     { name = "pytest-cov", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.15.0" },
-    { name = "taskipy", specifier = ">=1.14.0" },
-    { name = "ty", specifier = ">=0.0.30" },
+    { name = "ruff", specifier = ">=0.16.0,<0.17" },
+    { name = "taskipy", specifier = ">=1.14.0,<2" },
+    { name = "ty", specifier = ">=0.0.65,<0.0.66" },
 ]
 
 [[package]]
@@ -425,23 +423,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/32/79/720f4901230992f359653717e7cc3596731ed36e1a27be351d128ee0c3b7/polars-1.43.1.tar.gz", hash = "sha256:cb07ff3ad61c7b28043e6176e5fdb04a294346920b7f033deeb84116b4911883", size = 750058, upload-time = "2026-07-27T12:07:58.288Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f3/7c/d74a56d5afae8e91924aad91cba621b286a05307e88569ecab666b3055b3/polars-1.43.1-py3-none-any.whl", hash = "sha256:f6ecd9184956f46442ddfcf6185423401475bbeffea59e238de8b9ecedacf16c", size = 846844, upload-time = "2026-07-27T12:06:33.913Z" },
-]
-
-[[package]]
-name = "polars-ds"
-version = "0.12.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "polars" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9c/a1/1cc535ddc969c309c1e7df386c364f6637c1ad0bf70ef727b1f707bd2fb7/polars_ds-0.12.0.tar.gz", hash = "sha256:d7b39c7f70782caa8a0fbc0bf52c6cceaff2f109476540b680f612b6b83f8042", size = 2229550, upload-time = "2026-06-01T05:19:29.85Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/e5/36274b522041673b965e1f425046e1ec8de3c14118c4e2e1f814543ebd70/polars_ds-0.12.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:b48a80ce89a564b13aab1230c89b105e36c44151424c9d970f5497598b4041a5", size = 18344887, upload-time = "2026-06-01T05:19:16.958Z" },
-    { url = "https://files.pythonhosted.org/packages/97/53/d23c28a6855a9225cbed50db2b4f0524f70c9c4adc11299538f0238e645f/polars_ds-0.12.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:b67a89b230e57219f2c2b0bc1f1f0c855fcab302f843a909cedd62c9dbaad5ca", size = 16227890, upload-time = "2026-06-01T05:19:20.339Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/b2/3d7ed1eac396dee65a724b6575bf291b096bb10c01fb5635a636fff53d2c/polars_ds-0.12.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b0ec13327e7fcb732d497a6d1fbc352eb4c769da0073219640efe5112bf51af0", size = 18986241, upload-time = "2026-06-01T05:19:22.771Z" },
-    { url = "https://files.pythonhosted.org/packages/cc/f8/a517f5442340064e7cfe9d7ca8ff88e0b6299e1e278aacb798c62f00d5c1/polars_ds-0.12.0-cp39-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:17acd14ff159dc665b58fb34279c4334fb243fb55915f5eed2609bea99c8715b", size = 16730536, upload-time = "2026-06-01T05:19:25.103Z" },
-    { url = "https://files.pythonhosted.org/packages/42/61/e370d7629cd9abeecbf889bc883aadaf4cf3ee26ca011b7d415731098dcf/polars_ds-0.12.0-cp39-abi3-win_amd64.whl", hash = "sha256:a1e5fd40056625615e8622b6683974d10d3432a95fe906ef8acbf118b085d2b4", size = 20098234, upload-time = "2026-06-01T05:19:27.729Z" },
 ]
 
 [[package]]
@@ -895,13 +876,4 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/37/78/fda3361b56efc27944f24225f6ecd13d96d6fcfe37bd0eb34e2f4c63f9fc/typer-0.27.0.tar.gz", hash = "sha256:629bd12ea5d13a17148125d9a264f949eb171fb3f120f9b04d85873cab054fa5", size = 203430, upload-time = "2026-07-15T19:21:07.007Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/40/03/26a383c9e58c213199d1aad1c3d353cfc22d4444ec6d2c0bf8ad02523843/typer-0.27.0-py3-none-any.whl", hash = "sha256:6f4b27631e47f077871b7dc30e933ec0131c1390fbe0e387ea5574b5bac9ccf1", size = 122716, upload-time = "2026-07-15T19:21:05.553Z" },
-]
-
-[[package]]
-name = "typing-extensions"
-version = "4.16.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
 ]
