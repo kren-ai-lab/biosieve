@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use BioSieve in your research, please cite it as below."
+title: "BioSieve: Redundancy Reduction and Leakage-Aware Dataset Partitioning for Biological ML"
+abstract: "Redundancy reduction and leakage-aware dataset partitioning for biological ML."
+type: software
+version: 0.1.2
+date-released: "2026-08-14"
+license: MIT
+doi: 10.5281/zenodo.21930919
+authors:
+  - family-names: Fernández Villegas
+    given-names: Diego
+    affiliation: "Universidad de Magallanes"
+  - family-names: Álvarez Saravia
+    given-names: Diego
+    affiliation: "Universidad de Magallanes"
+    orcid: "https://orcid.org/0000-0003-0753-274X"
+  - family-names: Medina-Ortiz
+    given-names: David
+    affiliation: "Universidad de Magallanes"
+    orcid: "https://orcid.org/0000-0002-8369-5746"
+repository-code: "https://github.com/kren-ai-lab/biosieve"
+url: "https://github.com/kren-ai-lab/biosieve"
+keywords:
+  - bioinformatics
+  - biology
+  - dataset-splitting
+  - deduplication
+  - machine-learning
+  - sequence-analysis
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21930919
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: 10.5281/zenodo.21930920
+    description: "Version DOI (v0.1.2)"

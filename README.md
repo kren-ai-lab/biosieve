@@ -4,6 +4,7 @@
 [![PyVersions](https://img.shields.io/pypi/pyversions/biosieve?style=flat-square)](https://github.com/kren-ai-lab/biosieve)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kren-ai-lab/biosieve/tests.yml?style=flat-square)](https://github.com/kren-ai-lab/biosieve/actions/workflows/tests.yml)
 ![License](https://img.shields.io/github/license/kren-ai-lab/biosieve?style=flat-square)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21930919-blue?style=flat-square)](https://doi.org/10.5281/zenodo.21930919)
 
 BioSieve is a Python toolkit for preparing biological sequence datasets for machine learning.
 
@@ -140,6 +141,30 @@ Every run produces consistent artefacts:
 ## Learn More
 
 - [examples/README.md](examples/README.md) for runnable scripts and config files
+
+## Citation
+
+If you use BioSieve in your research, please cite:
+
+> Fernández Villegas, D.; Álvarez Saravia, D.; Medina-Ortiz, D.
+> *BioSieve: Redundancy Reduction and Leakage-Aware Dataset Partitioning for Biological ML*.
+> Version 0.1.2, 2026. Zenodo.
+> https://doi.org/10.5281/zenodo.21930919
+
+```bibtex
+@software{biosieve2026,
+  author    = {Fernández Villegas, Diego and Álvarez Saravia, Diego and Medina-Ortiz, David},
+  title     = {{BioSieve}: Redundancy Reduction and Leakage-Aware Dataset Partitioning for Biological ML},
+  year      = {2026},
+  version   = {0.1.2},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.21930919},
+  url       = {https://doi.org/10.5281/zenodo.21930919}
+}
+```
+
+To cite this exact release, use the version DOI [10.5281/zenodo.21930920](https://doi.org/10.5281/zenodo.21930920).
+Machine-readable metadata lives in [CITATION.cff](CITATION.cff).
 
 ## License
 
