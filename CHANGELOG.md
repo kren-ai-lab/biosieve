@@ -27,6 +27,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 
 ### Breaking changes
 
+- The data `validate` command is now `validate-inputs`, so it is not confused with `validate-config`.
 - `embeddings_path`, `ids_path`, `edges_path` and `clusters_path` are no longer accepted in params files; use `--embeddings`, `--embedding-ids`, `--edges` and `--clusters`.
 - A params block for a strategy other than `--strategy` is now an error instead of being ignored.
 - Unknown parameters and wrongly typed values in params files are rejected before the run starts.
