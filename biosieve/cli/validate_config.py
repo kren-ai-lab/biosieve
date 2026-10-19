@@ -11,10 +11,10 @@ from biosieve.cli.common import (
     LOG_FILE_OPTION,
     LOG_LEVEL_OPTION,
     QUIET_OPTION,
-    load_strategy_params,
     setup_runtime,
 )
 from biosieve.cli.reduce import SET_VALUES_OPTION, STRATEGY_OPTION
+from biosieve.config import validate_config as validate_api
 
 KIND_OPTION = typer.Option(
     "reduce",
@@ -39,11 +39,11 @@ def validate_config(
     if kind not in {"reduce", "split"}:
         msg = "kind must be one of: reduce, split"
         raise typer.BadParameter(msg)
-    registry = setup_runtime(log_level, quiet=quiet, log_file=log_file)
-    _, issues = load_strategy_params(registry, kind, strategy, str(config), set_values)
+    setup_runtime(log_level, quiet=quiet, log_file=log_file)
+    issues = validate_api(config, strategy=strategy, kind=kind, set_values=set_values)
     if as_json:
-        typer.echo(json.dumps([{"path": p, "message": m} for p, m in issues]))
+        typer.echo(json.dumps([{"path": i.path, "message": i.message} for i in issues]))
     else:
-        for path, message in issues:
-            typer.echo(f"{path}: {message}", err=True)
+        for i in issues:
+            typer.echo(f"{i.path}: {i.message}", err=True)
     raise typer.Exit(2 if issues else 0)

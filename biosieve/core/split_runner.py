@@ -298,6 +298,7 @@ def run_split(
             "strategy": strategy,
             "params": effective_params(splitter),
             "columns": asdict(cols),
+            "read_options": read_csv_kwargs or {},
         },
         inputs=provenance_inputs(in_path, paths),
         packages=("biosieve", "polars", "numpy"),

@@ -15,7 +15,7 @@ from biosieve.cli.main import main
 if TYPE_CHECKING:
     import pytest
 
-SCHEMAS = Path(__file__).parent.parent / "contract"
+SCHEMAS = Path(__file__).parent
 
 
 def _schema(name: str) -> Any:  # noqa: ANN401
@@ -123,8 +123,108 @@ def test_npz_embeddings_carry_ids_and_duplicates_fail(
     assert main([*argv, "--embeddings", str(dup)]) == 3
 
 
-def test_data_validate_failure_exits_2(df_base: pl.DataFrame, tmp_path: Path) -> None:
+def test_data_validate_failure_exits_3(df_base: pl.DataFrame, tmp_path: Path) -> None:
     data = tmp_path / "in.csv"
     df_base.write_csv(data)
 
-    assert main(["validate-inputs", "-i", str(data), "--columns", '{"id_col": "nope"}', "--quiet"]) == 2
+    assert main(["validate-inputs", "-i", str(data), "--columns", '{"id_col": "nope"}', "--quiet"]) == 3
+
+
+def test_public_validate_config_mapping_and_path(tmp_path: Path) -> None:
+    from types import MappingProxyType
+
+    import biosieve
+
+    assert biosieve.validate_config({"random": {"seed": 1}}, strategy="random", kind="split") == []
+    bad = MappingProxyType({"embedding_cosine": {"threshold": "high"}})
+    issues = biosieve.validate_config(bad, strategy="embedding_cosine")
+    assert [i.path for i in issues] == ["embedding_cosine.threshold"]
+    assert isinstance(issues[0], biosieve.ConfigIssue)
+
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text("random:\n  seed: 1\n", encoding="utf-8")
+    assert biosieve.validate_config(cfg, strategy="random", kind="split") == []
+    assert biosieve.validate_config(str(cfg), strategy="random", kind="split") == []
+
+    missing = biosieve.validate_config(tmp_path / "nope.yaml", strategy="random", kind="split")
+    assert [i.path for i in missing] == [""]
+    cfg.write_text("random: [unclosed\n", encoding="utf-8")
+    assert [i.path for i in biosieve.validate_config(cfg, strategy="random", kind="split")] == [""]
+    assert [i.path for i in biosieve.validate_config({}, strategy="nope")] == [""]
+    assert [i.path for i in biosieve.validate_config({}, strategy="random", kind="nope")] == [""]
+
+
+def test_missing_data_inputs_exit_3(
+    df_base: pl.DataFrame, embeddings_files: tuple[Path, Path], tmp_path: Path
+) -> None:
+    emb, _ = embeddings_files
+    data = tmp_path / "in.csv"
+    df_base.write_csv(data)
+    gone = str(tmp_path / "gone")
+    out = str(tmp_path / "out.csv")
+    reduce = ["reduce", "-i", str(data), "-o", out, "--quiet"]
+    assert main([*reduce, "-s", "embedding_cosine", "--embeddings", f"{gone}.npy"]) == 3
+    assert (
+        main([*reduce, "-s", "embedding_cosine", "--embeddings", str(emb), "--embedding-ids", f"{gone}.csv"])
+        == 3
+    )
+    assert main([*reduce, "-s", "structural_distance", "--edges", f"{gone}.csv"]) == 3
+    split = ["split", "-i", str(data), "-o", str(tmp_path / "o"), "--quiet"]
+    assert (
+        main(
+            [
+                *split,
+                "-s",
+                "homology_aware",
+                "--clusters",
+                f"{gone}.csv",
+                "--set",
+                'homology_aware.mode="precomputed"',
+            ]
+        )
+        == 3
+    )
+
+
+def test_provenance_records_csv_read_options(df_base: pl.DataFrame, tmp_path: Path) -> None:
+    data = tmp_path / "in.csv"
+    df_base.write_csv(data, separator=";")
+
+    assert (
+        main(
+            [
+                "reduce",
+                "-i",
+                str(data),
+                "-o",
+                str(tmp_path / "o.csv"),
+                "-s",
+                "exact",
+                "--csv-separator",
+                ";",
+                "--quiet",
+            ]
+        )
+        == 0
+    )
+    assert (
+        main(
+            [
+                "split",
+                "-i",
+                str(data),
+                "-o",
+                str(tmp_path / "sp"),
+                "-s",
+                "random",
+                "--csv-separator",
+                ";",
+                "--quiet",
+            ]
+        )
+        == 0
+    )
+
+    for path in (tmp_path / "o.csv.provenance.json", tmp_path / "sp.provenance.json"):
+        prov = json.loads(path.read_text())
+        assert prov["parameters"]["read_options"]["sep"] == ";"

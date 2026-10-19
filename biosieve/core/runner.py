@@ -178,6 +178,7 @@ def run_reduce(
             "strategy": strategy,
             "params": effective_params(reducer),
             "columns": asdict(cols),
+            "read_options": read_csv_kwargs or {},
         },
         inputs=provenance_inputs(in_path, paths),
         packages=("biosieve", "polars", "numpy"),
