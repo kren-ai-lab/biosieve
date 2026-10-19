@@ -393,9 +393,9 @@ def _run_strategy_requirements(
 
 
 # -----------------------------
-# Main validate runner
+# Main validate-inputs runner
 # -----------------------------
-def validate(
+def validate_inputs(
     input_data: Path = INPUT_DATA_OPTION,
     columns: str | None = COLUMNS_OPTION,
     embeddings: Path | None = EMBEDDINGS_OPTION,

@@ -39,5 +39,5 @@ Split based on precomputed structural distances (`id1, id2, dist` edge list):
 
 ## Interop
 
-- Sylphy embedding export format: validate `embeddings.npy` + `embedding_ids.csv` + `meta.json` layout in `biosieve validate`
+- Sylphy embedding export format: validate `embeddings.npy` + `embedding_ids.csv` + `meta.json` layout in `biosieve validate-inputs`
 - Eris-compatible output naming: `splits/train.csv`, `splits/test.csv`, `splits/val.csv`, `folds/fold_*/`

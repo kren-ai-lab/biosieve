@@ -22,7 +22,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 - Params are type-checked against the strategy fields and every problem is reported at once.
 - `homology_aware` uses a temporary `work_dir` by default.
 - Output tables put the id column first; the id column is always read as a string.
-- The data `validate` command exits 2 on validation failures.
+- The data `validate-inputs` command exits 2 on validation failures.
 - Report timestamps have seconds precision.
 
 ### Breaking changes

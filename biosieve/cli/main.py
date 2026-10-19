@@ -12,8 +12,8 @@ from biosieve.cli.doctor import doctor
 from biosieve.cli.info import info
 from biosieve.cli.reduce import reduce
 from biosieve.cli.split import split
-from biosieve.cli.validate import validate
 from biosieve.cli.validate_config import validate_config
+from biosieve.cli.validate_inputs import validate_inputs
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
@@ -47,7 +47,7 @@ def root(
 app.command("reduce", context_settings=CONTEXT_SETTINGS)(reduce)
 app.command("split", context_settings=CONTEXT_SETTINGS)(split)
 app.command("info", context_settings=CONTEXT_SETTINGS)(info)
-app.command("validate", context_settings=CONTEXT_SETTINGS)(validate)
+app.command("validate-inputs", context_settings=CONTEXT_SETTINGS)(validate_inputs)
 app.command("validate-config", context_settings=CONTEXT_SETTINGS)(validate_config)
 app.command("doctor", context_settings=CONTEXT_SETTINGS)(doctor)
 

@@ -127,4 +127,4 @@ def test_data_validate_failure_exits_2(df_base: pl.DataFrame, tmp_path: Path) ->
     data = tmp_path / "in.csv"
     df_base.write_csv(data)
 
-    assert main(["validate", "-i", str(data), "--columns", '{"id_col": "nope"}', "--quiet"]) == 2
+    assert main(["validate-inputs", "-i", str(data), "--columns", '{"id_col": "nope"}', "--quiet"]) == 2

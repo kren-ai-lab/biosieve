@@ -149,7 +149,7 @@ Every run produces consistent artefacts:
 - JSON report with the tool version, strategy name, effective parameters, and reduction/split statistics
 - Provenance sidecar following the shared ecosystem CLI contract: `<output>.provenance.json` for `reduce` and `<outdir>.provenance.json` for `split`
 
-Exit codes: 0 success, 2 invalid config or usage (also `validate` failures), 3 runtime or data failure, 4 internal error.
+Exit codes: 0 success, 2 invalid config or usage (also `validate-inputs` failures), 3 runtime or data failure, 4 internal error.
 `homology_aware` runs MMseqs2 in a temporary directory unless `work_dir` is set; `keep_work: true` keeps it.
 
 ## Learn More
