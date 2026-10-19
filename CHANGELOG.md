@@ -12,6 +12,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 - `--embeddings` (`.npy` or `.npz`), `--embedding-ids` and `--edges` options on `reduce`, and `--embeddings`, `--embedding-ids` and `--clusters` on `split`.
 - `biosieve validate-config CONFIG --strategy NAME [--kind reduce|split] [--json]` to check a params file without reading data.
 - `<output>.provenance.json` (`reduce`) and `<outdir>.provenance.json` (`split`) sidecars.
+- `biosieve.validate_config(config, *, strategy, kind="reduce")` and `biosieve.ConfigIssue`: the `validate-config` check from Python, for a mapping or a YAML/JSON path.
 - Parquet input and output for the main dataset, chosen by file extension.
 - Embedding ids as `<stem>.ids.txt` or an `ids` array inside a `.npz`.
 - Tool version in the `*_report.json` files.

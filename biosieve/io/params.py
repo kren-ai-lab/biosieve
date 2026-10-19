@@ -6,13 +6,14 @@ import dataclasses
 import importlib
 import json
 import types
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Union, cast, get_args, get_origin, get_type_hints
 
 from biosieve.core.common import PATH_FIELDS
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    import os
     from types import ModuleType
 
 Issue = tuple[str, str]  # (dotted path, message); an empty path means the file root
@@ -45,7 +46,11 @@ def _load_file(path: Path) -> dict[str, object]:
                 "Install `pyyaml` in the same environment as biosieve, or use JSON params instead."
             )
             raise ImportError(msg)
-        data = yaml.safe_load(text) or {}
+        try:
+            data = yaml.safe_load(text) or {}
+        except yaml.YAMLError as exc:
+            msg = f"Invalid YAML in {path}: {exc}"
+            raise ValueError(msg) from exc
     else:
         msg = f"Unsupported params file extension: {suffix}. Use .json or .yaml/.yml"
         raise ValueError(msg)
@@ -107,12 +112,14 @@ def _set_nested(d: dict[str, object], dotted_key: str, value: object) -> None:
 
 
 def load_params(
-    params_path: str | None,
+    params_path: str | os.PathLike[str] | Mapping[str, object] | None,
     overrides: list[str] | None = None,
 ) -> dict[str, object]:
-    """Load strategy parameters from JSON/YAML and apply CLI overrides."""
+    """Load strategy parameters from JSON/YAML (or an in-memory mapping) and apply CLI overrides."""
     base: dict[str, object] = {}
-    if params_path:
+    if isinstance(params_path, Mapping):
+        base = dict(cast("Mapping[str, object]", params_path))
+    elif params_path:
         base = _load_file(Path(params_path))
 
     overrides = overrides or []
@@ -149,7 +156,7 @@ def _type_ok(value: object, hint: Any) -> bool:  # noqa: ANN401, PLR0911
 
 
 def read_config(
-    path: str | None, overrides: list[str] | None = None
+    path: str | os.PathLike[str] | Mapping[str, object] | None, overrides: list[str] | None = None
 ) -> tuple[dict[str, object], list[Issue]]:
     """Load a params file plus ``--set`` overrides; a problem is returned as an issue, not raised."""
     try:
@@ -168,12 +175,12 @@ def check_params(all_params: Mapping[str, object], strategy: str, cls: type[Any]
     block = all_params.get(strategy)
     if block is None:
         return issues
-    if not isinstance(block, dict):
+    if not isinstance(block, Mapping):
         return [*issues, (strategy, f"expected a mapping, got {type(block).__name__}")]
 
     hints: dict[str, Any] = get_type_hints(cls)
     allowed = {f.name for f in dataclasses.fields(cls)}
-    for key, value in cast("dict[str, object]", block).items():
+    for key, value in cast("Mapping[str, object]", block).items():
         where = f"{strategy}.{key}"
         if key in PATH_FIELDS:
             issues.append((where, f"input paths are not config keys; use {PATH_FIELDS[key]}"))

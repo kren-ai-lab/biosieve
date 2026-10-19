@@ -128,3 +128,59 @@ def test_data_validate_failure_exits_2(df_base: pl.DataFrame, tmp_path: Path) ->
     df_base.write_csv(data)
 
     assert main(["validate-inputs", "-i", str(data), "--columns", '{"id_col": "nope"}', "--quiet"]) == 2
+
+
+def test_public_validate_config_mapping_and_path(tmp_path: Path) -> None:
+    from types import MappingProxyType
+
+    import biosieve
+
+    assert biosieve.validate_config({"random": {"seed": 1}}, strategy="random", kind="split") == []
+    bad = MappingProxyType({"embedding_cosine": {"threshold": "high"}})
+    issues = biosieve.validate_config(bad, strategy="embedding_cosine")
+    assert [i.path for i in issues] == ["embedding_cosine.threshold"]
+    assert isinstance(issues[0], biosieve.ConfigIssue)
+
+    cfg = tmp_path / "cfg.yaml"
+    cfg.write_text("random:\n  seed: 1\n", encoding="utf-8")
+    assert biosieve.validate_config(cfg, strategy="random", kind="split") == []
+    assert biosieve.validate_config(str(cfg), strategy="random", kind="split") == []
+
+    missing = biosieve.validate_config(tmp_path / "nope.yaml", strategy="random", kind="split")
+    assert [i.path for i in missing] == [""]
+    cfg.write_text("random: [unclosed\n", encoding="utf-8")
+    assert [i.path for i in biosieve.validate_config(cfg, strategy="random", kind="split")] == [""]
+    assert [i.path for i in biosieve.validate_config({}, strategy="nope")] == [""]
+    assert [i.path for i in biosieve.validate_config({}, strategy="random", kind="nope")] == [""]
+
+
+def test_missing_data_inputs_exit_3(
+    df_base: pl.DataFrame, embeddings_files: tuple[Path, Path], tmp_path: Path
+) -> None:
+    emb, _ = embeddings_files
+    data = tmp_path / "in.csv"
+    df_base.write_csv(data)
+    gone = str(tmp_path / "gone")
+    out = str(tmp_path / "out.csv")
+    reduce = ["reduce", "-i", str(data), "-o", out, "--quiet"]
+    assert main([*reduce, "-s", "embedding_cosine", "--embeddings", f"{gone}.npy"]) == 3
+    assert (
+        main([*reduce, "-s", "embedding_cosine", "--embeddings", str(emb), "--embedding-ids", f"{gone}.csv"])
+        == 3
+    )
+    assert main([*reduce, "-s", "structural_distance", "--edges", f"{gone}.csv"]) == 3
+    split = ["split", "-i", str(data), "-o", str(tmp_path / "o"), "--quiet"]
+    assert (
+        main(
+            [
+                *split,
+                "-s",
+                "homology_aware",
+                "--clusters",
+                f"{gone}.csv",
+                "--set",
+                'homology_aware.mode="precomputed"',
+            ]
+        )
+        == 3
+    )

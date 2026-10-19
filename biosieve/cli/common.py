@@ -15,6 +15,9 @@ from biosieve.types import Columns
 from biosieve.utils.logging import configure_logging
 
 if TYPE_CHECKING:
+    import os
+    from collections.abc import Mapping
+
     from biosieve.core.registry import StrategyRegistry
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
@@ -83,7 +86,7 @@ def load_strategy_params(
     registry: StrategyRegistry,
     kind: str,
     strategy: str,
-    config: str | None,
+    config: str | os.PathLike[str] | Mapping[str, object] | None,
     set_values: list[str] | None,
 ) -> tuple[dict[str, object], list[Issue]]:
     """Read and check the params for one strategy, collecting every problem."""

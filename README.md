@@ -77,6 +77,14 @@ Check a params file without reading any data (exit 0 if valid, 2 if not; `--json
 biosieve validate-config params.yaml --strategy kmer_jaccard
 ```
 
+Validate a config from Python (a mapping or a YAML/JSON path; returns a list of `ConfigIssue(path, message)`, empty when valid):
+
+```python
+from biosieve import validate_config
+
+issues = validate_config("params.yaml", strategy="kmer_jaccard", kind="reduce")
+```
+
 Strategies that need input files take them as options: `--embeddings` (`.npy` or `.npz`) and `--embedding-ids` for `embedding_cosine`, `--edges` for `structural_distance`.
 The ids file is `<stem>.ids.txt` (one id per line), a `.npz` with an `ids` array, or a CSV with an `id` column; when omitted, the `.npz`'s own ids or the sibling `<stem>.ids.txt` are used.
 
