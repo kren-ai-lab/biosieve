@@ -4,5 +4,4 @@ homology_aware:
   seed: 13
 
   mode: "precomputed"
-  clusters_path: "runs/mmseqs2_clusters/clusters_cluster.tsv"
   clusters_format: "mmseqs_tsv"

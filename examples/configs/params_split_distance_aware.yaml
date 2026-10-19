@@ -6,8 +6,6 @@ distance_aware:
   feature_mode: "embeddings"
   metric: "cosine"
 
-  embeddings_path: "embeddings.npy"
-  ids_path: "embedding_ids.csv"
   ids_col: "id"
 
   val_method: "random"        # or "farthest_next"

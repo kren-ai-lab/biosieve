@@ -3,18 +3,24 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, cast
+from dataclasses import asdict
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
-import polars as pl
-
+import biosieve
+from biosieve._provenance import utc_now, write_provenance
 from biosieve.core.common import (
     JSONValue,
+    check_paths,
+    effective_params,
     ensure_parent,
-    normalize_read_csv_kwargs,
+    provenance_inputs,
+    read_table,
     safe_jsonable,
     utc_timestamp,
     validate_unique_ids,
     write_json,
+    write_table,
 )
 from biosieve.reduction.common import empty_mapping_df
 from biosieve.types import Columns
@@ -38,19 +44,21 @@ def run_reduce(
     report_path: str | None = None,
     strategy_params: dict[str, object] | None = None,
     read_csv_kwargs: dict[str, object] | None = None,
+    paths: dict[str, str] | None = None,
 ) -> None:
     r"""Execute redundancy reduction and export artefacts to disk.
 
     Artefact contract:
-    - Reduced dataset: `out_path` (CSV)
-    - Optional mapping: `map_path` (CSV)
+    - Reduced dataset: `out_path` (CSV or Parquet, by extension), `id` column first
+    - Provenance sidecar: `<out_path>.provenance.json`
+    - Optional mapping: `map_path` (CSV or Parquet)
       If `map_path` is provided and the reducer returns no mapping, an empty mapping
       CSV is written with stable columns:
         ["removed_id", "representative_id", "cluster_id", "score"]
     - Optional report: `report_path` (JSON)
 
     Args:
-        in_path: Input CSV path.
+        in_path: Input CSV or Parquet path.
         out_path: Output CSV path for the non-redundant dataset.
         strategy: Reducer strategy name (e.g., "mmseqs2", "embedding_cosine", "descriptor_euclidean").
         registry: StrategyRegistry holding reducer classes in `registry.reducers`.
@@ -59,6 +67,7 @@ def run_reduce(
         report_path: Optional JSON report path.
         strategy_params: Params used to instantiate the reducer class (unknown keys -> error).
         read_csv_kwargs: Optional kwargs passed to polars.read_csv.
+        paths: Input files for the strategy, keyed by strategy field (e.g. `embeddings_path`).
 
     Raises:
         ValueError: If the reducer strategy name is unknown, the id column is missing, or ids
@@ -84,6 +93,7 @@ def run_reduce(
 
     """
     t0 = time.time()
+    created_at = utc_now()
     log.info(
         "reduce:start | strategy=%s | in=%s | out=%s | map=%s | report=%s",
         strategy,
@@ -97,7 +107,7 @@ def run_reduce(
         cols = Columns(id_col="id", seq_col="sequence")
 
     strategy_params = strategy_params or {}
-    read_csv_kwargs = normalize_read_csv_kwargs(read_csv_kwargs)
+    paths = paths or {}
 
     if strategy not in registry.reducers:
         available = sorted(registry.reducers.keys())
@@ -108,7 +118,8 @@ def run_reduce(
     ensure_parent(map_path)
     ensure_parent(report_path)
 
-    df = pl.read_csv(in_path, **cast("dict[str, Any]", read_csv_kwargs))
+    check_paths(registry.get_reducer_class(strategy), paths)
+    df = read_table(in_path, cols.id_col, read_csv_kwargs)
 
     log.info("reduce:input | n_rows=%d | n_cols=%d", df.height, len(df.columns))
 
@@ -118,16 +129,16 @@ def run_reduce(
     # We do not raise here to keep descriptor/structural reducers usable.
     # Reducers SHOULD raise if they require sequence and it is missing.
 
-    reducer = cast("Reducer", registry.create_reducer(strategy, strategy_params))
+    reducer = cast("Reducer", registry.create_reducer(strategy, {**strategy_params, **paths}))
 
     res = reducer.run(df, cols)
 
     # --- write outputs ---
-    res.df.write_csv(out_path)
+    write_table(res.df, out_path, cols.id_col)
 
     mapping_df = res.mapping if res.mapping is not None else empty_mapping_df()
     if map_path is not None:
-        mapping_df.write_csv(map_path)
+        write_table(mapping_df, map_path, "removed_id")
 
     # --- report ---
     if report_path is not None:
@@ -137,6 +148,7 @@ def run_reduce(
 
         report: dict[str, JSONValue] = {
             "schema_version": "0.1",
+            "tool": {"name": "biosieve", "version": biosieve.__version__},
             "timestamp": utc_timestamp(),
             "in_path": str(in_path),
             "out_path": str(out_path),
@@ -155,6 +167,27 @@ def run_reduce(
             "columns": safe_jsonable(cols),
         }
         write_json(report_path, report)
+
+    write_provenance(
+        Path(out_path),
+        tool="biosieve",
+        version=biosieve.__version__,
+        command="reduce",
+        created_at=created_at,
+        parameters={
+            "strategy": strategy,
+            "params": effective_params(reducer),
+            "columns": asdict(cols),
+        },
+        inputs=provenance_inputs(in_path, paths),
+        packages=("biosieve", "polars", "numpy"),
+        output_info={"n_rows": res.df.height, "n_cols": len(res.df.columns)},
+        extensions={
+            "strategy": strategy,
+            "summary": {"n_in": df.height, "n_out": res.df.height, "n_removed": df.height - res.df.height},
+            "stats": safe_jsonable(res.stats),
+        },
+    )
 
     log.info(
         "reduce:result | n_kept=%d | n_removed=%d | ratio=%.4f",

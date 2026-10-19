@@ -24,7 +24,7 @@ from typing import cast
 import pytest
 
 from biosieve.core.registry import StrategyRegistry, instantiate_strategy, lazy_import_class
-from biosieve.io.params import load_params, params_for_strategy
+from biosieve.io.params import check_params, load_params
 
 # ---------------------------------------------------------------------------
 # StrategyRegistry
@@ -248,22 +248,24 @@ def test_load_params_override_missing_equals_raises() -> None:
         load_params(None, overrides=["exact.threshold"])
 
 
-def test_params_for_strategy_hit() -> None:
-    all_params = {"random": {"seed": 99, "test_size": 0.3}}
-    result = params_for_strategy(all_params, "random")
-    assert result == {"seed": 99, "test_size": 0.3}
+def test_check_params_collects_every_problem() -> None:
+    from biosieve.reduction.embedding_cosine import EmbeddingCosineReducer
+
+    raw = {
+        "embedding_cosine": {"threshold": "high", "embeddings_path": "e.npy", "bogus": 1},
+        "random": {"seed": 1},
+    }
+    issues = dict(check_params(raw, "embedding_cosine", EmbeddingCosineReducer))
+    assert set(issues) == {
+        "embedding_cosine.threshold",
+        "embedding_cosine.embeddings_path",
+        "embedding_cosine.bogus",
+        "random",
+    }
+    assert "--embeddings" in issues["embedding_cosine.embeddings_path"]
 
 
-def test_params_for_strategy_miss_returns_empty() -> None:
-    result = params_for_strategy({}, "random")
-    assert result == {}
+def test_check_params_accepts_valid_block() -> None:
+    from biosieve.splitting.random import RandomSplitter
 
-
-def test_params_for_strategy_none_value_returns_empty() -> None:
-    result = params_for_strategy({"random": None}, "random")
-    assert result == {}
-
-
-def test_params_for_strategy_wrong_type_raises() -> None:
-    with pytest.raises(TypeError, match="must be a dict"):
-        params_for_strategy({"random": "not_a_dict"}, "random")
+    assert check_params({"random": {"seed": 3, "test_size": 0.3}}, "random", RandomSplitter) == []

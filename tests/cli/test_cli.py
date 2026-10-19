@@ -198,18 +198,18 @@ def test_cli_split_unknown_strategy_exits_nonzero(csv_file: Path, tmp_path: Path
 
 
 # ---------------------------------------------------------------------------
-# biosieve validate
+# biosieve validate-inputs
 # ---------------------------------------------------------------------------
 
 
-def test_cli_validate_basic(csv_file: Path) -> None:
-    r = _run("validate", "--input-data", str(csv_file))
-    # validate exits 0 if no hard errors found
+def test_cli_validate_inputs_basic(csv_file: Path) -> None:
+    r = _run("validate-inputs", "--input-data", str(csv_file))
+    # validate-inputs exits 0 if no hard errors found
     # (mmseqs2 check may be informational only)
     assert r.returncode in (0, 1)  # 1 only if mmseqs2 not found and it's a required check
     assert b"OK" in r.stdout or b"SKIP" in r.stdout
 
 
-def test_cli_validate_missing_input_exits_nonzero(tmp_path: Path) -> None:
-    r = _run("validate", "--input-data", str(tmp_path / "nonexistent.csv"))
+def test_cli_validate_inputs_missing_input_exits_nonzero(tmp_path: Path) -> None:
+    r = _run("validate-inputs", "--input-data", str(tmp_path / "nonexistent.csv"))
     assert r.returncode != 0

@@ -52,8 +52,8 @@ def build_distance_features(
     cols: Any,
     *,
     feature_mode: str,
-    embeddings_path: str,
-    ids_path: str,
+    embeddings_path: str | None,
+    ids_path: str | None,
     ids_col: str,
     descriptor_prefix: str,
     descriptor_cols: list[str] | None,
@@ -109,8 +109,8 @@ class DistanceAwareSplitter:
     seed: int = 13
     feature_mode: str = "embeddings"
     metric: str = "cosine"
-    embeddings_path: str = "embeddings.npy"
-    ids_path: str = "embedding_ids.csv"
+    embeddings_path: str | None = None
+    ids_path: str | None = None
     ids_col: str = "id"
     descriptor_prefix: str = "desc_"
     descriptor_cols: list[str] | None = None

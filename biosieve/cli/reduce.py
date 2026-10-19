@@ -7,10 +7,14 @@ from pathlib import Path  # noqa: TC003
 import typer
 
 from biosieve.cli.common import (
+    CONFIG_OPTION,
+    EMBEDDING_IDS_OPTION,
+    EMBEDDINGS_OPTION,
     LOG_FILE_OPTION,
     LOG_LEVEL_OPTION,
     QUIET_OPTION,
     build_run_inputs,
+    collect_paths,
     setup_runtime,
 )
 from biosieve.core.runner import run_reduce
@@ -19,13 +23,13 @@ INPUT_DATA_OPTION = typer.Option(
     ...,
     "--input-data",
     "-i",
-    help="Input CSV path.",
+    help="Input CSV or Parquet path.",
 )
 OUTPUT_OPTION = typer.Option(
     ...,
     "--output",
     "-o",
-    help="Output CSV path (non-redundant).",
+    help="Output path (non-redundant); .csv or .parquet.",
 )
 STRATEGY_OPTION = typer.Option(
     ...,
@@ -55,10 +59,10 @@ SEQUENCE_COLUMN_OPTION = typer.Option(
     help="Column name for sequences.",
     show_default=True,
 )
-PARAMS_OPTION = typer.Option(
+EDGES_OPTION = typer.Option(
     None,
-    "--params",
-    help="YAML/JSON file with strategy parameters. Format: {strategy_name: {param: value}}.",
+    "--edges",
+    help="Structural edges CSV (structural_distance).",
 )
 SET_VALUES_OPTION = typer.Option(
     None,
@@ -87,7 +91,10 @@ def reduce(
     report_output: Path | None = REPORT_OUTPUT_OPTION,
     id_column: str = ID_COLUMN_OPTION,
     sequence_column: str = SEQUENCE_COLUMN_OPTION,
-    params: Path | None = PARAMS_OPTION,
+    config: Path | None = CONFIG_OPTION,
+    embeddings: Path | None = EMBEDDINGS_OPTION,
+    embedding_ids: Path | None = EMBEDDING_IDS_OPTION,
+    edges: Path | None = EDGES_OPTION,
     set_values: list[str] | None = SET_VALUES_OPTION,
     csv_separator: str = CSV_SEPARATOR_OPTION,
     encoding: str = ENCODING_OPTION,
@@ -98,10 +105,12 @@ def reduce(
     """Reduce redundancy in a dataset using a selected strategy."""
     registry = setup_runtime(log_level, quiet=quiet, log_file=log_file)
     cols, strat_params, read_csv_kwargs = build_run_inputs(
+        registry=registry,
+        kind="reduce",
         strategy=strategy,
         id_column=id_column,
         sequence_column=sequence_column,
-        params_path=params,
+        params_path=config,
         set_values=set_values,
         csv_separator=csv_separator,
         encoding=encoding,
@@ -115,5 +124,6 @@ def reduce(
         map_path=str(mapping_output) if mapping_output is not None else None,
         report_path=str(report_output) if report_output is not None else None,
         strategy_params=strat_params,
+        paths=collect_paths(embeddings=embeddings, ids=embedding_ids, edges=edges),
         read_csv_kwargs=read_csv_kwargs,
     )

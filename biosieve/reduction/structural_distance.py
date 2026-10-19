@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from biosieve.errors import ConfigError
 from biosieve.reduction.backends.structure_backend import load_edges_csv
 from biosieve.reduction.base import ReductionResult
 from biosieve.reduction.common import (
@@ -68,7 +69,7 @@ class StructuralDistanceReducer:
     4) Remove all neighbors satisfying the redundancy criterion.
 
     Args:
-        edges_path: Path to CSV file containing structural edges.
+        edges_path: Path to CSV file containing structural edges; set by --edges.
         mode: Redundancy mode: `"distance"` marks neighbors redundant when
             `value <= threshold`, and `"similarity"` marks neighbors redundant
             when `value >= threshold`.
@@ -114,7 +115,7 @@ class StructuralDistanceReducer:
 
     """
 
-    edges_path: str = "struct_edges.csv"
+    edges_path: str | None = None
     mode: str = "distance"  # "distance" | "similarity"
     threshold: float = 0.5
 
@@ -143,6 +144,9 @@ class StructuralDistanceReducer:
         work, ids = prepare_reduction_work(df, cols.id_col)
         id_set = set(ids)
 
+        if self.edges_path is None:
+            msg = "structural_distance requires --edges."
+            raise ConfigError(msg)
         edges = load_edges_csv(
             self.edges_path,
             id1_col=self.id1_col,

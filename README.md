@@ -61,7 +61,7 @@ biosieve reduce \
   -i dataset.csv \
   -o dataset_nr.csv \
   --strategy kmer_jaccard \
-  --params params.yaml
+  --config params.yaml
 ```
 
 ```yaml
@@ -70,6 +70,15 @@ kmer_jaccard:
   threshold: 0.8
   k: 5
 ```
+
+Check a params file without reading any data (exit 0 if valid, 2 if not; `--json` prints the problems as JSON):
+
+```bash
+biosieve validate-config params.yaml --strategy kmer_jaccard
+```
+
+Strategies that need input files take them as options: `--embeddings` (`.npy` or `.npz`) and `--embedding-ids` for `embedding_cosine`, `--edges` for `structural_distance`.
+The ids file is `<stem>.ids.txt` (one id per line), a `.npz` with an `ids` array, or a CSV with an `id` column; when omitted, the `.npz`'s own ids or the sibling `<stem>.ids.txt` are used.
 
 Override a single parameter inline without a file:
 
@@ -86,14 +95,15 @@ biosieve split \
   -i dataset_nr.csv \
   -o splits/ \
   --strategy homology_aware \
-  --params params.yaml
+  --clusters clusters.csv \
+  --config params.yaml
 ```
 
 ```yaml
 # params.yaml
 homology_aware:
   mode: precomputed
-  clusters_path: clusters.csv
+  clusters_format: csv
   member_col: id
   cluster_col: cluster_id
   test_size: 0.2
@@ -134,9 +144,13 @@ All strategies also support k-fold variants (`random_kfold`, `stratified_kfold`,
 
 Every run produces consistent artefacts:
 
-- Reduced or split CSVs
+- Reduced or split tables, CSV or Parquet (by the output extension for `reduce`, by the input format for `split`), with the id column first
 - Mapping CSV (`removed_id`, `representative_id`, `cluster_id`, `score`) for reduction runs
-- JSON report with strategy name, effective parameters, and reduction/split statistics
+- JSON report with the tool version, strategy name, effective parameters, and reduction/split statistics
+- Provenance sidecar following the shared ecosystem CLI contract: `<output>.provenance.json` for `reduce` and `<outdir>.provenance.json` for `split`
+
+Exit codes: 0 success, 2 invalid config or usage (also `validate-inputs` failures), 3 runtime or data failure, 4 internal error.
+`homology_aware` runs MMseqs2 in a temporary directory unless `work_dir` is set; `keep_work: true` keeps it.
 
 ## Learn More
 

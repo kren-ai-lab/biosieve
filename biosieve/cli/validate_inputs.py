@@ -13,7 +13,7 @@ import polars as pl
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
-from biosieve.core.common import JSONValue, safe_jsonable
+from biosieve.core.common import JSONValue, read_table, safe_jsonable
 from biosieve.types import Columns
 
 if TYPE_CHECKING:
@@ -393,9 +393,9 @@ def _run_strategy_requirements(
 
 
 # -----------------------------
-# Main validate runner
+# Main validate-inputs runner
 # -----------------------------
-def validate(
+def validate_inputs(
     input_data: Path = INPUT_DATA_OPTION,
     columns: str | None = COLUMNS_OPTION,
     embeddings: Path | None = EMBEDDINGS_OPTION,
@@ -454,12 +454,12 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         if not ok:
             errors += 1
             if args.fail_fast:
-                raise SystemExit(1)
+                raise typer.Exit(2)
 
     # --- dataset read ---
     ok, msg = _check_exists(args.in_path, "dataset")
     record(ok=ok, msg=msg)
-    df = pl.read_csv(args.in_path)
+    df = read_table(args.in_path, cols.id_col)
 
     base_checks = [
         _check_unique_ids(df, cols.id_col),
@@ -507,4 +507,4 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         Path(args.report).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if errors > 0:
-        raise SystemExit(1)
+        raise typer.Exit(2)
