@@ -5,4 +5,3 @@ distance_aware_kfold:
   seed: 13
   shuffle_ties: true
   val_size: 0.1
-
