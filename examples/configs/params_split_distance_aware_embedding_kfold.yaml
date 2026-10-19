@@ -6,5 +6,3 @@ distance_aware_kfold:
   shuffle_ties: true
   val_size: 0.1
 
-  embeddings_path: "embeddings.npy"
-  ids_path: "embedding_ids.csv"

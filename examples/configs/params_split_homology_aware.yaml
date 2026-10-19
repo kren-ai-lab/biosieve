@@ -10,5 +10,6 @@ homology_aware:
   cov_mode: 0
   threads: 16
 
+  # work_dir defaults to a temporary directory; set it together with keep_work to keep the clusters
   work_dir: "runs/mmseqs2_clusters"
   keep_work: true

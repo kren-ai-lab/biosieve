@@ -81,13 +81,21 @@ bash ../testing_reducers.sh
 
 ## CLI reference
 
+Input files (embeddings, embedding ids, edges, clusters) are passed as options, never as config keys.
+`--params` is accepted as an alias of `--config`.
+
 ```bash
 # Split
-biosieve split -i <input.csv> -o <outdir/> --strategy <name> --params <params.yaml>
+biosieve split -i <input.csv|input.parquet> -o <outdir/> --strategy <name> --config <params.yaml> \
+  [--embeddings <file.npy|file.npz>] [--embedding-ids <ids>] [--clusters <clusters>]
 
 # Reduce
-biosieve reduce -i <input.csv> -o <output.csv> --strategy <name> \
-  [--mapping-output map.csv] [--report-output report.json] [--params <params.yaml>]
+biosieve reduce -i <input.csv|input.parquet> -o <output.csv|output.parquet> --strategy <name> \
+  [--mapping-output map.csv] [--report-output report.json] [--config <params.yaml>] \
+  [--embeddings <file.npy|file.npz>] [--embedding-ids <ids>] [--edges <edges.csv>]
+
+# Check a params file without reading any data
+biosieve validate-config <params.yaml> --strategy <name> [--kind reduce|split] [--json]
 
 # Override a param inline (no YAML needed)
 biosieve split -i data.csv -o out/ --strategy random --set random.seed=42

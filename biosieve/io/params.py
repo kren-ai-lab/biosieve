@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import json
-import logging
+import types
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Literal, Union, cast, get_args, get_origin, get_type_hints
+
+from biosieve.core.common import PATH_FIELDS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from types import ModuleType
 
-log = logging.getLogger(__name__)
+Issue = tuple[str, str]  # (dotted path, message); an empty path means the file root
 
 MIN_OVERRIDE_KEY_PARTS = 2
 
@@ -120,22 +123,62 @@ def load_params(
     return base
 
 
-def params_for_strategy(all_params: Mapping[str, object], strategy_name: str) -> dict[str, object]:
-    """Return the parameter mapping for one strategy, or an empty mapping."""
-    if strategy_name not in all_params:
-        if all_params:
-            known = sorted(all_params.keys())
-            log.warning(
-                "No params found for strategy '%s' in params file. "
-                "Keys present: %s. Check that the top-level key matches the strategy name.",
-                strategy_name,
-                known,
-            )
-        return {}
-    v = all_params[strategy_name]
-    if v is None:
-        return {}
-    if not isinstance(v, dict):
-        msg = f"Params for strategy '{strategy_name}' must be a dict, got {type(v).__name__}."
-        raise TypeError(msg)
-    return cast("dict[str, object]", v)
+def _type_ok(value: object, hint: Any) -> bool:  # noqa: ANN401, PLR0911
+    """Return whether a parsed config value fits a dataclass field annotation."""
+    origin = get_origin(hint)
+    if hint is Any or hint is object:
+        return True
+    if origin in {Union, types.UnionType}:
+        return any(_type_ok(value, h) for h in get_args(hint))
+    if origin is Literal:
+        return value in get_args(hint)
+    if hint is type(None):
+        return value is None
+    if hint is bool:
+        return isinstance(value, bool)
+    if hint is int:
+        return isinstance(value, int) and not isinstance(value, bool)
+    if hint is float:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if origin is list:
+        (item,) = get_args(hint)
+        return isinstance(value, list) and all(_type_ok(v, item) for v in value)
+    if origin is dict:
+        return isinstance(value, dict)
+    return isinstance(value, hint) if isinstance(hint, type) else True
+
+
+def read_config(
+    path: str | None, overrides: list[str] | None = None
+) -> tuple[dict[str, object], list[Issue]]:
+    """Load a params file plus ``--set`` overrides; a problem is returned as an issue, not raised."""
+    try:
+        return load_params(path, overrides), []
+    except (OSError, ValueError, TypeError, ImportError) as exc:
+        return {}, [("", str(exc))]
+
+
+def check_params(all_params: Mapping[str, object], strategy: str, cls: type[Any]) -> list[Issue]:
+    """Validate ``{strategy: {param: value}}`` against the strategy dataclass; return every problem."""
+    issues: list[Issue] = [
+        (name, f"block for strategy '{name}' but --strategy is '{strategy}'")
+        for name in all_params
+        if name != strategy
+    ]
+    block = all_params.get(strategy)
+    if block is None:
+        return issues
+    if not isinstance(block, dict):
+        return [*issues, (strategy, f"expected a mapping, got {type(block).__name__}")]
+
+    hints: dict[str, Any] = get_type_hints(cls)
+    allowed = {f.name for f in dataclasses.fields(cls)}
+    for key, value in cast("dict[str, object]", block).items():
+        where = f"{strategy}.{key}"
+        if key in PATH_FIELDS:
+            issues.append((where, f"input paths are not config keys; use {PATH_FIELDS[key]}"))
+        elif key not in allowed:
+            issues.append((where, f"unknown parameter; allowed: {sorted(allowed - PATH_FIELDS.keys())}"))
+        elif not _type_ok(value, hints[key]):
+            issues.append((where, f"expected {hints[key]}, got {value!r}"))
+    return issues

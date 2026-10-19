@@ -42,7 +42,9 @@ biosieve reduce \
   --strategy embedding_cosine \
   --mapping-output map_emb_cosine.csv \
   --report-output report_emb_cosine.json \
-  --params ../configs/params_reducer.yaml
+  --embeddings embeddings.npy \
+  --embedding-ids embedding_ids.csv \
+  --config ../configs/params_reducer.yaml
 
 # Descriptor Euclidean distance
 biosieve reduce \
@@ -59,7 +61,7 @@ biosieve reduce \
   --strategy minhash_jaccard \
   --mapping-output map_minhash.csv \
   --report-output report_minhash.json \
-  --params ../configs/params_reducer_minhash_jaccard.yaml
+  --config ../configs/params_reducer_minhash_jaccard.yaml
 
 # Structural distance
 biosieve reduce \
@@ -67,4 +69,5 @@ biosieve reduce \
   -o data_nr_structural.csv \
   --strategy structural_distance \
   --mapping-output map_structural.csv \
-  --report-output report_structural.json
+  --report-output report_structural.json \
+  --edges struct_edges.csv

@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import polars as pl
 
+from biosieve.errors import ConfigError
 from biosieve.splitting.base import SplitResult
 from biosieve.splitting.common import derive_val_fraction, validate_sizes
 from biosieve.splitting.group import _split_groups
@@ -106,7 +108,7 @@ class HomologyAwareSplitter:
     coverage: float = 0.8
     cov_mode: int = 0
     threads: int = 8
-    work_dir: str = "runs/mmseqs2_homology"
+    work_dir: str | None = None  # None: a temporary directory
     keep_work: bool = False
 
     @property
@@ -114,14 +116,12 @@ class HomologyAwareSplitter:
         return "homology_aware"
 
     def _get_cluster_map(self, df: pl.DataFrame, cols: Any) -> tuple[dict[str, str], dict[str, Any]]:
-        work = Path(self.work_dir)
-        work.mkdir(parents=True, exist_ok=True)
         if self.mode == "precomputed":
             if not self.clusters_path:
-                raise ValueError("mode='precomputed' requires clusters_path.")
+                raise ConfigError("mode='precomputed' requires --clusters.")
             p = Path(self.clusters_path)
             if not p.exists():
-                raise FileNotFoundError(f"clusters_path not found: {p}")
+                raise FileNotFoundError(f"clusters file not found: {p}")
             if self.clusters_format == "mmseqs_tsv":
                 mdf = _load_mmseqs_cluster_tsv(p)
                 cmap = _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id")
@@ -133,22 +133,29 @@ class HomologyAwareSplitter:
         if self.mode == "mmseqs2":
             if cols.seq_col not in df.columns:
                 raise ValueError(f"Homology-aware split requires sequence column '{cols.seq_col}'.")
-            fasta = work / "input.fasta"
-            _write_fasta(df, cols.id_col, cols.seq_col, fasta)
-            tsv = _run_mmseqs_easy_cluster(
-                fasta,
-                work / "clusters",
-                work / "tmp",
-                mmseqs_bin=self.mmseqs_bin,
-                min_seq_id=self.min_seq_id,
-                coverage=self.coverage,
-                cov_mode=self.cov_mode,
-                threads=self.threads,
+            work = (
+                Path(self.work_dir) if self.work_dir else Path(tempfile.mkdtemp(prefix="biosieve_mmseqs2_"))
             )
-            mdf = _load_mmseqs_cluster_tsv(tsv)
-            return _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id"), {
-                "mode": "mmseqs2"
-            }
+            work.mkdir(parents=True, exist_ok=True)
+            try:
+                fasta = work / "input.fasta"
+                _write_fasta(df, cols.id_col, cols.seq_col, fasta)
+                tsv = _run_mmseqs_easy_cluster(
+                    fasta,
+                    work / "clusters",
+                    work / "tmp",
+                    mmseqs_bin=self.mmseqs_bin,
+                    min_seq_id=self.min_seq_id,
+                    coverage=self.coverage,
+                    cov_mode=self.cov_mode,
+                    threads=self.threads,
+                )
+                mdf = _load_mmseqs_cluster_tsv(tsv)
+                cmap = _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id")
+            finally:
+                if not self.keep_work:
+                    shutil.rmtree(work, ignore_errors=True)
+            return cmap, {"mode": "mmseqs2"}
 
         raise ValueError("mode must be 'mmseqs2' or 'precomputed'")
 
@@ -175,9 +182,6 @@ class HomologyAwareSplitter:
         val_c = (
             set(val[_INTERNAL_CLUSTER_COL].cast(pl.String).unique().to_list()) if val is not None else set()
         )
-
-        if self.keep_work is False and self.mode == "mmseqs2":
-            shutil.rmtree(self.work_dir, ignore_errors=True)
 
         train = train.drop([_INTERNAL_CLUSTER_COL])
         test = test.drop([_INTERNAL_CLUSTER_COL])
