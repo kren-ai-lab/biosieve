@@ -79,10 +79,10 @@ def df_grouped(df_base: pl.DataFrame) -> pl.DataFrame:
 @pytest.fixture
 def df_timed(df_base: pl.DataFrame) -> pl.DataFrame:
     """df_base + date column (string, ascending from 2019 to 2024)."""
-    import datetime
+    import datetime as dt
 
-    start = datetime.date(2019, 1, 1)
-    dates = [str(start + datetime.timedelta(days=i * 40)) for i in range(N)]
+    start = dt.date(2019, 1, 1)
+    dates = [str(start + dt.timedelta(days=i * 40)) for i in range(N)]
     return df_base.with_columns(pl.Series("date", dates))
 
 
@@ -105,17 +105,17 @@ def df_descriptors(df_base: pl.DataFrame) -> pl.DataFrame:
 @pytest.fixture
 def df_full(df_base: pl.DataFrame) -> pl.DataFrame:
     """All columns combined: id, sequence, label, group, cluster_id, date, target, desc_*."""
-    import datetime
+    import datetime as dt
 
     rng = np.random.default_rng(SEED + 3)
     groups = [f"study_{c}" for c in "ABCDE"]
-    start = datetime.date(2019, 1, 1)
+    start = dt.date(2019, 1, 1)
 
     extra = {
         "label": rng.integers(0, 2, size=N).tolist(),
         "group": [groups[i // 10] for i in range(N)],
         "cluster_id": [f"clust_{(i // 5):02d}" for i in range(N)],
-        "date": [str(start + datetime.timedelta(days=i * 40)) for i in range(N)],
+        "date": [str(start + dt.timedelta(days=i * 40)) for i in range(N)],
         "target": rng.random(size=N).tolist(),
     }
     desc = rng.standard_normal((N, 10)).astype(np.float32)
