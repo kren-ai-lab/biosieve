@@ -8,12 +8,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Protocol
 
-import numpy as np
 import polars as pl
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
 from biosieve.core.common import JSONValue, read_table, safe_jsonable
+from biosieve.errors import ConfigError
+from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.types import Columns
 
 if TYPE_CHECKING:
@@ -157,7 +158,7 @@ def _check_seq_col(df: pl.DataFrame, seq_col: str | None) -> tuple[bool, str]:
     return True, f"OK   dataset: sequence column present ('{seq_col}')"
 
 
-def _check_embeddings_alignment(  # noqa: PLR0911
+def _check_embeddings_alignment(
     df: pl.DataFrame,
     id_col: str,
     embeddings_path: str | None,
@@ -166,33 +167,11 @@ def _check_embeddings_alignment(  # noqa: PLR0911
 ) -> tuple[bool, str]:
     if not embeddings_path and not ids_path:
         return True, "SKIP embeddings: not provided"
-    if not embeddings_path or not ids_path:
-        return False, "FAIL embeddings: must provide BOTH --embeddings and --embedding-ids"
-
-    pX = Path(embeddings_path)
-    pI = Path(ids_path)
-    if not pX.exists() or not pI.exists():
-        missing = []
-        if not pX.exists():
-            missing.append(str(pX))
-        if not pI.exists():
-            missing.append(str(pI))
-        return False, f"FAIL embeddings: missing file(s): {missing}"
-
-    # Load ids CSV
-    ids_df = pl.read_csv(pI, infer_schema=False)
-    ids_col_eff = ids_df.columns[0] if ids_col not in ids_df.columns and len(ids_df.columns) == 1 else ids_col
-    if ids_col_eff not in ids_df.columns:
-        return False, f"FAIL embeddings: ids column '{ids_col}' not found in {list(ids_df.columns)}"
-
-    emb_ids = ids_df[ids_col_eff].cast(pl.String).to_list()
-
-    # Load embeddings array shape only
-    X = np.load(pX, mmap_mode="r")
-    if X.ndim != 2:  # noqa: PLR2004
-        return False, f"FAIL embeddings: expected 2D array (N,D), got shape {tuple(X.shape)}"
-    if len(emb_ids) != X.shape[0]:
-        return False, f"FAIL embeddings: ids length {len(emb_ids)} != embeddings rows {X.shape[0]}"
+    try:
+        store = load_embeddings(embeddings_path, ids_path, ids_col)
+    except (ConfigError, OSError, ValueError, KeyError) as e:
+        return False, f"FAIL embeddings: {e}"
+    X, emb_ids = store.X, store.ids
 
     # Coverage check relative to dataset
     ds_ids = set(df[id_col].cast(pl.String).to_list())

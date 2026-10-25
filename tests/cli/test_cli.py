@@ -210,6 +210,24 @@ def test_cli_validate_inputs_basic(csv_file: Path) -> None:
     assert b"OK" in r.stdout or b"SKIP" in r.stdout
 
 
+def test_cli_validate_inputs_embeddings_with_sibling_ids(csv_file: Path, tmp_path: Path) -> None:
+    import numpy as np
+
+    ids = pl.read_csv(csv_file)["id"].to_list()
+    np.save(tmp_path / "emb.npy", np.zeros((len(ids), 4)))
+    (tmp_path / "emb.ids.txt").write_text("\n".join(ids) + "\n")
+    r = _run(
+        "validate-inputs",
+        "--input-data",
+        str(csv_file),
+        "--strategy",
+        "embedding_cosine",
+        "--embeddings",
+        str(tmp_path / "emb.npy"),
+    )
+    assert r.returncode == 0
+
+
 def test_cli_validate_inputs_missing_input_exits_nonzero(tmp_path: Path) -> None:
     r = _run("validate-inputs", "--input-data", str(tmp_path / "nonexistent.csv"))
     assert r.returncode != 0

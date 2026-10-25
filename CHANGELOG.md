@@ -42,3 +42,4 @@ Aligns the CLI with the shared ecosystem CLI contract.
 ### Fixed
 
 - Ids in cluster maps, edge lists, mmseqs cluster TSVs and embedding id CSVs are read as strings, so ids with leading zeros (`001`) match the dataset. Before, they were parsed as numbers and silently left unmatched; in `homology_aware` those samples became singleton clusters.
+- `validate-inputs` reads embeddings with the same loader as `reduce` and `split`, so it accepts a `.npz` with `ids` and a sibling `<stem>.ids.txt` without `--embedding-ids`. It used to read `.ids.txt` as a CSV (the first id became the header) and required `--embedding-ids` for every input.
