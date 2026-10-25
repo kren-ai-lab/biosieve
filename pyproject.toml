@@ -53,7 +53,6 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.17.0,<0.18",
     "taskipy>=1.14.0,<2",
-    "ty>=0.0.91,<0.0.92",
 ]
 
 [project.optional-dependencies]
@@ -106,4 +105,3 @@ test = "pytest -q"
 test-v = "pytest -v"
 test-cov = "pytest --cov=biosieve --cov-report=html"
 pyrefly = "pyrefly check biosieve/ tests/"
-ty = "ty check biosieve/ tests/"
