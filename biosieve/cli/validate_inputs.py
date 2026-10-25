@@ -454,7 +454,7 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         if not ok:
             errors += 1
             if args.fail_fast:
-                raise typer.Exit(2)
+                raise typer.Exit(3)
 
     # --- dataset read ---
     ok, msg = _check_exists(args.in_path, "dataset")
@@ -507,4 +507,4 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         Path(args.report).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if errors > 0:
-        raise typer.Exit(2)
+        raise typer.Exit(3)
