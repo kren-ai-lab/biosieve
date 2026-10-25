@@ -3,8 +3,6 @@ message: "If you use BioSieve in your research, please cite it as below."
 title: "BioSieve: Redundancy Reduction and Leakage-Aware Dataset Partitioning for Biological ML"
 abstract: "Redundancy reduction and leakage-aware dataset partitioning for biological ML."
 type: software
-version: 0.1.2
-date-released: "2026-08-14"
 license: MIT
 doi: 10.5281/zenodo.21930919
 authors:
@@ -32,6 +30,3 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.21930919
     description: "Concept DOI (all versions)"
-  - type: doi
-    value: 10.5281/zenodo.21930920
-    description: "Version DOI (v0.1.2)"
