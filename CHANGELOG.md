@@ -38,3 +38,7 @@ Aligns the CLI with the shared ecosystem CLI contract.
 - Duplicate embedding ids are an error.
 - `homology_aware` no longer writes to `runs/mmseqs2_homology` by default.
 - `embedding_cosine`, `distance_aware` and `structural_distance` no longer fall back to `embeddings.npy`, `embedding_ids.csv` or `struct_edges.csv` in the working directory.
+
+### Fixed
+
+- Ids in cluster maps, edge lists, mmseqs cluster TSVs and embedding id CSVs are read as strings, so ids with leading zeros (`001`) match the dataset. Before, they were parsed as numbers and silently left unmatched; in `homology_aware` those samples became singleton clusters.

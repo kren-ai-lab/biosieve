@@ -75,6 +75,7 @@ def _load_mmseqs_cluster_tsv(cluster_tsv: Path) -> pl.DataFrame:
         cluster_tsv,
         separator="\t",
         has_header=False,
+        infer_schema=False,
         new_columns=["representative_id", "member_id"],
     ).with_columns(cluster_id=pl.col("representative_id"))
 
@@ -126,7 +127,7 @@ class HomologyAwareSplitter:
                 mdf = _load_mmseqs_cluster_tsv(p)
                 cmap = _build_cluster_id_map(mdf, member_col="member_id", cluster_col="cluster_id")
             else:
-                mdf = pl.read_csv(p)
+                mdf = pl.read_csv(p, infer_schema=False)
                 cmap = _build_cluster_id_map(mdf, member_col=self.member_col, cluster_col=self.cluster_col)
             return cmap, {"mode": "precomputed", "clusters_path": str(p)}
 

@@ -180,7 +180,7 @@ def _check_embeddings_alignment(  # noqa: PLR0911
         return False, f"FAIL embeddings: missing file(s): {missing}"
 
     # Load ids CSV
-    ids_df = pl.read_csv(pI)
+    ids_df = pl.read_csv(pI, infer_schema=False)
     ids_col_eff = ids_df.columns[0] if ids_col not in ids_df.columns and len(ids_df.columns) == 1 else ids_col
     if ids_col_eff not in ids_df.columns:
         return False, f"FAIL embeddings: ids column '{ids_col}' not found in {list(ids_df.columns)}"
@@ -236,7 +236,7 @@ def _check_edges(
     if not p.exists():
         return False, f"FAIL edges: missing path '{edges_path}'"
 
-    e = pl.read_csv(p)
+    e = pl.read_csv(p, schema_overrides={id1_col: pl.String, id2_col: pl.String})
     for c in (id1_col, id2_col, value_col):
         if c not in e.columns:
             return False, f"FAIL edges: missing column '{c}' in edges CSV. Found: {list(e.columns)}"

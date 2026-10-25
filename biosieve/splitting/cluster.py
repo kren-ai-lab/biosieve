@@ -44,7 +44,7 @@ def _load_cluster_map_csv(path: str, id_col: str, cluster_col: str) -> dict[str,
         msg = f"cluster_map_path not found: {p}"
         raise FileNotFoundError(msg)
 
-    df = pl.read_csv(p)
+    df = pl.read_csv(p, infer_schema=False)
     if id_col not in df.columns or cluster_col not in df.columns:
         msg = f"cluster map must contain columns '{id_col}' and '{cluster_col}'. Found: {df.columns}"
         raise ValueError(msg)
