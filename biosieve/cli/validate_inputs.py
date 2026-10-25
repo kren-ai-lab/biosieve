@@ -8,12 +8,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Protocol
 
-import numpy as np
 import polars as pl
 import typer
 
 from biosieve.cli.common import LOG_FILE_OPTION, LOG_LEVEL_OPTION, QUIET_OPTION, setup_runtime
-from biosieve.core.common import JSONValue, safe_jsonable
+from biosieve.core.common import JSONValue, read_table, safe_jsonable
+from biosieve.errors import ConfigError
+from biosieve.reduction.backends.embedding_backend import load_embeddings
 from biosieve.types import Columns
 
 if TYPE_CHECKING:
@@ -157,7 +158,7 @@ def _check_seq_col(df: pl.DataFrame, seq_col: str | None) -> tuple[bool, str]:
     return True, f"OK   dataset: sequence column present ('{seq_col}')"
 
 
-def _check_embeddings_alignment(  # noqa: PLR0911
+def _check_embeddings_alignment(
     df: pl.DataFrame,
     id_col: str,
     embeddings_path: str | None,
@@ -166,33 +167,11 @@ def _check_embeddings_alignment(  # noqa: PLR0911
 ) -> tuple[bool, str]:
     if not embeddings_path and not ids_path:
         return True, "SKIP embeddings: not provided"
-    if not embeddings_path or not ids_path:
-        return False, "FAIL embeddings: must provide BOTH --embeddings and --embedding-ids"
-
-    pX = Path(embeddings_path)
-    pI = Path(ids_path)
-    if not pX.exists() or not pI.exists():
-        missing = []
-        if not pX.exists():
-            missing.append(str(pX))
-        if not pI.exists():
-            missing.append(str(pI))
-        return False, f"FAIL embeddings: missing file(s): {missing}"
-
-    # Load ids CSV
-    ids_df = pl.read_csv(pI)
-    ids_col_eff = ids_df.columns[0] if ids_col not in ids_df.columns and len(ids_df.columns) == 1 else ids_col
-    if ids_col_eff not in ids_df.columns:
-        return False, f"FAIL embeddings: ids column '{ids_col}' not found in {list(ids_df.columns)}"
-
-    emb_ids = ids_df[ids_col_eff].cast(pl.String).to_list()
-
-    # Load embeddings array shape only
-    X = np.load(pX, mmap_mode="r")
-    if X.ndim != 2:  # noqa: PLR2004
-        return False, f"FAIL embeddings: expected 2D array (N,D), got shape {tuple(X.shape)}"
-    if len(emb_ids) != X.shape[0]:
-        return False, f"FAIL embeddings: ids length {len(emb_ids)} != embeddings rows {X.shape[0]}"
+    try:
+        store = load_embeddings(embeddings_path, ids_path, ids_col)
+    except (ConfigError, OSError, ValueError, KeyError) as e:
+        return False, f"FAIL embeddings: {e}"
+    X, emb_ids = store.X, store.ids
 
     # Coverage check relative to dataset
     ds_ids = set(df[id_col].cast(pl.String).to_list())
@@ -236,7 +215,7 @@ def _check_edges(
     if not p.exists():
         return False, f"FAIL edges: missing path '{edges_path}'"
 
-    e = pl.read_csv(p)
+    e = pl.read_csv(p, schema_overrides={id1_col: pl.String, id2_col: pl.String})
     for c in (id1_col, id2_col, value_col):
         if c not in e.columns:
             return False, f"FAIL edges: missing column '{c}' in edges CSV. Found: {list(e.columns)}"
@@ -393,9 +372,9 @@ def _run_strategy_requirements(
 
 
 # -----------------------------
-# Main validate runner
+# Main validate-inputs runner
 # -----------------------------
-def validate(
+def validate_inputs(
     input_data: Path = INPUT_DATA_OPTION,
     columns: str | None = COLUMNS_OPTION,
     embeddings: Path | None = EMBEDDINGS_OPTION,
@@ -454,12 +433,12 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         if not ok:
             errors += 1
             if args.fail_fast:
-                raise SystemExit(1)
+                raise typer.Exit(3)
 
     # --- dataset read ---
     ok, msg = _check_exists(args.in_path, "dataset")
     record(ok=ok, msg=msg)
-    df = pl.read_csv(args.in_path)
+    df = read_table(args.in_path, cols.id_col)
 
     base_checks = [
         _check_unique_ids(df, cols.id_col),
@@ -507,4 +486,4 @@ def _run_validate(args: SimpleNamespace, registry: StrategyRegistry) -> None:
         Path(args.report).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if errors > 0:
-        raise SystemExit(1)
+        raise typer.Exit(3)

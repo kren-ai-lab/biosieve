@@ -30,14 +30,6 @@ hooks = [
     pass_filenames = false
   },
   {
-    id = "ty",
-    name = "ty-check",
-    entry = "uv run ty check",
-    language = "python",
-    types = ["python"],
-    pass_filenames = false
-  },
-  {
     id = "pyrefly",
     name = "pyrefly-check",
     entry = "uv run pyrefly check",

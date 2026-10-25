@@ -1,6 +1,4 @@
 embedding_cosine:
-  embeddings_path: "embeddings.npy"
-  ids_path: "embedding_ids.csv"
   threshold: 0.95
   use_faiss: false
   n_jobs: 8

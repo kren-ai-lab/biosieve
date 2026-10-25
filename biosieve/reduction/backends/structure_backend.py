@@ -29,7 +29,7 @@ def load_edges_csv(
         msg = f"Structural edges file not found: {p}"
         raise FileNotFoundError(msg)
 
-    df = pl.read_csv(p)
+    df = pl.read_csv(p, schema_overrides={id1_col: pl.String, id2_col: pl.String})
     for col in (id1_col, id2_col, value_col):
         if col not in df.columns:
             msg = f"Missing required column '{col}' in {p}. Found: {df.columns}"

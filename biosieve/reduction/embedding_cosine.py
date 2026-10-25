@@ -54,8 +54,8 @@ class EmbeddingCosineReducer:
     3) Remove any neighbors with cosine similarity >= `threshold`.
 
     Inputs required (embeddings mode):
-    - embeddings_path: .npy array of shape (N, D)
-    - ids_path: CSV containing embedding row ids in the same order as embeddings
+    - embeddings_path: .npy/.npz array of shape (N, D), supplied by the CLI as --embeddings
+    - ids_path: embedding row ids in the same order as embeddings, supplied as --embedding-ids
 
     Neighbor search backends:
     - FAISS (if available and use_faiss=True): inner-product search on normalized vectors.
@@ -66,10 +66,10 @@ class EmbeddingCosineReducer:
     representatives (safest default), and are never removed by this strategy.
 
     Args:
-        embeddings_path: Path to embeddings .npy file (N, D).
-        ids_path: Path to CSV with embedding row ids (length N).
-        ids_col: Column name inside ids_path CSV containing ids. If the CSV has a single column,
-            it will be used automatically by the embedding backend.
+        embeddings_path: Path to embeddings .npy/.npz file (N, D); set by --embeddings.
+        ids_path: Row ids (length N): .ids.txt, .npz or CSV; set by --embedding-ids. Defaults to the
+            .npz's own ids or the sibling <stem>.ids.txt.
+        ids_col: Column name inside a CSV ids_path containing ids (strict, no fallback).
         threshold: Cosine similarity threshold in [0, 1]. Neighbors with sim >= threshold are removed.
         use_faiss: If True, tries to use FAISS if installed; otherwise falls back to sklearn.
         n_jobs: Number of parallel jobs for sklearn NearestNeighbors (ignored for FAISS).
@@ -108,8 +108,8 @@ class EmbeddingCosineReducer:
 
     """
 
-    embeddings_path: str = "embeddings.npy"
-    ids_path: str = "embedding_ids.csv"
+    embeddings_path: str | None = None
+    ids_path: str | None = None
     ids_col: str = "id"
 
     threshold: float = 0.95
